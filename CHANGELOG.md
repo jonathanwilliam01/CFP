@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.26.10.2 — 2026-10-26
+- Chat entre os membros da carteira, com aviso de mensagem nova
+- Importação da fatura do Nubank (CSV) com categoria sugerida, parcelas e aviso de gasto já lançado
+- Voltar do celular fecha o painel aberto (lançamento, edição, foto) em vez de sair da página
+
 ## v1.26.10.1 — 2026-10-26
 - Primeira versão do CFP
 - Lançamento rápido de gastos, entradas e compras parceladas

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { addMeses, mesAtual } from '../core/datas';
 import { BrlPipe, MesPipe, pct, soma } from '../core/formato';
 import { faturaDoMes, fixasNaFatura } from '../core/financas';
@@ -23,13 +24,16 @@ interface FormCartao {
 }
 
 @Component({
-  imports: [FormsModule, BrlPipe, MesPipe, Icon, Sheet],
+  imports: [FormsModule, RouterLink, BrlPipe, MesPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <div class="page-head">
         <h1>Cartões</h1>
-        <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Novo</button>
+        <div class="acts">
+          <a class="btn ghost sm" routerLink="/importar"><app-icon name="upload_file" [size]="16" />Importar Nubank</a>
+          <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Novo</button>
+        </div>
       </div>
 
       @for (c of lista(); track c.cartao.id) {

@@ -8,6 +8,15 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.10.2',
+    data: '2026-10-26',
+    itens: [
+      'Chat entre os membros da carteira, com aviso de mensagem nova',
+      'Importação da fatura do Nubank (CSV) com categoria sugerida, parcelas e aviso de gasto já lançado',
+      'Voltar do celular fecha o painel aberto (lançamento, edição, foto) em vez de sair da página',
+    ],
+  },
+  {
     versao: 'v1.26.10.1',
     data: '2026-10-26',
     itens: [

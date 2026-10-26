@@ -15,6 +15,7 @@ export const ATALHOS = [
   { rota: '/resumo', icone: 'summarize', rotulo: 'Resumo mensal' },
   { rota: '/relatorios', icone: 'bar_chart', rotulo: 'Relatórios' },
   { rota: '/registros', icone: 'menu_book', rotulo: 'Registros' },
+  { rota: '/chat', icone: 'chat', rotulo: 'Chat' },
   { rota: '/notificacoes', icone: 'notifications', rotulo: 'Notificações' },
   { rota: '/config', icone: 'settings', rotulo: 'Configurações' },
 ];

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, model } from '@angular/core';
 import { Icon } from './icon';
+import { fecharNoVoltar } from './voltar';
 
 /** Painel que sobe de baixo (mobile) ou modal centralizado (desktop) */
 @Component({
@@ -50,4 +51,8 @@ import { Icon } from './icon';
 export class Sheet {
   readonly open = model(false);
   readonly titulo = input('');
+
+  constructor() {
+    fecharNoVoltar(() => this.open(), () => this.open.set(false));
+  }
 }

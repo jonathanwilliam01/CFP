@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Chat } from '../core/chat';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { VERSAO } from '../core/versao';
@@ -21,8 +22,8 @@ import { Icon } from '../shared/icon';
           <a class="card at" [routerLink]="a.rota">
             <app-icon class="e" [name]="a.icone" [size]="30" />
             <span class="r">{{ a.rotulo }}</span>
-            @if (a.rota === '/notificacoes' && insights.naoLidas().length) {
-              <span class="n">{{ insights.naoLidas().length }}</span>
+            @if (badge(a.rota); as n) {
+              <span class="n">{{ n }}</span>
             }
           </a>
         }
@@ -45,6 +46,11 @@ import { Icon } from '../shared/icon';
 export default class Mais {
   protected s = inject(Store);
   protected insights = inject(Insights);
+  private chat = inject(Chat);
   protected atalhos = ATALHOS;
   protected versao = VERSAO;
+
+  badge(rota: string) {
+    return rota === '/notificacoes' ? this.insights.naoLidas().length : rota === '/chat' ? this.chat.naoLidas() : 0;
+  }
 }

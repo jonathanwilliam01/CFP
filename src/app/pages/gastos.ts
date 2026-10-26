@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { BrlPipe, DiaPipe, soma } from '../core/formato';
 import { Gasto } from '../core/models';
 import { Store } from '../core/store';
@@ -9,13 +10,16 @@ import { Lancar } from '../shared/lancar';
 type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
 
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, Icon],
+  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <div class="page-head">
         <h1>Gastos</h1>
-        <button class="btn sm" (click)="lancar.novo()"><app-icon name="add" [size]="16" />Novo</button>
+        <div class="acts">
+          <a class="btn ghost sm" routerLink="/importar"><app-icon name="upload_file" [size]="16" />Importar Nubank</a>
+          <button class="btn sm" (click)="lancar.novo()"><app-icon name="add" [size]="16" />Novo</button>
+        </div>
       </div>
 
       <label class="busca">
@@ -58,6 +62,7 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
     </div>
   `,
   styles: `
+    .acts { display: flex; gap: 8px; }
     .busca { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; color: var(--ink-3); }
     .busca input { border: 0; background: none; box-shadow: none; padding: 10px 0; }
     .total { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; }

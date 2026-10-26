@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { Auth } from '../core/auth';
+import { Chat } from '../core/chat';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Tema } from '../core/tema';
@@ -31,6 +32,12 @@ import { ATALHOS, PRINCIPAIS } from './menu';
         <button type="button" class="bell" (click)="tema.alternar()" [attr.aria-label]="tema.escuro() ? 'Tema claro' : 'Tema escuro'">
           <app-icon [name]="tema.escuro() ? 'light_mode' : 'dark_mode'" [size]="20" />
         </button>
+        <a routerLink="/chat" class="bell" aria-label="Chat">
+          <app-icon name="chat" />
+          @if (chat.naoLidas(); as n) {
+            <span class="dot">{{ n }}</span>
+          }
+        </a>
         <a routerLink="/notificacoes" class="bell" aria-label="Notificações">
           <app-icon name="notifications" />
           @if (insights.naoLidas().length; as n) {
@@ -54,8 +61,8 @@ import { ATALHOS, PRINCIPAIS } from './menu';
         @for (m of atalhos; track m.rota) {
           <a [routerLink]="m.rota" routerLinkActive="on" #rla="routerLinkActive" [title]="m.rotulo">
             <app-icon [name]="m.icone" [fill]="rla.isActive" /><span class="r">{{ m.rotulo }}</span>
-            @if (m.rota === '/notificacoes' && insights.naoLidas().length) {
-              <span class="n">{{ insights.naoLidas().length }}</span>
+            @if (badge(m.rota); as n) {
+              <span class="n">{{ n }}</span>
             }
           </a>
         }
@@ -177,6 +184,7 @@ export class Shell {
   protected s = inject(Store);
   protected auth = inject(Auth);
   protected insights = inject(Insights);
+  protected chat = inject(Chat);
   protected lancar = inject(Lancar);
   protected tema = inject(Tema);
 
@@ -185,6 +193,10 @@ export class Shell {
   protected versao = VERSAO;
   protected conta = signal(false);
   protected recolhido = signal(localStorage.getItem('cfp.menu') === 'recolhido');
+
+  badge(rota: string) {
+    return rota === '/notificacoes' ? this.insights.naoLidas().length : rota === '/chat' ? this.chat.naoLidas() : 0;
+  }
 
   alternarMenu() {
     this.recolhido.update((v) => !v);

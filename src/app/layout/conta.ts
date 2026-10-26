@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, model, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { Auth, Foto } from '../core/auth';
 import { Store } from '../core/store';
 import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { fecharNoVoltar } from '../shared/voltar';
 
 const TAM = 220;
 const MAX_LADO = 1024;
@@ -13,7 +14,7 @@ const MAX_LADO = 1024;
 /** Minha conta: dados do usuário e foto de perfil (visualizar, trocar, enquadrar) */
 @Component({
   selector: 'app-conta',
-  imports: [RouterLink, Avatar, Icon, Sheet],
+  imports: [Avatar, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-sheet [open]="open()" (openChange)="fechar()" [titulo]="editando() ? 'Foto de perfil' : 'Minha conta'">
@@ -53,7 +54,7 @@ const MAX_LADO = 1024;
               </div>
             }
           </div>
-          <a class="btn ghost block" routerLink="/config" (click)="open.set(false)"><app-icon name="settings" [size]="18" />Configurações</a>
+          <button class="btn ghost block" type="button" (click)="irConfig()"><app-icon name="settings" [size]="18" />Configurações</button>
           <button class="btn danger block" type="button" (click)="sair()"><app-icon name="logout" [size]="18" />Sair</button>
         </div>
       } @else {
@@ -147,6 +148,11 @@ export class Conta {
     return d ? new Date(d).toLocaleDateString('pt-BR') : '';
   });
 
+  constructor() {
+    fecharNoVoltar(() => this.editando(), () => this.cancelar());
+    fecharNoVoltar(() => this.vendo(), () => this.vendo.set(false));
+  }
+
   editar() {
     const f = this.auth.foto();
     this.limparImagem();
@@ -162,6 +168,18 @@ export class Conta {
   fechar() {
     this.cancelar();
     this.open.set(false);
+  }
+
+  /** Fecha e espera o histórico voltar antes de navegar, senão o voltar desfaz a navegação */
+  private fecharAntes() {
+    const voltou = new Promise((ok) => addEventListener('popstate', ok, { once: true }));
+    this.fechar();
+    return voltou;
+  }
+
+  async irConfig() {
+    await this.fecharAntes();
+    this.router.navigateByUrl('/config');
   }
 
   async escolher(ev: Event) {
@@ -236,7 +254,7 @@ export class Conta {
 
   async sair() {
     if (!confirm('Sair da conta?')) return;
-    this.fechar();
+    await this.fecharAntes();
     await this.auth.sair();
     this.router.navigateByUrl('/login');
   }

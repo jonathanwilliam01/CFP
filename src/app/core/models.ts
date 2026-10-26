@@ -166,3 +166,10 @@ export interface ContaMes {
   /** valor previsto pela média de conta variável */
   media?: boolean;
 }
+
+export interface Mensagem {
+  id: string;
+  user_id: string;
+  texto: string;
+  criado_em: string;
+}

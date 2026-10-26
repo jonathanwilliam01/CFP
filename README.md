@@ -45,3 +45,5 @@ A cada build publicado na Vercel: nova nota no topo de `src/app/core/versao.ts` 
 - **Benefícios** (VR/VA): gastos descontam do saldo do benefício e não entram nas saídas.
 - **Registros**: controles avulsos (ex.: carro), não entram nas contas do mês.
 - **Parcelamentos**: geram um gasto por parcela; no cartão, cada parcela cai numa fatura.
+- **Importar fatura Nubank** (Gastos/Cartões → Importar Nubank): lê o CSV da fatura; pagamentos e estornos ficam de fora; gasto com mesmo valor na mesma fatura do cartão vem desmarcado; parcela vira parcelamento com as próximas; descrição e categoria escolhidas ficam lembradas no aparelho.
+- **Chat**: mensagens entre os membros da carteira em tempo real. Aviso por toast com o app aberto e notificação do sistema com o app em segundo plano (precisa de permissão); com o app fechado não há aviso (exigiria Web Push).
