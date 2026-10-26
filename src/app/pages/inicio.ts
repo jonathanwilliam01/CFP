@@ -183,7 +183,7 @@ export default class Inicio {
   protected fatias = computed(() => this.cats().map((c) => ({ nome: c.nome, valor: c.total, cor: c.cor })));
   protected proximas = computed(() => this.s.contasMes().filter((c) => !c.pago).slice(0, 5));
   protected beneficios = computed(() =>
-    this.s.beneficiosAtivos().map((b) => ({ ...b, saldo: saldoBeneficio(b, this.s.gastosBeneficio(), this.s.mes()).saldo })),
+    this.s.beneficiosAtivos().map((b) => ({ ...b, saldo: saldoBeneficio(b, this.s.gastosBeneficio(), this.s.mes(), this.s.cobrancasBeneficio()).saldo })),
   );
   protected cofrinhos = computed(() =>
     this.s.cofrinhos().slice(0, 4).map((c) => {

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { mesAtual } from '../core/datas';
 import { saldoBeneficio } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, pct } from '../core/formato';
@@ -21,7 +22,7 @@ interface FormBeneficio {
 }
 
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, MesPipe, Icon, Sheet],
+  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -30,7 +31,7 @@ interface FormBeneficio {
         <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Novo</button>
       </div>
 
-      <p class="small muted">Gastos pagos com benefício (VR, VA...) são descontados do saldo dele e não entram nas contas do mês. Ao lançar, escolha o benefício em “Pagamento”.</p>
+      <p class="small muted">Gastos e contas fixas pagos com benefício (VR, VA...) são descontados do saldo dele e não entram nas saídas do mês. Escolha o benefício em “Pagamento” ao lançar ou cadastrar a conta fixa.</p>
 
       @for (b of lista(); track b.beneficio.id) {
         <article class="card" [class.off]="!b.beneficio.ativo">
@@ -51,8 +52,15 @@ interface FormBeneficio {
           </div>
           <p class="small muted">Usado no mês: <b class="num">{{ b.usadoMes | brl }}</b></p>
 
-          @if (b.gastos.length) {
+          @if (b.gastos.length || b.contas.length) {
             <div class="list">
+              @for (c of b.contas; track c.ref_id) {
+                <a class="row" routerLink="/contas">
+                  <span class="ico"><app-icon [name]="c.icone" /></span>
+                  <span class="grow"><span class="t">{{ c.descricao }}</span><span class="s">Conta fixa · vence {{ c.vencimento | dia }}{{ c.pago ? ' · paga' : '' }}</span></span>
+                  <span class="v">{{ c.valor | brl }}</span>
+                </a>
+              }
               @for (g of b.gastos; track g.id) {
                 <button type="button" class="row" (click)="lancar.editarGasto(g)">
                   <span class="ico"><app-icon [name]="s.catMap().get(g.categoria_id ?? '')?.icone ?? 'restaurant'" /></span>
@@ -109,7 +117,7 @@ export default class Beneficios {
 
   protected lista = computed(() =>
     this.s.beneficios().map((b) => {
-      const { saldo, usadoMes } = saldoBeneficio(b, this.s.gastosBeneficio(), this.s.mes());
+      const { saldo, usadoMes } = saldoBeneficio(b, this.s.gastosBeneficio(), this.s.mes(), this.s.cobrancasBeneficio());
       const disponivel = saldo + usadoMes;
       return {
         beneficio: b,
@@ -117,6 +125,7 @@ export default class Beneficios {
         usadoMes,
         pct: pct(usadoMes, disponivel),
         gastos: this.s.gastosMes().filter((g) => g.forma === 'beneficio' && g.beneficio_id === b.id),
+        contas: this.s.contasMes().filter((c) => c.beneficio_id === b.id),
       };
     }),
   );

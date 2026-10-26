@@ -94,6 +94,8 @@ export interface Recorrencia {
   variavel: boolean;
   /** conta entra nas contas do mês anterior ao vencimento */
   paga_mes_anterior: boolean;
+  /** paga com benefício: desconta do saldo dele e não entra nas saídas */
+  beneficio_id: string | null;
 }
 
 export interface Pagamento {
@@ -167,6 +169,8 @@ export interface ContaMes {
   pago: Pagamento | null;
   /** valor previsto pela média de conta variável */
   media?: boolean;
+  /** conta fixa paga com benefício */
+  beneficio_id?: string | null;
 }
 
 export interface Mensagem {

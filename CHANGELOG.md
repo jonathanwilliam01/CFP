@@ -5,6 +5,7 @@
 - Importação da fatura do Nubank (CSV) com categoria sugerida, parcelas e aviso de gasto já lançado
 - Voltar do celular fecha o painel aberto (lançamento, edição, foto) em vez de sair da página
 - Conta fixa com opção de pagar com o salário do mês anterior ao vencimento
+- Conta fixa paga com benefício: desconta do saldo dele e não entra nas saídas do mês
 
 ## v1.26.10.1 — 2026-10-26
 - Primeira versão do CFP

@@ -43,7 +43,7 @@ A cada build publicado na Vercel: nova nota no topo de `src/app/core/versao.ts` 
 - **Conta fixa paga com o salário do mês anterior** (opção da conta fixa): entra nas contas e saídas do mês anterior ao vencimento (vence 07/11 → conta em outubro).
 - **Conta fixa no cartão**: entra uma vez em cada fatura a partir da primeira (por padrão a fatura aberta no cadastro), vence com a fatura, não aparece como conta separada e fica paga quando a fatura é paga.
 - **Conta variável**: valor previsto = média das últimas 12 contas (pagas ou incluídas no histórico), a partir de 3; antes disso usa o valor estimado.
-- **Benefícios** (VR/VA): gastos descontam do saldo do benefício e não entram nas saídas.
+- **Benefícios** (VR/VA): gastos e contas fixas pagos com benefício descontam do saldo dele e não entram nas saídas.
 - **Registros**: controles avulsos (ex.: carro), não entram nas contas do mês.
 - **Parcelamentos**: geram um gasto por parcela; no cartão, cada parcela cai numa fatura.
 - **Importar fatura Nubank** (Gastos/Cartões → Importar Nubank): lê o CSV da fatura; pagamentos e estornos ficam de fora; gasto com mesmo valor na mesma fatura do cartão vem desmarcado; parcela vira parcelamento com as próximas; descrição e categoria escolhidas ficam lembradas no aparelho.

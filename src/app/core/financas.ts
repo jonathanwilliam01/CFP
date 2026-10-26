@@ -49,6 +49,7 @@ export function contasDoMes(
         valor: p?.valor ?? r.valor,
         pago: p,
         media: r.variavel && !p,
+        beneficio_id: r.beneficio_id,
       };
     });
 
@@ -100,8 +101,11 @@ export function resumoMes(
   pagamentos: Pagamento[],
 ): ResumoMes {
   const doMes = gastos.filter((g) => noMes(g.data, mes));
+  // contas pagas com benefício contam como benefício, fora das saídas
+  const contasBenef = contas.filter((c) => c.beneficio_id);
+  contas = contas.filter((c) => !c.beneficio_id);
   const avista = soma(doMes.filter((g) => g.forma === 'debito'), (g) => g.valor);
-  const beneficios = soma(doMes.filter((g) => g.forma === 'beneficio'), (g) => g.valor);
+  const beneficios = soma(doMes.filter((g) => g.forma === 'beneficio'), (g) => g.valor) + soma(contasBenef, (c) => c.valor);
   const faturas = soma(contas.filter((c) => c.tipo === 'fatura'), (c) => c.valor);
   const contasFixas = soma(contas.filter((c) => c.tipo === 'recorrencia'), (c) => c.valor);
   const entradasFixas = soma(
@@ -163,12 +167,32 @@ export function porCategoria(gastos: { categoria_id: string | null; valor: numbe
     .sort((a, b) => b.total - a.total);
 }
 
-export function saldoBeneficio(b: Beneficio, gastosBeneficio: Gasto[], mes: string) {
+export interface CobrancaBeneficio {
+  beneficio_id: string;
+  ref_id: string;
+  mes: string;
+  valor: number;
+}
+
+/** Uma cobrança por mês de vencimento de cada conta fixa paga com benefício, até o mês */
+export function cobrancasBeneficio(recorrencias: Recorrencia[], valores: { ref_id: string; mes: string; valor: number }[], ate: string) {
+  const l: CobrancaBeneficio[] = [];
+  for (const r of recorrencias) {
+    if (r.tipo !== 'conta' || !r.beneficio_id) continue;
+    for (let m = inicioMes(r.inicio); m <= ate; m = addMeses(m, 1))
+      if (ativaNoMes(r, m))
+        l.push({ beneficio_id: r.beneficio_id, ref_id: r.id, mes: m, valor: valores.find((v) => v.ref_id === r.id && v.mes === m)?.valor ?? r.valor });
+  }
+  return l;
+}
+
+export function saldoBeneficio(b: Beneficio, gastosBeneficio: Gasto[], mes: string, cobrancas: CobrancaBeneficio[] = []) {
   const gastos = gastosBeneficio.filter((g) => g.beneficio_id === b.id);
-  const usadoMes = soma(gastos.filter((g) => noMes(g.data, mes)), (g) => g.valor);
+  const contas = cobrancas.filter((c) => c.beneficio_id === b.id && c.mes >= inicioMes(b.inicio));
+  const usadoMes = soma(gastos.filter((g) => noMes(g.data, mes)), (g) => g.valor) + soma(contas.filter((c) => c.mes === mes), (c) => c.valor);
   if (!b.acumula) return { saldo: b.valor_mensal - usadoMes, usadoMes };
   const meses = Math.max(0, mesesEntre(inicioMes(b.inicio), mes) + 1);
-  const usado = soma(gastos.filter((g) => g.data <= fimMes(mes)), (g) => g.valor);
+  const usado = soma(gastos.filter((g) => g.data <= fimMes(mes)), (g) => g.valor) + soma(contas.filter((c) => c.mes <= mes), (c) => c.valor);
   return { saldo: meses * b.valor_mensal - usado, usadoMes };
 }
 

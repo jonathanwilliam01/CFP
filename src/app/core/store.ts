@@ -2,7 +2,7 @@ import { Injectable, WritableSignal, computed, effect, inject, signal, untracked
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Auth } from './auth';
 import { addMeses, fimMes, inicioMes, mesAtual } from './datas';
-import { contasDoMes, mediasVariaveis, noMes, resumoMes, statusOrcamentos } from './financas';
+import { cobrancasBeneficio, contasDoMes, mediasVariaveis, noMes, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
 import {
   Beneficio, Carteira, Cartao, Categoria, Cofrinho, CofrinhoMov, Entrada, Gasto, Membro, Orcamento,
@@ -63,6 +63,8 @@ export class Store {
       return m != null ? { ...r, valor: m } : r;
     }),
   );
+
+  readonly cobrancasBeneficio = computed(() => cobrancasBeneficio(this.recorrenciasPrev(), this.valoresFixas(), this.mes()));
 
   readonly contasMes = computed(() =>
     contasDoMes(this.mes(), this.recorrenciasPrev(), this.cartoes(), this.gastos(), this.pagamentos(), this.catMap()),

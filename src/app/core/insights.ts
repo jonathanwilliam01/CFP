@@ -75,7 +75,7 @@ export class Insights {
       l.push({ id: `saldo-${mes}`, nivel: 'perigo', icone: 'trending_down', titulo: 'Saldo do mês negativo', texto: `As saídas superam as entradas em ${moeda(-r.saldo)}.`, link: '/resumo' });
 
     for (const b of s.beneficiosAtivos()) {
-      const { saldo } = saldoBeneficio(b, s.gastosBeneficio(), mes);
+      const { saldo } = saldoBeneficio(b, s.gastosBeneficio(), mes, s.cobrancasBeneficio());
       if (b.valor_mensal > 0 && saldo < b.valor_mensal * 0.1)
         l.push({ id: `benef-${b.id}-${mes}`, nivel: 'alerta', icone: 'restaurant', titulo: `${b.nome} quase no fim`, texto: `Saldo: ${moeda(saldo)}.`, link: '/beneficios' });
     }
