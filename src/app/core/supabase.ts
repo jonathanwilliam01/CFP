@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
 
+// lido antes do createClient, que limpa o hash do link de redefinição de senha
+export const linkRecuperacao = /type=recovery/.test(location.hash);
+
 export const supabase = createClient(environment.supabaseUrl || 'http://localhost', environment.supabaseKey || 'x', {
   auth: { persistSession: true, autoRefreshToken: true },
 });

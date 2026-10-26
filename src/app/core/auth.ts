@@ -2,7 +2,8 @@ import { Injectable, computed, signal } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { inject } from '@angular/core';
 import type { Session } from '@supabase/supabase-js';
-import { q, supabase } from './supabase';
+import { Push } from './push';
+import { linkRecuperacao, q, supabase } from './supabase';
 
 /** Foto de perfil: imagem original + enquadramento (zoom e deslocamento em % do círculo) */
 export interface Foto {
@@ -14,8 +15,11 @@ export interface Foto {
 
 @Injectable({ providedIn: 'root' })
 export class Auth {
+  private push = inject(Push);
   readonly session = signal<Session | null>(null);
   readonly pronto = signal(false);
+  /** Entrou pelo link de redefinição de senha */
+  readonly recuperando = signal(linkRecuperacao);
   readonly user = computed(() => this.session()?.user ?? null);
   readonly foto = computed(() => (this.user()?.user_metadata?.['foto'] as Foto | null) ?? null);
   readonly nome = computed(() => (this.user()?.user_metadata?.['nome'] as string) || this.user()?.email?.split('@')[0] || '');
@@ -26,7 +30,10 @@ export class Auth {
   });
 
   constructor() {
-    supabase.auth.onAuthStateChange((_e, s) => this.session.set(s));
+    supabase.auth.onAuthStateChange((e, s) => {
+      this.session.set(s);
+      if (e === 'PASSWORD_RECOVERY') this.recuperando.set(true);
+    });
   }
 
   aguardar() {
@@ -49,6 +56,12 @@ export class Auth {
     if (error) throw new Error(traduz(error.message));
   }
 
+  async trocarSenha(senha: string) {
+    const { error } = await supabase.auth.updateUser({ password: senha });
+    if (error) throw new Error(traduz(error.message));
+    this.recuperando.set(false);
+  }
+
   /** Envia nova imagem (se houver) e grava o enquadramento */
   async salvarFoto(imagem: Blob | null, ajuste: Omit<Foto, 'url'>) {
     let url = this.foto()?.url;
@@ -68,7 +81,9 @@ export class Auth {
     if (error) throw new Error(error.message);
   }
 
-  sair() {
+  async sair() {
+    // tira o push deste aparelho enquanto ainda tem sessão; sem esperar o service worker para sempre
+    await Promise.race([this.push.desativar().catch(() => undefined), new Promise((ok) => setTimeout(ok, 3000))]);
     return supabase.auth.signOut();
   }
 }
@@ -78,6 +93,7 @@ function traduz(m: string) {
   if (/already registered/i.test(m)) return 'E-mail já cadastrado';
   if (/email not confirmed/i.test(m)) return 'Confirme seu e-mail antes de entrar';
   if (/at least 6/i.test(m)) return 'A senha precisa ter ao menos 6 caracteres';
+  if (/different from the old/i.test(m)) return 'A nova senha precisa ser diferente da atual';
   return m;
 }
 

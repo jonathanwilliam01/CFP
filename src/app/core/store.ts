@@ -1,26 +1,36 @@
 import { Injectable, WritableSignal, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Router } from '@angular/router';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Auth } from './auth';
 import { addMeses, fimMes, inicioMes, mesAtual } from './datas';
 import { cobrancasBeneficio, contasDoMes, mediasVariaveis, noMes, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
 import {
-  Beneficio, Carteira, Cartao, Categoria, Cofrinho, CofrinhoMov, Entrada, Gasto, Membro, Orcamento,
-  Pagamento, Recorrencia, Registro,
+  Beneficio, Carteira, Cartao, Categoria, Cofrinho, CofrinhoMov, Dados, Entrada, Gasto, Membro, Orcamento,
+  Pagamento, Recorrencia, Registro, Tabela, UsoBeneficio,
 } from './models';
 import { q, supabase } from './supabase';
 
 const CADASTROS = ['categorias', 'cartoes', 'beneficios', 'recorrencias', 'orcamentos', 'cofrinhos', 'cofrinho_movs', 'registros'] as const;
 type Cadastro = (typeof CADASTROS)[number];
+const eCadastro = (t: string): t is Cadastro => (CADASTROS as readonly string[]).includes(t);
+
+/** Tabelas que mudam os dados do mês carregados por carregarMes */
+const DO_MES = ['gastos', 'entradas', 'pagamentos', 'parcelamentos', 'cartoes', 'recorrencias'];
+
+/** Tabelas com aviso de mudança em tempo real (publication supabase_realtime) */
+const TEMPO_REAL = [...CADASTROS, 'gastos', 'entradas', 'pagamentos', 'registro_itens', 'planos', 'parcelamentos', 'carteira_membros'];
 
 @Injectable({ providedIn: 'root' })
 export class Store {
   private auth = inject(Auth);
+  private router = inject(Router);
 
   readonly carteiras = signal<Carteira[]>([]);
   readonly carteiraId = signal<string | null>(localStorage.getItem('cfp.carteira'));
   readonly carteira = computed(() => this.carteiras().find((c) => c.id === this.carteiraId()) ?? null);
   readonly membros = signal<Membro[]>([]);
+  readonly souDono = computed(() => this.membros().find((m) => m.user_id === this.auth.user()?.id)?.papel === 'dono');
   readonly carregando = signal(false);
 
   readonly mes = signal(mesAtual());
@@ -38,7 +48,8 @@ export class Store {
   readonly gastos = signal<Gasto[]>([]);
   readonly entradas = signal<Entrada[]>([]);
   readonly pagamentos = signal<Pagamento[]>([]);
-  readonly gastosBeneficio = signal<Gasto[]>([]);
+  /** Uso dos benefícios por mês até o mês selecionado */
+  readonly usoBeneficios = signal<UsoBeneficio[]>([]);
   /** Valores pagos/registrados de contas fixas, para a média das variáveis */
   readonly valoresFixas = signal<Pick<Pagamento, 'id' | 'ref_id' | 'mes' | 'valor'>[]>([]);
   readonly recentes = signal<{ descricao: string; categoria_id: string | null }[]>([]);
@@ -84,6 +95,7 @@ export class Store {
 
   private canal: RealtimeChannel | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private reqMes = 0;
 
   constructor() {
     effect(() => {
@@ -118,15 +130,32 @@ export class Store {
   }
 
   async entrarCarteira(codigo: string) {
-    const id = await q<string>(supabase.rpc('entrar_carteira', { p_codigo: codigo, p_membro: this.auth.nome() }));
+    const id = await q<string | null>(supabase.rpc('entrar_carteira', { p_codigo: codigo, p_membro: this.auth.nome() }));
+    if (!id) throw new Error('Código inválido');
     await this.iniciar();
     this.carteiraId.set(id);
+  }
+
+  async novoCodigo() {
+    await q(supabase.rpc('novo_codigo', { p_carteira: this.carteiraId() }));
+    await this.iniciar();
+  }
+
+  async removerMembro(userId: string) {
+    await q(supabase.rpc('remover_membro', { p_carteira: this.carteiraId(), p_user: userId }));
+    await this.recarregarMembros();
+  }
+
+  /** Sai da carteira atual (ou a exclui, se dono); devolve false se não sobrou carteira */
+  async sairCarteira(excluir = false) {
+    await q(supabase.rpc(excluir ? 'excluir_carteira' : 'sair_carteira', { p_carteira: this.carteiraId() }));
+    return this.iniciar();
   }
 
   private limpar() {
     this.carteiras.set([]);
     this.membros.set([]);
-    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.cofrinhos, this.cofrinhoMovs, this.registros, this.gastos, this.entradas, this.pagamentos, this.gastosBeneficio, this.valoresFixas];
+    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.cofrinhos, this.cofrinhoMovs, this.registros, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas];
     for (const s of listas) s.set([]);
   }
 
@@ -137,13 +166,14 @@ export class Store {
   async carregarTudo() {
     this.carregando.set(true);
     try {
-      await Promise.all([
-        this.sel<Membro>('carteira_membros', 'criado_em').then((r) => this.membros.set(r)),
-        ...CADASTROS.map((t) => this.recarregar(t)),
-      ]);
+      await Promise.all([this.recarregarMembros(), ...CADASTROS.map((t) => this.recarregar(t))]);
     } finally {
       this.carregando.set(false);
     }
+  }
+
+  private async recarregarMembros() {
+    this.membros.set(await this.sel<Membro>('carteira_membros', 'criado_em'));
   }
 
   async recarregar(t: Cadastro) {
@@ -159,11 +189,12 @@ export class Store {
   }
 
   async carregarMes() {
+    const req = ++this.reqMes;
     const id = this.carteiraId()!;
     const mes = this.mes();
     const ini = addMeses(mes, -1);
     const fim = fimMes(mes);
-    const [gastos, entradas, pagamentos, benef, recentes, valores] = await Promise.all([
+    const [gastos, entradas, pagamentos, uso, recentes, valores] = await Promise.all([
       q<Gasto[]>(
         supabase.from('gastos').select('*').eq('carteira_id', id)
           .or(`and(data.gte.${ini},data.lte.${fim}),fatura_mes.in.(${mes},${addMeses(mes, 1)})`)
@@ -171,7 +202,7 @@ export class Store {
       ),
       q<Entrada[]>(supabase.from('entradas').select('*').eq('carteira_id', id).gte('data', mes).lte('data', fim).order('data', { ascending: false })),
       q<Pagamento[]>(supabase.from('pagamentos').select('*').eq('carteira_id', id).in('mes', [mes, addMeses(mes, 1)])),
-      q<Gasto[]>(supabase.from('gastos').select('*').eq('carteira_id', id).eq('forma', 'beneficio')),
+      q<UsoBeneficio[]>(supabase.rpc('uso_beneficios', { p_carteira: id, p_ate: fim })),
       q<{ descricao: string; categoria_id: string | null }[]>(
         supabase.from('gastos').select('descricao, categoria_id').eq('carteira_id', id).is('parcelamento_id', null)
           .order('criado_em', { ascending: false }).limit(300),
@@ -180,10 +211,12 @@ export class Store {
         supabase.from('pagamentos').select('id, ref_id, mes, valor').eq('carteira_id', id).eq('tipo', 'recorrencia').order('mes', { ascending: false }),
       ),
     ]);
+    // troca rápida de mês: descarta a resposta que chegou depois da mais nova
+    if (req !== this.reqMes) return;
     this.gastos.set(gastos);
     this.entradas.set(entradas);
     this.pagamentos.set(pagamentos);
-    this.gastosBeneficio.set(benef);
+    this.usoBeneficios.set(uso);
     this.valoresFixas.set(valores);
     const vistos = new Set<string>();
     this.recentes.set(recentes.filter((r) => {
@@ -193,7 +226,7 @@ export class Store {
   }
 
   /** Insere (sem id) ou atualiza (com id), recarrega o que for afetado e devolve o id */
-  async salvar(tabela: string, obj: Record<string, unknown>) {
+  async salvar<T extends Tabela>(tabela: T, obj: Dados<T>) {
     const { id, ...dados } = obj;
     let salvo = id as string;
     if (id) await q(supabase.from(tabela).update(dados).eq('id', id));
@@ -202,19 +235,18 @@ export class Store {
     return salvo;
   }
 
-  async excluir(tabela: string, id: string) {
+  async excluir(tabela: Tabela, id: string) {
     await q(supabase.from(tabela).delete().eq('id', id));
     await this.depois(tabela);
   }
 
   async depois(tabela: string) {
-    if ((CADASTROS as readonly string[]).includes(tabela)) await this.recarregar(tabela as Cadastro);
-    if (['gastos', 'entradas', 'pagamentos', 'parcelamentos', 'cartoes', 'recorrencias'].includes(tabela)) await this.carregarMes();
+    if (eCadastro(tabela)) await this.recarregar(tabela);
+    if (DO_MES.includes(tabela)) await this.carregarMes();
   }
 
   async definirPadrao(cartaoId: string) {
-    await q(supabase.from('cartoes').update({ padrao: false }).eq('carteira_id', this.carteiraId()!).neq('id', cartaoId));
-    await q(supabase.from('cartoes').update({ padrao: true }).eq('id', cartaoId));
+    await q(supabase.rpc('definir_cartao_padrao', { p_cartao: cartaoId }));
     await this.recarregar('cartoes');
   }
 
@@ -257,13 +289,18 @@ export class Store {
     return { gastos, entradas, pagamentos };
   }
 
+  // DELETE não aceita filtro no realtime: chega de qualquer carteira (só a chave) e só dispara recarga
   private assinar(id: string | null) {
     if (this.canal) supabase.removeChannel(this.canal);
     this.canal = null;
     if (!id) return;
     const ch = supabase.channel(`carteira-${id}`);
-    for (const t of ['gastos', 'entradas', 'pagamentos', 'recorrencias', 'cofrinho_movs', 'registro_itens'])
-      ch.on('postgres_changes', { event: '*', schema: 'public', table: t, filter: `carteira_id=eq.${id}` }, () => this.agendar(t));
+    for (const t of TEMPO_REAL) {
+      ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: t, filter: `carteira_id=eq.${id}` }, () => this.agendar(t));
+      ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: t, filter: `carteira_id=eq.${id}` }, () => this.agendar(t));
+      ch.on('postgres_changes', { event: 'DELETE', schema: 'public', table: t }, () => this.agendar(t));
+    }
+    ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'carteiras', filter: `id=eq.${id}` }, () => this.agendar('carteiras'));
     this.canal = ch.subscribe();
   }
 
@@ -276,9 +313,15 @@ export class Store {
     this.timer = setTimeout(async () => {
       const ts = [...this.pendentes];
       this.pendentes.clear();
-      if (ts.includes('recorrencias')) await this.recarregar('recorrencias');
-      if (ts.includes('cofrinho_movs')) await this.recarregar('cofrinho_movs');
-      if (ts.some((x) => ['gastos', 'entradas', 'pagamentos'].includes(x))) await this.carregarMes();
+      if (ts.includes('carteira_membros') || ts.includes('carteiras')) {
+        const antes = this.carteiraId();
+        if (!(await this.iniciar())) return void this.router.navigateByUrl('/bem-vindo');
+        // carteira trocada: o effect de carteiraId recarrega tudo
+        if (this.carteiraId() !== antes) return;
+        await this.recarregarMembros();
+      }
+      await Promise.all(ts.filter(eCadastro).map((x) => this.recarregar(x)));
+      if (ts.some((x) => DO_MES.includes(x))) await this.carregarMes();
       this.mudou.update((n) => n + 1);
     }, 600);
   }

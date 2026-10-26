@@ -179,3 +179,33 @@ export interface Mensagem {
   texto: string;
   criado_em: string;
 }
+
+/** Soma dos gastos de um benefício no mês (RPC uso_beneficios) */
+export interface UsoBeneficio {
+  beneficio_id: string;
+  mes: string;
+  total: number;
+}
+
+/** Tabelas gravadas pelo Store.salvar/excluir */
+export interface Tabelas {
+  categorias: Categoria;
+  cartoes: Cartao;
+  beneficios: Beneficio;
+  gastos: Gasto;
+  entradas: Entrada;
+  recorrencias: Recorrencia;
+  pagamentos: Pagamento;
+  parcelamentos: Parcelamento;
+  cofrinhos: Cofrinho;
+  cofrinho_movs: CofrinhoMov;
+  orcamentos: Orcamento;
+  planos: Plano;
+  registros: Registro;
+  registro_itens: RegistroItem;
+}
+
+export type Tabela = keyof Tabelas;
+
+/** Sem id insere, com id atualiza só os campos informados */
+export type Dados<T extends Tabela> = Partial<Omit<Tabelas[T], 'id'>> & { id?: string };

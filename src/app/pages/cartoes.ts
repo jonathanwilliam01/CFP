@@ -31,7 +31,7 @@ interface FormCartao {
       <div class="page-head">
         <h1>Cartões</h1>
         <div class="acts">
-          <a class="btn ghost sm" routerLink="/importar"><app-icon name="upload_file" [size]="16" />Importar Nubank</a>
+          <a class="btn ghost sm" routerLink="/importar"><app-icon name="upload_file" [size]="16" />Importar</a>
           <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Novo</button>
         </div>
       </div>
@@ -229,12 +229,10 @@ export default class Cartoes {
       return this.toast.erro('Dias devem estar entre 1 e 31');
     this.salvando.set(true);
     try {
-      if (f.padrao) {
-        let up = supabase.from('cartoes').update({ padrao: false }).eq('carteira_id', this.s.carteiraId()!);
-        if (f.id) up = up.neq('id', f.id);
-        await q(up);
-      }
-      await this.s.salvar('cartoes', { ...f, nome: f.nome.trim(), limite: f.limite || null });
+      // padrão só pela RPC: o índice único não deixa dois cartões padrão nem por um instante
+      const { padrao, ...dados } = f;
+      const id = await this.s.salvar('cartoes', { ...dados, nome: f.nome.trim(), limite: f.limite || null, ...(padrao ? {} : { padrao: false }) });
+      if (padrao) await this.s.definirPadrao(id);
       this.toast.ok('Cartão salvo');
       this.aberto.set(false);
     } catch (e) {

@@ -117,7 +117,7 @@ export default class Beneficios {
 
   protected lista = computed(() =>
     this.s.beneficios().map((b) => {
-      const { saldo, usadoMes } = saldoBeneficio(b, this.s.gastosBeneficio(), this.s.mes(), this.s.cobrancasBeneficio());
+      const { saldo, usadoMes } = saldoBeneficio(b, this.s.usoBeneficios(), this.s.mes(), this.s.cobrancasBeneficio());
       const disponivel = saldo + usadoMes;
       return {
         beneficio: b,

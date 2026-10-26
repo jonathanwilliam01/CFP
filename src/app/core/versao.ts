@@ -8,6 +8,23 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.10.3',
+    data: '2026-10-26',
+    itens: [
+      'Categoria padrão Gasolina',
+      'Segurança da carteira: só o dono troca o código, remove membros e exclui a carteira; código de convite com 8 caracteres e limite de tentativas',
+      'Sair da carteira, remover membro, excluir carteira e gerar novo código de convite',
+      'Tela para definir a nova senha pelo link de "Esqueci minha senha"',
+      'Importação de CSV de outros bancos e OFX, no cartão ou como Pix/Débito, numa única transação',
+      'Avisos com o app fechado (Web Push) para chat e contas vencendo',
+      'Alterações do parceiro em cartões, categorias, benefícios, orçamentos, cofrinhos e exclusões aparecem na hora',
+      'Correção: entrada fixa recebida no mês seguinte aparecia como recebida no mês atual',
+      'Correção: compra parcelada pelo valor total perdia centavos; a última parcela leva a diferença',
+      'Correção: trocar de mês rápido podia mostrar dados do mês anterior',
+      'Correção: parcela excluída continuava contando em Parcelamentos',
+    ],
+  },
+  {
     versao: 'v1.26.10.2',
     data: '2026-10-26',
     itens: [

@@ -17,7 +17,7 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
       <div class="page-head">
         <h1>Gastos</h1>
         <div class="acts">
-          <a class="btn ghost sm" routerLink="/importar"><app-icon name="upload_file" [size]="16" />Importar Nubank</a>
+          <a class="btn ghost sm" routerLink="/importar"><app-icon name="upload_file" [size]="16" />Importar</a>
           <button class="btn sm" (click)="lancar.novo()"><app-icon name="add" [size]="16" />Novo</button>
         </div>
       </div>

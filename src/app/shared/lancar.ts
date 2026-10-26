@@ -139,9 +139,12 @@ export class LancarSheet {
         await this.s.salvar('entradas', { id: this.l.entrada()?.id, descricao: f.descricao.trim(), categoria_id: f.categoria_id, valor, data: f.data });
       } else if (modo === 'parcelado') {
         const cartao = f.pagamento === 'debito' || f.pagamento.startsWith('b:') ? null : f.pagamento;
+        // valor total: a última parcela leva a sobra dos centavos (100 em 3x = 33,33 + 33,33 + 33,34)
+        const parcela = Math.round(this.valorParcela() * 100) / 100;
+        const ultima = f.valorEhTotal ? Math.round((valor - parcela * (f.parcelas - 1)) * 100) / 100 : null;
         await q(supabase.rpc('criar_parcelamento', {
           p_carteira: this.s.carteiraId(), p_descricao: f.descricao.trim(), p_categoria: f.categoria_id, p_cartao: cartao,
-          p_valor_parcela: Math.round(this.valorParcela() * 100) / 100, p_num: f.parcelas, p_primeira: f.data,
+          p_valor_parcela: parcela, p_num: f.parcelas, p_primeira: f.data, p_valor_ultima: ultima,
         }));
         await this.s.depois('gastos');
       } else {

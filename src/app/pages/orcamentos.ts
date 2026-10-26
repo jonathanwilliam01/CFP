@@ -148,7 +148,7 @@ export default class Orcamentos {
       return this.toast.erro('Já existe orçamento para essa categoria');
     this.salvando.set(true);
     try {
-      await this.s.salvar('orcamentos', { ...f, alerta_pct: Math.min(100, Math.max(1, f.alerta_pct || 80)) });
+      await this.s.salvar('orcamentos', { ...f, valor: f.valor, alerta_pct: Math.min(100, Math.max(1, f.alerta_pct || 80)) });
       this.toast.ok('Orçamento salvo');
       this.aberto.set(false);
     } catch (e) {

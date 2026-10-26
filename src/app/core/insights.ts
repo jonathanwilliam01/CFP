@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { addDias, diaNoMes, diffDias, hoje, mesAtual, mesFatura } from './datas';
-import { aporteMensal, fixasNaFatura, porCategoria, saldoBeneficio } from './financas';
+import { aporteMensal, ativaNoMes, fixasNaFatura, porCategoria, saldoBeneficio } from './financas';
 import { moeda, pct, soma } from './formato';
 import { Store } from './store';
 
@@ -75,7 +75,7 @@ export class Insights {
       l.push({ id: `saldo-${mes}`, nivel: 'perigo', icone: 'trending_down', titulo: 'Saldo do mês negativo', texto: `As saídas superam as entradas em ${moeda(-r.saldo)}.`, link: '/resumo' });
 
     for (const b of s.beneficiosAtivos()) {
-      const { saldo } = saldoBeneficio(b, s.gastosBeneficio(), mes, s.cobrancasBeneficio());
+      const { saldo } = saldoBeneficio(b, s.usoBeneficios(), mes, s.cobrancasBeneficio());
       if (b.valor_mensal > 0 && saldo < b.valor_mensal * 0.1)
         l.push({ id: `benef-${b.id}-${mes}`, nivel: 'alerta', icone: 'restaurant', titulo: `${b.nome} quase no fim`, texto: `Saldo: ${moeda(saldo)}.`, link: '/beneficios' });
     }
@@ -86,9 +86,9 @@ export class Insights {
         l.push({ id: `meta-${c.id}`, nivel: 'sucesso', icone: 'celebration', titulo: `Meta atingida: ${c.nome}`, texto: `Vocês guardaram ${moeda(g)}!`, link: `/cofrinhos/${c.id}` });
     }
 
-    for (const e of s.recorrencias().filter((x) => x.tipo === 'entrada' && x.ativo)) {
+    for (const e of s.recorrencias().filter((x) => x.tipo === 'entrada' && ativaNoMes(x, mes))) {
       const d = diffDias(diaNoMes(mes, e.dia), h);
-      if (d > 2 && !s.pagamentos().some((p) => p.ref_id === e.id))
+      if (d > 2 && !s.pagamentos().some((p) => p.ref_id === e.id && p.mes === mes))
         l.push({ id: `entr-${e.id}-${mes}`, nivel: 'info', icone: 'payments', titulo: `${e.descricao} não confirmada`, texto: `Previsto para dia ${e.dia}. Marque como recebida.`, link: '/entradas' });
     }
 

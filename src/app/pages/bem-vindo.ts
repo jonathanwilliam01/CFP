@@ -22,7 +22,7 @@ import { Toast } from '../shared/toast';
       <form class="card form" (ngSubmit)="entrar()">
         <h2>Tenho um código</h2>
         <label class="field"><span>Código de convite</span>
-          <input name="codigo" [(ngModel)]="codigo" placeholder="ABC123" maxlength="6" class="cod" />
+          <input name="codigo" [(ngModel)]="codigo" placeholder="ABCD2345" maxlength="8" class="cod" />
         </label>
         <button class="btn ghost block" [disabled]="enviando()">Entrar na carteira</button>
       </form>

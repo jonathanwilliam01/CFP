@@ -117,7 +117,7 @@ export default class Entradas {
   protected fixas = computed(() => this.s.recorrencias().filter((r) => r.tipo === 'entrada' && ativaNoMes(r, this.s.mes())));
 
   recebido(r: Recorrencia) {
-    return this.s.pagamentos().find((p) => p.tipo === 'recorrencia' && p.ref_id === r.id) ?? null;
+    return this.s.pagamentos().find((p) => p.tipo === 'recorrencia' && p.ref_id === r.id && p.mes === this.s.mes()) ?? null;
   }
 
   async alternar(r: Recorrencia) {

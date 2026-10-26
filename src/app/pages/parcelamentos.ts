@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { addMeses, inicioMes, mesAtual, mesFatura } from '../core/datas';
 import { BrlPipe, MesPipe, pct, soma } from '../core/formato';
-import { Parcelamento } from '../core/models';
+import { Gasto, Parcelamento } from '../core/models';
+
+type Parcela = Pick<Gasto, 'parcelamento_id' | 'valor' | 'data' | 'fatura_mes'>;
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
 import { Icon } from '../shared/icon';
@@ -76,6 +78,8 @@ export default class Parcelamentos {
   private toast = inject(Toast);
 
   private dados = signal<Parcelamento[]>([]);
+  /** Parcelas que ainda existem como gasto (a excluída some da conta) */
+  private parcelas = signal<Parcela[]>([]);
   protected aba = signal<'ativos' | 'fim'>('ativos');
 
   protected lista = computed(() => {
@@ -87,14 +91,15 @@ export default class Parcelamentos {
         const d = addMeses(p.primeira_data, i);
         return c ? mesFatura(d, c.fechamento_dia, c.vencimento_dia) : inicioMes(d);
       };
-      let pagas = 0;
-      for (let i = 0; i < p.num_parcelas; i++) if (mesDa(i) < atual) pagas++;
+      // parcela de mês passado conta como paga; importada a partir da parcela N não tem as anteriores como gasto
+      const futuras = this.parcelas().filter((g) => g.parcelamento_id === p.id && (g.fatura_mes ?? inicioMes(g.data)) >= atual);
+      const pagas = p.num_parcelas - futuras.length;
       const cat = p.categoria_id ? this.s.catMap().get(p.categoria_id) : undefined;
       return {
         p,
         pagas,
         pct: pct(pagas, p.num_parcelas),
-        restante: (p.num_parcelas - pagas) * p.valor_parcela,
+        restante: soma(futuras, (g) => g.valor),
         fim: mesDa(p.num_parcelas - 1),
         icone: cat?.icone ?? 'receipt_long',
         cor: cat?.cor ?? '#64748b',
@@ -119,11 +124,13 @@ export default class Parcelamentos {
 
   private async carregar() {
     try {
-      this.dados.set(
-        await q<Parcelamento[]>(
-          supabase.from('parcelamentos').select('*').eq('carteira_id', this.s.carteiraId()!).order('criado_em', { ascending: false }),
-        ),
-      );
+      const id = this.s.carteiraId()!;
+      const [dados, parcelas] = await Promise.all([
+        q<Parcelamento[]>(supabase.from('parcelamentos').select('*').eq('carteira_id', id).order('criado_em', { ascending: false })),
+        q<Parcela[]>(supabase.from('gastos').select('parcelamento_id, valor, data, fatura_mes').eq('carteira_id', id).not('parcelamento_id', 'is', null)),
+      ]);
+      this.dados.set(dados);
+      this.parcelas.set(parcelas);
     } catch (e) {
       this.toast.erro(e);
     }

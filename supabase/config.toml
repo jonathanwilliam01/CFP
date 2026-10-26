@@ -1,0 +1,6 @@
+# Supabase CLI: npm run db:push, npm run fn:deploy (ver README)
+project_id = "cfp"
+
+[functions.push]
+# chamada só pelo banco com o segredo de push_config, não com JWT de usuário
+verify_jwt = false

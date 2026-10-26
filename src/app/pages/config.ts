@@ -3,7 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Auth } from '../core/auth';
 import { Insights } from '../core/insights';
-import { Categoria } from '../core/models';
+import { Categoria, Membro } from '../core/models';
+import { Push } from '../core/push';
 import { Store } from '../core/store';
 import { Tema } from '../core/tema';
 import { q, supabase } from '../core/supabase';
@@ -43,6 +44,9 @@ import { Toast } from '../shared/toast';
             <button class="btn" type="button" (click)="compartilhar(c.codigo)"><app-icon name="share" [size]="18" />Convidar</button>
           </div>
           <p class="small muted">Quem entrar com este código lança e vê tudo desta carteira.</p>
+          @if (s.souDono()) {
+            <button class="btn ghost" type="button" (click)="novoCodigo()" [disabled]="ocupado()"><app-icon name="autorenew" [size]="18" />Gerar novo código</button>
+          }
 
           <h3>Membros</h3>
           <div class="list">
@@ -53,7 +57,18 @@ import { Toast } from '../shared/toast';
                   <div class="t">{{ m.nome }}{{ m.user_id === auth.user()?.id ? ' (você)' : '' }}</div>
                   <div class="s">{{ m.papel === 'dono' ? 'Dono' : 'Membro' }}</div>
                 </div>
+                @if (s.souDono() && m.user_id !== auth.user()?.id) {
+                  <button class="btn ghost icon" type="button" (click)="removerMembro(m)" [disabled]="ocupado()" [attr.aria-label]="'Remover ' + m.nome">
+                    <app-icon name="person_remove" [size]="18" />
+                  </button>
+                }
               </div>
+            }
+          </div>
+          <div class="linha">
+            <button class="btn ghost danger-ink" type="button" (click)="sairCarteira()" [disabled]="ocupado()"><app-icon name="logout" [size]="18" />Sair da carteira</button>
+            @if (s.souDono()) {
+              <button class="btn danger" type="button" (click)="sairCarteira(true)" [disabled]="ocupado()"><app-icon name="delete" [size]="18" />Excluir carteira</button>
             }
           </div>
         </div>
@@ -100,7 +115,7 @@ import { Toast } from '../shared/toast';
         </label>
         <label class="field"><span>Entrar com código</span>
           <div class="linha">
-            <input name="codigo" [(ngModel)]="codigo" placeholder="ABC123" maxlength="6" class="up" />
+            <input name="codigo" [(ngModel)]="codigo" placeholder="ABCD2345" maxlength="8" class="up" />
             <button class="btn ghost" type="button" (click)="entrarCarteira()" [disabled]="ocupado()">Entrar</button>
           </div>
         </label>
@@ -125,6 +140,12 @@ import { Toast } from '../shared/toast';
             <p class="small muted">Receba avisos de contas vencendo e orçamentos estourados.</p>
             <button class="btn ghost" type="button" (click)="insights.pedirPermissao()"><app-icon name="notifications" [size]="18" />Ativar notificações</button>
           }
+        }
+        @if (push.disponivel && insights.permissao() !== 'denied') {
+          <label class="check">
+            <input type="checkbox" [checked]="push.ativo()" (change)="alternarPush()" [disabled]="ocupado()" />
+            Avisos com o app fechado (chat e contas vencendo)
+          </label>
         }
       </div>
 
@@ -156,6 +177,8 @@ import { Toast } from '../shared/toast';
     .cor { width: 14px; height: 14px; border-radius: 50%; }
     .up { text-transform: uppercase; letter-spacing: 0.15em; }
     .seg { margin-bottom: 6px; }
+    .linha .btn { flex: 1; }
+    .danger-ink { color: var(--danger); }
   `,
 })
 export default class Config {
@@ -163,6 +186,7 @@ export default class Config {
   protected s = inject(Store);
   protected insights = inject(Insights);
   protected tema = inject(Tema);
+  protected push = inject(Push);
   private toast = inject(Toast);
   private router = inject(Router);
 
@@ -272,6 +296,37 @@ export default class Config {
       this.codigo = '';
       this.nomeCarteira = this.s.carteira()?.nome ?? '';
     }
+  }
+
+  novoCodigo() {
+    if (!confirm('Gerar um novo código? O atual deixa de funcionar.')) return;
+    return this.exec(() => this.s.novoCodigo(), 'Novo código gerado');
+  }
+
+  removerMembro(m: Membro) {
+    if (!confirm(`Remover ${m.nome} da carteira?`)) return;
+    return this.exec(() => this.s.removerMembro(m.user_id), 'Membro removido');
+  }
+
+  async sairCarteira(excluir = false) {
+    const nome = this.s.carteira()?.nome;
+    const sozinho = this.s.membros().length === 1;
+    const msg = excluir
+      ? `Excluir a carteira "${nome}" com todos os lançamentos? Não dá para desfazer.`
+      : `Sair da carteira "${nome}"?` + (sozinho ? ' Você é o único membro: ela será apagada.' : '');
+    if (!confirm(msg)) return;
+    let resta = true;
+    const ok = await this.exec(async () => {
+      resta = await this.s.sairCarteira(excluir);
+    }, excluir ? 'Carteira excluída' : 'Você saiu da carteira');
+    if (!ok) return;
+    if (!resta) this.router.navigateByUrl('/bem-vindo');
+    else this.nomeCarteira = this.s.carteira()?.nome ?? '';
+  }
+
+  alternarPush() {
+    const ativo = this.push.ativo();
+    return this.exec(() => (ativo ? this.push.desativar() : this.push.ativar()), ativo ? 'Avisos desligados' : 'Avisos ligados');
   }
 
   async sair() {

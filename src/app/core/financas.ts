@@ -1,7 +1,7 @@
 import { addMeses, diaNoMes, fimMes, inicioMes, mesesEntre } from './datas';
 import { pct, soma } from './formato';
 import {
-  Beneficio, Cartao, Categoria, ContaMes, Gasto, Orcamento, Pagamento, Recorrencia,
+  Beneficio, Cartao, Categoria, ContaMes, Gasto, Orcamento, Pagamento, Recorrencia, UsoBeneficio,
 } from './models';
 
 export const ativaNoMes = (r: { ativo: boolean; inicio: string; fim: string | null }, mes: string) =>
@@ -186,13 +186,13 @@ export function cobrancasBeneficio(recorrencias: Recorrencia[], valores: { ref_i
   return l;
 }
 
-export function saldoBeneficio(b: Beneficio, gastosBeneficio: Gasto[], mes: string, cobrancas: CobrancaBeneficio[] = []) {
-  const gastos = gastosBeneficio.filter((g) => g.beneficio_id === b.id);
+export function saldoBeneficio(b: Beneficio, uso: UsoBeneficio[], mes: string, cobrancas: CobrancaBeneficio[] = []) {
+  const usos = uso.filter((u) => u.beneficio_id === b.id);
   const contas = cobrancas.filter((c) => c.beneficio_id === b.id && c.mes >= inicioMes(b.inicio));
-  const usadoMes = soma(gastos.filter((g) => noMes(g.data, mes)), (g) => g.valor) + soma(contas.filter((c) => c.mes === mes), (c) => c.valor);
+  const usadoMes = soma(usos.filter((u) => u.mes === mes), (u) => u.total) + soma(contas.filter((c) => c.mes === mes), (c) => c.valor);
   if (!b.acumula) return { saldo: b.valor_mensal - usadoMes, usadoMes };
   const meses = Math.max(0, mesesEntre(inicioMes(b.inicio), mes) + 1);
-  const usado = soma(gastos.filter((g) => g.data <= fimMes(mes)), (g) => g.valor) + soma(contas.filter((c) => c.mes <= mes), (c) => c.valor);
+  const usado = soma(usos.filter((u) => u.mes <= mes), (u) => u.total) + soma(contas.filter((c) => c.mes <= mes), (c) => c.valor);
   return { saldo: meses * b.valor_mensal - usado, usadoMes };
 }
 

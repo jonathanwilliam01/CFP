@@ -357,7 +357,7 @@ export default class Contas {
     try {
       const dia = this.s.cartoes().find((c) => c.id === f.cartao_id)?.vencimento_dia ?? (f.dia || 1);
       const id = await this.s.salvar('recorrencias', {
-        id: f.id, tipo: 'conta', descricao: f.descricao.trim(), valor: parseValor(f.valor) || media, dia,
+        id: f.id, tipo: 'conta', descricao: f.descricao.trim(), valor: parseValor(f.valor) || media || 0, dia,
         categoria_id: f.categoria_id, inicio: `${f.inicio || mesAtual().slice(0, 7)}-01`, fim: f.fim ? `${f.fim}-01` : null, ativo: f.ativo,
         cartao_id: f.cartao_id, variavel: f.variavel, paga_mes_anterior: !f.cartao_id && !f.beneficio_id && f.paga_mes_anterior,
         beneficio_id: f.cartao_id ? null : f.beneficio_id,
