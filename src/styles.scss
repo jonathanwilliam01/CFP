@@ -173,8 +173,8 @@ a {
 
   &:last-child { border-bottom: 0; }
   .grow { flex: 1; min-width: 0; }
-  .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .s { font-size: 0.8rem; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .t { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .s { display: block; font-size: 0.8rem; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .v { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 }
 

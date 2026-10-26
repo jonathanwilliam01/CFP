@@ -75,7 +75,8 @@ function limpar(t: string) {
 
 const PALAVRAS: [RegExp, string][] = [
   [/uber|\b99\b|cabify|metr[oô]|[oô]nibus/i, 'transporte'],
-  [/auto ?center|autozone|posto|ipiranga|motoservice|estaciona|sem parar|veloe|mec[aâ]nica/i, 'carro'],
+  [/posto|ipiranga|shell|petrobras|\bbr mania|combust/i, 'gasolina'],
+  [/auto ?center|autozone|motoservice|estaciona|sem parar|veloe|mec[aâ]nica/i, 'carro'],
   [/drogaria|raia|drogasil|farm[aá]c|pague menos/i, 'saúde'],
   [/padaria|panifica|espetinho|restaurante|lanche|burger|ifood|pizza|a[cç]a[ií]/i, 'alimentação'],
   [/claro|vivo|\btim\b|netflix|spotify|google|github|apple|disney|hbo|prime video/i, 'assinaturas'],
