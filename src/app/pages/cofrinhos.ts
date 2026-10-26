@@ -1,0 +1,111 @@
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { BrlPipe, parseValor, soma } from '../core/formato';
+import { Store } from '../core/store';
+import { Icon } from '../shared/icon';
+import { IconePicker } from '../shared/icone-picker';
+import { Sheet } from '../shared/sheet';
+import { Toast } from '../shared/toast';
+
+@Component({
+  imports: [FormsModule, RouterLink, BrlPipe, Icon, IconePicker, Sheet],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="page">
+      <div class="page-head">
+        <h1>Cofrinhos</h1>
+        <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Novo</button>
+      </div>
+
+      @if (lista().length) {
+        <div class="stat">
+          <div class="l">Total guardado</div>
+          <div class="v pos">{{ total() | brl }}</div>
+        </div>
+        <div class="grid">
+          @for (c of lista(); track c.id) {
+            <a class="card cof" [routerLink]="['/cofrinhos', c.id]">
+              <div class="top">
+                <span class="ico" [style.background]="c.cor + '22'" [style.color]="c.cor"><app-icon [name]="c.icone" /></span>
+                <span class="badge" [class.ok]="c.pct >= 100">{{ c.pct }}%</span>
+              </div>
+              <h3>{{ c.nome }}</h3>
+              <div class="num v">{{ c.guardado | brl }}</div>
+              @if (c.meta > 0) {
+                <div class="bar"><i [style.width.%]="c.pct > 100 ? 100 : c.pct" [style.background]="c.cor"></i></div>
+                <small class="muted num">meta {{ c.meta | brl }}</small>
+              }
+            </a>
+          }
+        </div>
+      } @else {
+        <div class="card empty">
+          <app-icon class="big" name="savings" [size]="40" />
+          <p>Crie cofrinhos para guardar dinheiro com objetivo: viagem, reserva, carro novo…</p>
+          <button class="btn" type="button" (click)="novo()">Criar cofrinho</button>
+        </div>
+      }
+    </div>
+
+    <app-sheet [(open)]="aberto" titulo="Novo cofrinho">
+      <form class="form" (ngSubmit)="salvar()">
+        <label class="field"><span>Nome</span><input name="nome" [(ngModel)]="f.nome" placeholder="Ex.: Viagem" /></label>
+        <div class="grid2">
+          <label class="field"><span>Meta (R$)</span><input name="meta" inputmode="decimal" [(ngModel)]="f.meta" placeholder="0,00" /></label>
+          <label class="field"><span>Prazo</span><input name="prazo" type="date" [(ngModel)]="f.prazo" /></label>
+        </div>
+        <label class="field"><span>Cor</span><input name="cor" type="color" [(ngModel)]="f.cor" /></label>
+        <div class="field"><span>Ícone</span><app-icone-picker [(valor)]="f.icone" [cor]="f.cor" /></div>
+        <button class="btn block" [disabled]="salvando()">Salvar</button>
+      </form>
+    </app-sheet>
+  `,
+  styles: `
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .cof { display: flex; flex-direction: column; gap: 6px; color: inherit; }
+    .top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .v { font-weight: 800; font-size: 1.05rem; }
+    @media (min-width: 720px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+  `,
+})
+export default class Cofrinhos {
+  protected s = inject(Store);
+  private toast = inject(Toast);
+  protected aberto = signal(false);
+  protected salvando = signal(false);
+  f = { nome: '', meta: '', prazo: '', icone: 'savings', cor: '#10b981' };
+
+  protected lista = computed(() =>
+    this.s.cofrinhos().map((c) => {
+      const guardado = this.s.guardadoPorCofrinho().get(c.id) ?? 0;
+      return { ...c, guardado, pct: c.meta > 0 ? Math.round((guardado / c.meta) * 100) : 0 };
+    }),
+  );
+  protected total = computed(() => soma(this.lista(), (c) => c.guardado));
+
+  novo() {
+    this.f = { nome: '', meta: '', prazo: '', icone: 'savings', cor: '#10b981' };
+    this.aberto.set(true);
+  }
+
+  async salvar() {
+    if (!this.f.nome.trim()) return this.toast.erro('Informe o nome');
+    this.salvando.set(true);
+    try {
+      await this.s.salvar('cofrinhos', {
+        nome: this.f.nome.trim(),
+        meta: parseValor(this.f.meta),
+        prazo: this.f.prazo || null,
+        icone: this.f.icone || 'savings',
+        cor: this.f.cor,
+      });
+      this.toast.ok('Cofrinho criado');
+      this.aberto.set(false);
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.salvando.set(false);
+    }
+  }
+}

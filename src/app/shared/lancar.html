@@ -1,0 +1,105 @@
+<app-sheet [(open)]="l.aberto" [titulo]="titulo()">
+  <form class="form" (ngSubmit)="salvar()">
+    @if (!editando()) {
+      <div class="seg">
+        <button type="button" [class.on]="l.modo() === 'gasto'" (click)="l.modo.set('gasto')">Gasto</button>
+        <button type="button" [class.on]="l.modo() === 'parcelado'" (click)="l.modo.set('parcelado')">Parcelado</button>
+        <button type="button" [class.on]="l.modo() === 'entrada'" (click)="l.modo.set('entrada')">Entrada</button>
+      </div>
+    }
+
+    <label class="valor" [class.entrada]="l.modo() === 'entrada'">
+      <span>R$</span>
+      <input name="valor" inputmode="decimal" placeholder="0,00" autocomplete="off" autofocus
+        [ngModel]="f().valor" (ngModelChange)="set('valor', $event)" />
+    </label>
+
+    @if (l.modo() === 'parcelado') {
+      <div class="grid2">
+        <label class="field">
+          <span>Parcelas</span>
+          <input name="parcelas" type="number" inputmode="numeric" min="2" max="120"
+            [ngModel]="f().parcelas" (ngModelChange)="set('parcelas', +$event)" />
+        </label>
+        <div class="field">
+          <span>O valor é</span>
+          <div class="seg">
+            <button type="button" [class.on]="f().valorEhTotal" (click)="set('valorEhTotal', true)">Total</button>
+            <button type="button" [class.on]="!f().valorEhTotal" (click)="set('valorEhTotal', false)">Parcela</button>
+          </div>
+        </div>
+      </div>
+      <p class="hint num">{{ f().parcelas }}x de <b>{{ valorParcela() | brl }}</b></p>
+    }
+
+    <label class="field">
+      <span>Descrição</span>
+      <input name="descricao" list="recentes" autocomplete="off" placeholder="Ex.: Mercado, Uber, Farmácia"
+        [ngModel]="f().descricao" (ngModelChange)="sugerir($event)" />
+      <datalist id="recentes">
+        @for (r of s.recentes().slice(0, 80); track r.descricao) {
+          <option [value]="r.descricao"></option>
+        }
+      </datalist>
+    </label>
+
+    <label class="field">
+      <span>Categoria</span>
+      <select name="categoria" [ngModel]="f().categoria_id" (ngModelChange)="set('categoria_id', $event)">
+        <option [ngValue]="null">Sem categoria</option>
+        @for (c of cats(); track c.id) { <option [ngValue]="c.id">{{ c.nome }}</option> }
+      </select>
+    </label>
+
+    <div class="field">
+      <span>{{ l.modo() === 'parcelado' ? 'Data da compra / 1ª parcela' : 'Data' }}</span>
+      <div class="data">
+        <button type="button" class="chip" [class.on]="f().data === hoje" (click)="set('data', hoje)">Hoje</button>
+        <button type="button" class="chip" [class.on]="f().data === ontem" (click)="set('data', ontem)">Ontem</button>
+        <input name="data" type="date" [ngModel]="f().data" (ngModelChange)="set('data', $event)" />
+      </div>
+    </div>
+
+    @if (l.modo() !== 'entrada') {
+      <div class="field">
+        <span>Pagamento</span>
+        <div class="chips wrap">
+          @for (c of s.cartoesAtivos(); track c.id) {
+            <button type="button" class="chip" [class.on]="f().pagamento === c.id" (click)="set('pagamento', c.id)">
+              <i class="dot" [style.background]="c.cor"></i>{{ c.nome }}
+            </button>
+          }
+          <button type="button" class="chip" [class.on]="f().pagamento === 'debito'" (click)="set('pagamento', 'debito')">
+            <app-icon [name]="l.modo() === 'parcelado' ? 'description' : 'payments'" [size]="18" />{{ l.modo() === 'parcelado' ? 'Boleto/Débito' : 'Pix/Débito/Dinheiro' }}
+          </button>
+          @if (l.modo() === 'gasto') {
+            @for (b of s.beneficiosAtivos(); track b.id) {
+              <button type="button" class="chip" [class.on]="f().pagamento === 'b:' + b.id" (click)="set('pagamento', 'b:' + b.id)">
+                <app-icon name="restaurant" [size]="18" />{{ b.nome }}
+              </button>
+            }
+          }
+        </div>
+        @if (fatura(); as fm) {
+          <p class="hint">Entra na fatura de <b>{{ fm | mes }}</b></p>
+        } @else if (f().pagamento.startsWith('b:')) {
+          <p class="hint">Descontado do benefício, não entra nas contas do mês</p>
+        }
+      </div>
+    }
+
+    <div class="acoes">
+      <button class="btn block" type="submit" [disabled]="salvando()">Salvar</button>
+      @if (!editando()) {
+        <button class="btn ghost block" type="button" [disabled]="salvando()" (click)="salvar(true)">Salvar e lançar outro</button>
+      } @else {
+        <button class="btn danger block" type="button" (click)="excluir()">
+          {{ l.gasto()?.parcelamento_id ? 'Excluir só esta parcela' : 'Excluir' }}
+        </button>
+        @if (l.gasto()?.parcelamento_id) {
+          <button class="btn danger block" type="button" (click)="excluir(true)">Excluir todas as parcelas</button>
+        }
+      }
+    </div>
+  </form>
+</app-sheet>

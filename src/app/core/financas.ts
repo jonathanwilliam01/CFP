@@ -1,0 +1,229 @@
+import { addMeses, diaNoMes, fimMes, inicioMes, mesesEntre } from './datas';
+import { pct, soma } from './formato';
+import {
+  Beneficio, Cartao, Categoria, ContaMes, Gasto, Orcamento, Pagamento, Recorrencia,
+} from './models';
+
+export const ativaNoMes = (r: { ativo: boolean; inicio: string; fim: string | null }, mes: string) =>
+  r.ativo && inicioMes(r.inicio) <= mes && (!r.fim || inicioMes(r.fim) >= mes);
+
+export const noMes = (data: string, mes: string) => data >= mes && data <= fimMes(mes);
+
+/** Contas fixas no cartão: uma cobrança por fatura; inicio/fim são meses de fatura */
+export function fixasNaFatura(mes: string, cartao: Cartao, recorrencias: Recorrencia[]) {
+  return recorrencias
+    .filter((r) => r.tipo === 'conta' && r.cartao_id === cartao.id && ativaNoMes(r, mes))
+    .map((r) => ({ id: `${r.id}-${mes}`, descricao: r.descricao, valor: r.valor, data: diaNoMes(mes, cartao.vencimento_dia), fixa: true }));
+}
+
+/** Mês da fatura que entra nas contas do mês */
+export const faturaDoMes = (mes: string, c: Cartao) => (c.paga_mes_anterior ? addMeses(mes, 1) : mes);
+
+export function contasDoMes(
+  mes: string,
+  recorrencias: Recorrencia[],
+  cartoes: Cartao[],
+  gastos: Gasto[],
+  pagamentos: Pagamento[],
+  categorias: Map<string, Categoria>,
+): ContaMes[] {
+  const pago = (tipo: string, id: string, m = mes) =>
+    pagamentos.find((p) => p.tipo === tipo && p.ref_id === id && p.mes === m) ?? null;
+
+  const fixas: ContaMes[] = recorrencias
+    .filter((r) => r.tipo === 'conta' && !cartoes.some((c) => c.id === r.cartao_id) && ativaNoMes(r, mes))
+    .map((r) => {
+      const c = r.categoria_id ? categorias.get(r.categoria_id) : undefined;
+      const p = pago('recorrencia', r.id);
+      return {
+        tipo: 'recorrencia',
+        ref_id: r.id,
+        descricao: r.descricao,
+        icone: c?.icone ?? 'receipt_long',
+        cor: c?.cor ?? '#64748b',
+        vencimento: diaNoMes(mes, r.dia),
+        mes,
+        valor: p?.valor ?? r.valor,
+        pago: p,
+        media: r.variavel && !p,
+      };
+    });
+
+  const faturas: ContaMes[] = cartoes
+    .map((c) => {
+      const fm = faturaDoMes(mes, c);
+      const total =
+        soma(gastos.filter((g) => g.cartao_id === c.id && g.fatura_mes === fm), (g) => g.valor) +
+        soma(fixasNaFatura(fm, c, recorrencias), (f) => f.valor);
+      const p = pago('fatura', c.id, fm);
+      return {
+        tipo: 'fatura' as const,
+        ref_id: c.id,
+        descricao: `Fatura ${c.nome}`,
+        icone: 'credit_card',
+        cor: c.cor,
+        vencimento: diaNoMes(fm, c.vencimento_dia),
+        mes: fm,
+        valor: p?.valor ?? total,
+        pago: p,
+      };
+    })
+    .filter((f) => f.valor > 0);
+
+  return [...fixas, ...faturas].sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+}
+
+export interface ResumoMes {
+  entradas: number;
+  entradasFixas: number;
+  entradasAvulsas: number;
+  saidas: number;
+  avista: number;
+  faturas: number;
+  contasFixas: number;
+  beneficios: number;
+  consumo: number;
+  saldo: number;
+  pago: number;
+  aPagar: number;
+}
+
+export function resumoMes(
+  mes: string,
+  gastos: Gasto[],
+  entradasAvulsas: number,
+  recorrencias: Recorrencia[],
+  contas: ContaMes[],
+  pagamentos: Pagamento[],
+): ResumoMes {
+  const doMes = gastos.filter((g) => noMes(g.data, mes));
+  const avista = soma(doMes.filter((g) => g.forma === 'debito'), (g) => g.valor);
+  const beneficios = soma(doMes.filter((g) => g.forma === 'beneficio'), (g) => g.valor);
+  const faturas = soma(contas.filter((c) => c.tipo === 'fatura'), (c) => c.valor);
+  const contasFixas = soma(contas.filter((c) => c.tipo === 'recorrencia'), (c) => c.valor);
+  const entradasFixas = soma(
+    recorrencias.filter((r) => r.tipo === 'entrada' && ativaNoMes(r, mes)),
+    (r) => pagamentos.find((p) => p.ref_id === r.id && p.mes === mes)?.valor ?? r.valor,
+  );
+  const entradas = entradasFixas + entradasAvulsas;
+  const saidas = avista + faturas + contasFixas;
+  const pago = soma(contas.filter((c) => c.pago), (c) => c.valor);
+  return {
+    entradas,
+    entradasFixas,
+    entradasAvulsas,
+    saidas,
+    avista,
+    faturas,
+    contasFixas,
+    beneficios,
+    consumo: soma(doMes, (g) => g.valor),
+    saldo: entradas - saidas,
+    pago,
+    aPagar: contasFixas + faturas - pago,
+  };
+}
+
+export interface FatiaCategoria {
+  id: string | null;
+  nome: string;
+  icone: string;
+  cor: string;
+  total: number;
+  pct: number;
+  qtd: number;
+}
+
+export function porCategoria(gastos: { categoria_id: string | null; valor: number }[], categorias: Map<string, Categoria>): FatiaCategoria[] {
+  const m = new Map<string | null, { total: number; qtd: number }>();
+  for (const g of gastos) {
+    const k = g.categoria_id && categorias.has(g.categoria_id) ? g.categoria_id : null;
+    const a = m.get(k) ?? { total: 0, qtd: 0 };
+    a.total += g.valor;
+    a.qtd++;
+    m.set(k, a);
+  }
+  const total = soma([...m.values()], (a) => a.total);
+  return [...m.entries()]
+    .map(([id, a]) => {
+      const c = id ? categorias.get(id) : undefined;
+      return {
+        id,
+        nome: c?.nome ?? 'Sem categoria',
+        icone: c?.icone ?? 'help',
+        cor: c?.cor ?? '#94a3b8',
+        total: a.total,
+        qtd: a.qtd,
+        pct: pct(a.total, total),
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+}
+
+export function saldoBeneficio(b: Beneficio, gastosBeneficio: Gasto[], mes: string) {
+  const gastos = gastosBeneficio.filter((g) => g.beneficio_id === b.id);
+  const usadoMes = soma(gastos.filter((g) => noMes(g.data, mes)), (g) => g.valor);
+  if (!b.acumula) return { saldo: b.valor_mensal - usadoMes, usadoMes };
+  const meses = Math.max(0, mesesEntre(inicioMes(b.inicio), mes) + 1);
+  const usado = soma(gastos.filter((g) => g.data <= fimMes(mes)), (g) => g.valor);
+  return { saldo: meses * b.valor_mensal - usado, usadoMes };
+}
+
+export type Nivel = 'ok' | 'alerta' | 'estourado';
+
+export interface StatusOrcamento {
+  orcamento: Orcamento;
+  nome: string;
+  icone: string;
+  cor: string;
+  gasto: number;
+  pct: number;
+  nivel: Nivel;
+}
+
+export function statusOrcamentos(orcamentos: Orcamento[], gastosMes: Gasto[], categorias: Map<string, Categoria>): StatusOrcamento[] {
+  return orcamentos
+    .map((o) => {
+      const c = o.categoria_id ? categorias.get(o.categoria_id) : undefined;
+      const gasto = soma(o.categoria_id ? gastosMes.filter((g) => g.categoria_id === o.categoria_id) : gastosMes, (g) => g.valor);
+      const p = o.valor > 0 ? Math.round((gasto / o.valor) * 100) : 0;
+      return {
+        orcamento: o,
+        nome: c?.nome ?? 'Geral (todos os gastos)',
+        icone: c?.icone ?? 'bar_chart',
+        cor: c?.cor ?? '#0f766e',
+        gasto,
+        pct: p,
+        nivel: (p >= 100 ? 'estourado' : p >= o.alerta_pct ? 'alerta' : 'ok') as Nivel,
+      };
+    })
+    .sort((a, b) => b.pct - a.pct);
+}
+
+/** Valor mensal necessário para bater a meta até o prazo */
+export function aporteMensal(meta: number, guardado: number, prazo: string | null, mes: string) {
+  if (!prazo || guardado >= meta) return null;
+  const meses = Math.max(1, mesesEntre(mes, inicioMes(prazo)) + 1);
+  return (meta - guardado) / meses;
+}
+
+export const MIN_MEDIA = 3;
+export const MAX_MEDIA = 12;
+
+/** Média das últimas 12 contas; null com menos de 3 */
+export function mediaContas(valores: { mes: string; valor: number }[]) {
+  const ult = [...valores].sort((a, b) => b.mes.localeCompare(a.mes)).slice(0, MAX_MEDIA);
+  return ult.length >= MIN_MEDIA ? Math.round((soma(ult, (v) => v.valor) / ult.length) * 100) / 100 : null;
+}
+
+/** Média de cada conta variável que já tem contas suficientes */
+export function mediasVariaveis(recorrencias: Recorrencia[], valores: { ref_id: string; mes: string; valor: number }[]) {
+  const m = new Map<string, number>();
+  for (const r of recorrencias.filter((x) => x.variavel)) {
+    const media = mediaContas(valores.filter((v) => v.ref_id === r.id));
+    if (media != null) m.set(r.id, media);
+  }
+  return m;
+}
+
+export const proximosMeses = (mes: string, n: number) => Array.from({ length: n }, (_, i) => addMeses(mes, i));
