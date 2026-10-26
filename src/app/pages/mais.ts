@@ -4,7 +4,7 @@ import { Chat } from '../core/chat';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { VERSAO } from '../core/versao';
-import { ATALHOS } from '../layout/menu';
+import { ATALHOS, CHAT } from '../layout/menu';
 import { Icon } from '../shared/icon';
 
 @Component({
@@ -47,7 +47,7 @@ export default class Mais {
   protected s = inject(Store);
   protected insights = inject(Insights);
   private chat = inject(Chat);
-  protected atalhos = ATALHOS;
+  protected atalhos = [CHAT, ...ATALHOS];
   protected versao = VERSAO;
 
   badge(rota: string) {

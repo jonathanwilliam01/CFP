@@ -32,12 +32,6 @@ import { ATALHOS, PRINCIPAIS } from './menu';
         <button type="button" class="bell" (click)="tema.alternar()" [attr.aria-label]="tema.escuro() ? 'Tema claro' : 'Tema escuro'">
           <app-icon [name]="tema.escuro() ? 'light_mode' : 'dark_mode'" [size]="20" />
         </button>
-        <a routerLink="/chat" class="bell" aria-label="Chat">
-          <app-icon name="chat" />
-          @if (chat.naoLidas(); as n) {
-            <span class="dot">{{ n }}</span>
-          }
-        </a>
         <a routerLink="/notificacoes" class="bell" aria-label="Notificações">
           <app-icon name="notifications" />
           @if (insights.naoLidas().length; as n) {
@@ -55,6 +49,9 @@ import { ATALHOS, PRINCIPAIS } from './menu';
         @for (m of principais; track m.rota) {
           <a [routerLink]="m.rota" routerLinkActive="on" #rla="routerLinkActive" [routerLinkActiveOptions]="{ exact: m.rota === '/' }" [title]="m.rotulo">
             <app-icon [name]="m.icone" [fill]="rla.isActive" /><span class="r">{{ m.rotulo }}</span>
+            @if (badge(m.rota); as n) {
+              <span class="n">{{ n }}</span>
+            }
           </a>
         }
         <hr />
@@ -80,6 +77,15 @@ import { ATALHOS, PRINCIPAIS } from './menu';
     <button class="fab" type="button" (click)="lancar.novo()" aria-label="Lançar gasto">
       <app-icon name="add" [size]="28" />
     </button>
+
+    @if (s.membros().length > 1) {
+      <a class="chat-fab" routerLink="/chat" routerLinkActive="on" aria-label="Chat">
+        <app-icon name="chat" [size]="24" [fill]="true" />
+        @if (chat.naoLidas(); as n) {
+          <span class="dot">{{ n }}</span>
+        }
+      </a>
+    }
 
     <nav class="nav">
       <a routerLink="/" routerLinkActive="on" #r1="routerLinkActive" [routerLinkActiveOptions]="{ exact: true }"><app-icon name="home" [fill]="r1.isActive" /><span>Início</span></a>
@@ -140,16 +146,26 @@ import { ATALHOS, PRINCIPAIS } from './menu';
       transition: transform 0.1s;
     }
     .fab:active { transform: translateX(-50%) scale(0.93); }
+    .chat-fab {
+      position: fixed; z-index: 31; right: 16px; bottom: calc(var(--nav-h) + var(--safe-b) + 16px);
+      width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--card); color: var(--primary); border: 1px solid var(--line);
+      box-shadow: 0 6px 18px rgb(0 0 0 / 0.16);
+    }
+    .chat-fab.on { display: none; }
+    .chat-fab .dot { top: -2px; right: -2px; border-color: var(--card); }
     .side { display: none; }
     @media (min-width: 720px) {
       .nome { display: block; }
       .nav { max-width: 720px; margin: 0 auto 12px; border: 1px solid var(--line); border-radius: 20px; }
       .fab { bottom: 34px; }
+      .chat-fab { right: 24px; bottom: 100px; }
     }
     /* desktop: menu lateral no lugar da barra inferior */
     @media (min-width: 1024px) {
       :host.recolhido { --side-w: 76px; }
       .nav, .fab { display: none; }
+      .chat-fab { bottom: 24px; right: 24px; width: 56px; height: 56px; }
       .top { padding-left: calc(var(--side-w) + 24px); padding-right: 24px; }
       main { display: block; margin-left: var(--side-w); }
       .top, main { transition: margin 0.2s, padding 0.2s; }

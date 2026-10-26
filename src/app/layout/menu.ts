@@ -1,7 +1,10 @@
+export const CHAT = { rota: '/chat', icone: 'chat', rotulo: 'Chat' };
+
 export const PRINCIPAIS = [
   { rota: '/', icone: 'home', rotulo: 'Início' },
   { rota: '/gastos', icone: 'receipt_long', rotulo: 'Gastos' },
   { rota: '/contas', icone: 'calendar_month', rotulo: 'Contas' },
+  CHAT,
 ];
 
 export const ATALHOS = [
@@ -15,7 +18,6 @@ export const ATALHOS = [
   { rota: '/resumo', icone: 'summarize', rotulo: 'Resumo mensal' },
   { rota: '/relatorios', icone: 'bar_chart', rotulo: 'Relatórios' },
   { rota: '/registros', icone: 'menu_book', rotulo: 'Registros' },
-  { rota: '/chat', icone: 'chat', rotulo: 'Chat' },
   { rota: '/notificacoes', icone: 'notifications', rotulo: 'Notificações' },
   { rota: '/config', icone: 'settings', rotulo: 'Configurações' },
 ];
