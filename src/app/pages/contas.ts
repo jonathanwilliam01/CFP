@@ -20,6 +20,7 @@ interface FormFixa {
   ativo: boolean;
   cartao_id: string | null;
   variavel: boolean;
+  paga_mes_anterior: boolean;
   hist: { id?: string; mes: string; valor: number }[];
   removidos: string[];
 }
@@ -85,7 +86,7 @@ interface FormFixa {
               <span class="ico"><app-icon [name]="s.catMap().get(r.categoria_id ?? '')?.icone ?? 'receipt_long'" /></span>
               <div class="grow">
                 <div class="t">{{ r.descricao }}</div>
-                <div class="s">{{ cartaoNome(r) ? 'Na fatura do ' + cartaoNome(r) + ', vence dia ' + r.dia : 'Todo dia ' + r.dia }}{{ r.variavel ? ' · variável' : '' }}{{ r.ativo ? '' : ' · inativa' }}{{ r.fim ? ' · até ' + r.fim.slice(5, 7) + '/' + r.fim.slice(0, 4) : '' }}</div>
+                <div class="s">{{ cartaoNome(r) ? 'Na fatura do ' + cartaoNome(r) + ', vence dia ' + r.dia : 'Todo dia ' + r.dia }}{{ r.variavel ? ' · variável' : '' }}{{ r.paga_mes_anterior && !cartaoNome(r) ? ' · salário do mês anterior' : '' }}{{ r.ativo ? '' : ' · inativa' }}{{ r.fim ? ' · até ' + r.fim.slice(5, 7) + '/' + r.fim.slice(0, 4) : '' }}</div>
               </div>
               <span class="v">{{ s.medias().get(r.id) ?? r.valor | brl }}</span>
             </button>
@@ -156,6 +157,11 @@ interface FormFixa {
         </div>
         @if (form.cartao_id) {
           <p class="small muted">Entra em todas as faturas a partir da primeira, vence junto com a fatura e é paga com ela.</p>
+        } @else {
+          <label class="check"><input name="ant" type="checkbox" [(ngModel)]="form.paga_mes_anterior" />Pagar com o salário do mês anterior</label>
+          @if (form.paga_mes_anterior) {
+            <p class="small muted">Entra nas contas e saídas do mês anterior ao vencimento (ex.: vence 07/11, conta em outubro).</p>
+          }
         }
         @if (form.variavel) {
           <div class="hist">
@@ -306,7 +312,7 @@ export default class Contas {
   private vazio(): FormFixa {
     return {
       descricao: '', valor: '', dia: 10, categoria_id: null, inicio: mesAtual().slice(0, 7), fim: '', ativo: true, cartao_id: null,
-      variavel: false, hist: [], removidos: [],
+      variavel: false, paga_mes_anterior: false, hist: [], removidos: [],
     };
   }
 
@@ -320,7 +326,7 @@ export default class Contas {
     this.form = {
       id: r.id, descricao: r.descricao, valor: String(r.valor).replace('.', ','), dia: r.dia, categoria_id: r.categoria_id,
       inicio: r.inicio.slice(0, 7), fim: r.fim?.slice(0, 7) ?? '', ativo: r.ativo, cartao_id: r.cartao_id ?? null,
-      variavel: r.variavel, removidos: [],
+      variavel: r.variavel, paga_mes_anterior: r.paga_mes_anterior, removidos: [],
       hist: this.s.valoresFixas().filter((v) => v.ref_id === r.id).map(({ id, mes, valor }) => ({ id, mes, valor })),
     };
     this.proximoHist();
@@ -343,7 +349,7 @@ export default class Contas {
       const id = await this.s.salvar('recorrencias', {
         id: f.id, tipo: 'conta', descricao: f.descricao.trim(), valor: parseValor(f.valor) || media, dia,
         categoria_id: f.categoria_id, inicio: `${f.inicio || mesAtual().slice(0, 7)}-01`, fim: f.fim ? `${f.fim}-01` : null, ativo: f.ativo,
-        cartao_id: f.cartao_id, variavel: f.variavel,
+        cartao_id: f.cartao_id, variavel: f.variavel, paga_mes_anterior: !f.cartao_id && f.paga_mes_anterior,
       });
       if (f.variavel) {
         const novos = f.hist.filter((h) => !h.id).map((h) => ({ mes: h.mes, valor: h.valor, pago_em: diaNoMes(h.mes, dia) }));

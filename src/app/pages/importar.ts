@@ -164,7 +164,7 @@ export default class Importar {
         itens.map((x) => {
           const m = mem[x.chave];
           const descricao = m?.descricao ?? x.descricao;
-          const categoria_id = m ? m.categoria_id : (historico.get(descricao.toLowerCase()) ?? palpiteCategoria(x.titulo, this.s.catGasto()));
+          const categoria_id = m ? m.categoria_id : (historico.get(descricao.toLowerCase()) ?? palpiteCategoria(x.descricao, this.s.catGasto()) ?? palpiteCategoria(x.titulo, this.s.catGasto()));
           return { ...x, descricao, categoria_id, ok: true, dup: false, proximas: true };
         }),
       );

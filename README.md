@@ -40,6 +40,7 @@ A cada build publicado na Vercel: nova nota no topo de `src/app/core/versao.ts` 
 - **Saídas do mês** = gastos à vista (Pix/débito/dinheiro) + faturas de cartão que vencem no mês + contas fixas.
 - **Fatura**: compra no dia do fechamento ou depois cai na fatura seguinte; a fatura é do mês do vencimento.
 - **Pagar com o salário do mês anterior** (opção do cartão): a fatura entra nas contas e saídas do mês anterior ao vencimento; o vencimento mostrado continua o real.
+- **Conta fixa paga com o salário do mês anterior** (opção da conta fixa): entra nas contas e saídas do mês anterior ao vencimento (vence 07/11 → conta em outubro).
 - **Conta fixa no cartão**: entra uma vez em cada fatura a partir da primeira (por padrão a fatura aberta no cadastro), vence com a fatura, não aparece como conta separada e fica paga quando a fatura é paga.
 - **Conta variável**: valor previsto = média das últimas 12 contas (pagas ou incluídas no histórico), a partir de 3; antes disso usa o valor estimado.
 - **Benefícios** (VR/VA): gastos descontam do saldo do benefício e não entram nas saídas.

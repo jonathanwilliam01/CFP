@@ -30,19 +30,22 @@ export function contasDoMes(
   const pago = (tipo: string, id: string, m = mes) =>
     pagamentos.find((p) => p.tipo === tipo && p.ref_id === id && p.mes === m) ?? null;
 
+  // paga com o salário do mês anterior: no mês entra a conta que vence no mês seguinte
+  const mesConta = (r: Recorrencia) => (r.paga_mes_anterior ? addMeses(mes, 1) : mes);
   const fixas: ContaMes[] = recorrencias
-    .filter((r) => r.tipo === 'conta' && !cartoes.some((c) => c.id === r.cartao_id) && ativaNoMes(r, mes))
+    .filter((r) => r.tipo === 'conta' && !cartoes.some((c) => c.id === r.cartao_id) && ativaNoMes(r, mesConta(r)))
     .map((r) => {
+      const m = mesConta(r);
       const c = r.categoria_id ? categorias.get(r.categoria_id) : undefined;
-      const p = pago('recorrencia', r.id);
+      const p = pago('recorrencia', r.id, m);
       return {
         tipo: 'recorrencia',
         ref_id: r.id,
         descricao: r.descricao,
         icone: c?.icone ?? 'receipt_long',
         cor: c?.cor ?? '#64748b',
-        vencimento: diaNoMes(mes, r.dia),
-        mes,
+        vencimento: diaNoMes(m, r.dia),
+        mes: m,
         valor: p?.valor ?? r.valor,
         pago: p,
         media: r.variavel && !p,

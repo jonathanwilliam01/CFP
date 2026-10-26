@@ -4,6 +4,7 @@
 - Chat entre os membros da carteira, com aviso de mensagem nova
 - Importação da fatura do Nubank (CSV) com categoria sugerida, parcelas e aviso de gasto já lançado
 - Voltar do celular fecha o painel aberto (lançamento, edição, foto) em vez de sair da página
+- Conta fixa com opção de pagar com o salário do mês anterior ao vencimento
 
 ## v1.26.10.1 — 2026-10-26
 - Primeira versão do CFP

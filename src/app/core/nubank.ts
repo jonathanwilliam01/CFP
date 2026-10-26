@@ -56,8 +56,22 @@ function campos(linha: string) {
   return r;
 }
 
-/** Tira prefixo de intermediador ("Dl *", "Mp *") e asteriscos */
-const limpar = (t: string) => t.replace(/^(dl|mp|pg|ec)\s*\*\s*/i, '').replace(/\s*\*\s*/g, ' ').replace(/\s+/g, ' ').trim();
+// Marketplaces ficam só com o nome dele, sem a loja
+const NOMES: [RegExp, string][] = [
+  [/^shopee/i, 'Shopee'],
+  [/^amazon/i, 'Amazon'],
+  [/^mercado ?livre/i, 'Mercado Livre'],
+  [/^loja 11\b/i, 'Semar'],
+];
+
+/** Tira prefixo de intermediador ("Dl *", "Mp *"), asteriscos e números soltos no início/fim ("211 Shibata", "Raia3790") */
+function limpar(t: string) {
+  const s = t.replace(/^(dl|mp|pg|ec)\s*\*\s*/i, '');
+  const nome = NOMES.find(([re]) => re.test(s));
+  if (nome) return nome[1];
+  const r = s.replace(/\s*\*\s*/g, ' ').replace(/^\d+\s+|\s*\d+$/g, '').replace(/\s+/g, ' ').trim();
+  return r || s.trim();
+}
 
 const PALAVRAS: [RegExp, string][] = [
   [/uber|\b99\b|cabify|metr[oô]|[oô]nibus/i, 'transporte'],
@@ -65,8 +79,8 @@ const PALAVRAS: [RegExp, string][] = [
   [/drogaria|raia|drogasil|farm[aá]c|pague menos/i, 'saúde'],
   [/padaria|panifica|espetinho|restaurante|lanche|burger|ifood|pizza|a[cç]a[ií]/i, 'alimentação'],
   [/claro|vivo|\btim\b|netflix|spotify|google|github|apple|disney|hbo|prime video/i, 'assinaturas'],
-  [/shopee|amazon|mercadoli|magalu|shein|aliexpress|\bloja/i, 'compras'],
-  [/mercado|supermerc|atacad|assa[ií]|shibata|carrefour|hortifruti/i, 'mercado'],
+  [/shopee|amazon|mercado ?li|magalu|shein|aliexpress|\bloja/i, 'compras'],
+  [/mercado|supermerc|atacad|assa[ií]|shibata|semar|carrefour|hortifruti/i, 'mercado'],
 ];
 
 /** Categoria pelo nome do estabelecimento */

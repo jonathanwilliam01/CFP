@@ -92,6 +92,8 @@ export interface Recorrencia {
   ativo: boolean;
   cartao_id: string | null;
   variavel: boolean;
+  /** conta entra nas contas do mês anterior ao vencimento */
+  paga_mes_anterior: boolean;
 }
 
 export interface Pagamento {
