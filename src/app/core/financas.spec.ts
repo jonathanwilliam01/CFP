@@ -1,4 +1,4 @@
-import { contasDoMes, mediaContas, resumoMes, saldoBeneficio, statusOrcamentos } from './financas';
+import { contasDoMes, creditoBeneficios, mediaContas, resumoMes, saldoBeneficio, statusOrcamentos } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -97,5 +97,12 @@ describe('statusOrcamentos', () => {
       [{ id: 'o1', categoria_id: 'a', valor: 100, alerta_pct: 80 }, { id: 'o2', categoria_id: 'b', valor: 100, alerta_pct: 80 }, { id: 'o3', categoria_id: null, valor: 1000, alerta_pct: 80 }],
       gastos, new Map());
     expect(st.map((s) => [s.orcamento.id, s.nivel])).toEqual([['o2', 'estourado'], ['o1', 'alerta'], ['o3', 'ok']]);
+  });
+});
+
+describe('creditoBeneficios', () => {
+  it('soma os ativos que já começaram no mês', () => {
+    const b = (p: Partial<Beneficio>): Beneficio => ({ id: 'b', nome: 'VR', valor_mensal: 500, dia_credito: 1, acumula: true, inicio: '2026-01-01', ativo: true, ...p });
+    expect(creditoBeneficios([b({}), b({ valor_mensal: 300, inicio: '2026-11-01' }), b({ valor_mensal: 200, ativo: false })], '2026-10-01')).toBe(500);
   });
 });

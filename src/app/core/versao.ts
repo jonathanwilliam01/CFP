@@ -12,6 +12,7 @@ export const NOTAS: Nota[] = [
     data: '2026-10-26',
     itens: [
       'Categoria padrão Gasolina',
+      'Resumo mensal com entradas e gastos somando os benefícios (VR/VA), sem mudar o saldo em dinheiro',
       'Segurança da carteira: só o dono troca o código, remove membros e exclui a carteira; código de convite com 8 caracteres e limite de tentativas',
       'Sair da carteira, remover membro, excluir carteira e gerar novo código de convite',
       'Tela para definir a nova senha pelo link de "Esqueci minha senha"',

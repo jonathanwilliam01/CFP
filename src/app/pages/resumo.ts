@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { nomeMes } from '../core/datas';
-import { porCategoria } from '../core/financas';
+import { creditoBeneficios, porCategoria } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, moeda, pct, soma } from '../core/formato';
 import { Insights } from '../core/insights';
 import { Gasto } from '../core/models';
@@ -40,6 +40,17 @@ import { Toast } from '../shared/toast';
         <div class="stat"><div class="l">Contas fixas</div><div class="v">{{ r().contasFixas | brl }}</div></div>
         <div class="stat"><div class="l">Benefícios</div><div class="v">{{ r().beneficios | brl }}</div></div>
       </div>
+
+      @if (credito() || r().beneficios) {
+        <section class="card">
+          <div class="card-head"><h2>Com benefícios</h2><a routerLink="/beneficios" class="small">Benefícios</a></div>
+          <div class="io">
+            <span>Entradas <b class="pos num">{{ r().entradas + credito() | brl }}</b></span>
+            <span>Gastos <b class="neg num">{{ r().saidas + r().beneficios | brl }}</b></span>
+          </div>
+          <p class="muted small">Inclui o crédito do VR/VA e o que foi pago com ele. O saldo acima considera só dinheiro.</p>
+        </section>
+      }
 
       <section class="card">
         <div class="card-head"><h2>Consumo do mês</h2>
@@ -145,6 +156,7 @@ export default class Resumo {
   private toast = inject(Toast);
 
   protected r = this.s.resumo;
+  protected credito = computed(() => creditoBeneficios(this.s.beneficios(), this.s.mes()));
   protected sobra = computed(() => pct(this.r().saldo, this.r().entradas));
   protected consumoAnt = computed(() => soma(this.s.gastosMesAnterior(), (g) => g.valor));
   protected variacao = computed(() => {
@@ -181,6 +193,7 @@ export default class Resumo {
       `CFP · Resumo de ${nomeMes(this.s.mes())}`,
       `Entradas: ${moeda(r.entradas)}`,
       `Saídas: ${moeda(r.saidas)}`,
+      ...(this.credito() || r.beneficios ? [`Com benefícios: entradas ${moeda(r.entradas + this.credito())} · gastos ${moeda(r.saidas + r.beneficios)}`] : []),
       `Saldo previsto: ${moeda(r.saldo)}${r.entradas > 0 ? ` (sobra de ${this.sobra()}%)` : ''}`,
       `Consumo: ${moeda(r.consumo)}`,
       '',

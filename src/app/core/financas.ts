@@ -196,6 +196,10 @@ export function saldoBeneficio(b: Beneficio, uso: UsoBeneficio[], mes: string, c
   return { saldo: meses * b.valor_mensal - usado, usadoMes };
 }
 
+/** Crédito dos benefícios ativos no mês (a partir do início de cada um) */
+export const creditoBeneficios = (beneficios: Beneficio[], mes: string) =>
+  soma(beneficios.filter((b) => b.ativo && inicioMes(b.inicio) <= mes), (b) => b.valor_mensal);
+
 export type Nivel = 'ok' | 'alerta' | 'estourado';
 
 export interface StatusOrcamento {
