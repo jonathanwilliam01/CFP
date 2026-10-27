@@ -6,13 +6,15 @@ import { Chat } from '../core/chat';
 import { iso } from '../core/datas';
 import { DiaPipe } from '../core/formato';
 import { Insights } from '../core/insights';
-import { Mensagem } from '../core/models';
+import { Membro, Mensagem } from '../core/models';
 import { Store } from '../core/store';
+import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
+import { Visor } from '../shared/visor';
 
 @Component({
-  imports: [FormsModule, RouterLink, DiaPipe, Icon],
+  imports: [FormsModule, RouterLink, DiaPipe, Avatar, Icon, Visor],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -38,10 +40,19 @@ import { Toast } from '../shared/toast';
         @for (d of dias(); track d.data) {
           <div class="day-label">{{ d.data | dia }}</div>
           @for (m of d.itens; track m.id) {
-            <div class="msg" [class.eu]="m.eu">
-              @if (m.nome) { <span class="quem">{{ m.nome }}</span> }
-              <p>{{ m.texto }}</p>
-              <span class="hora">{{ m.hora }}</span>
+            <div class="linha" [class.eu]="m.eu">
+              @if (m.membro; as mb) {
+                <button type="button" class="foto" [disabled]="!mb.foto" (click)="foto.set(mb.foto?.url ?? null)" [attr.aria-label]="'Ver foto de ' + mb.nome">
+                  <app-avatar [size]="30" [foto]="mb.foto ?? null" [nome]="mb.nome" />
+                </button>
+              } @else if (!m.eu) {
+                <span class="foto"></span>
+              }
+              <div class="msg" [class.eu]="m.eu">
+                @if (m.membro) { <span class="quem">{{ m.membro.nome }}</span> }
+                <p>{{ m.texto }}</p>
+                <span class="hora">{{ m.hora }}</span>
+              </div>
             </div>
           }
         } @empty {
@@ -54,17 +65,23 @@ import { Toast } from '../shared/toast';
         <button class="btn icon" type="submit" [disabled]="!texto().trim() || enviando()" aria-label="Enviar"><app-icon name="send" [size]="20" /></button>
       </form>
     </div>
+
+    <app-visor [(url)]="foto" />
   `,
   styles: `
     .page { padding-bottom: calc(var(--nav-h) + var(--safe-b) + 30px); min-height: calc(100dvh - 60px); }
     .ativa { margin-top: 8px; }
     .msgs { flex: 1; display: flex; flex-direction: column; gap: 4px; }
     .day-label { align-self: center; margin: 10px 0 4px; }
+    .linha { display: flex; align-items: flex-end; gap: 6px; }
+    .linha.eu { justify-content: flex-end; }
+    .foto { width: 30px; flex-shrink: 0; border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; align-self: flex-start; }
+    .foto:disabled { cursor: default; }
     .msg {
-      align-self: flex-start; max-width: 80%; padding: 7px 12px; border-radius: 16px 16px 16px 4px;
+      max-width: 80%; padding: 7px 12px; border-radius: 16px 16px 16px 4px;
       background: var(--card); border: 1px solid var(--line);
     }
-    .msg.eu { align-self: flex-end; background: var(--primary); color: var(--primary-ink); border-color: transparent; border-radius: 16px 16px 4px 16px; }
+    .msg.eu { background: var(--primary); color: var(--primary-ink); border-color: transparent; border-radius: 16px 16px 4px 16px; }
     .msg p { white-space: pre-wrap; overflow-wrap: anywhere; }
     .quem { display: block; font-size: 0.75rem; font-weight: 700; color: var(--primary); }
     .hora { display: block; text-align: right; font-size: 0.68rem; opacity: 0.7; margin-top: 1px; }
@@ -92,10 +109,11 @@ export default class ChatPage {
 
   protected texto = signal('');
   protected enviando = signal(false);
+  protected foto = signal<string | null>(null);
 
   protected dias = computed(() => {
     const eu = this.auth.user()?.id;
-    const grupos = new Map<string, (Mensagem & { eu: boolean; nome: string; hora: string })[]>();
+    const grupos = new Map<string, (Mensagem & { eu: boolean; membro?: Membro; hora: string })[]>();
     let ant: Mensagem | undefined;
     for (const m of this.chat.mensagens()) {
       const d = new Date(m.criado_em);
@@ -104,7 +122,8 @@ export default class ChatPage {
       const item = {
         ...m,
         eu: m.user_id === eu,
-        nome: m.user_id !== eu && novoBloco ? (this.s.membroMap().get(m.user_id) ?? '') : '',
+        // foto e nome só na primeira mensagem do bloco
+        membro: m.user_id !== eu && novoBloco ? this.s.membroPorId().get(m.user_id) : undefined,
         hora: d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       };
       grupos.set(dia, [...(grupos.get(dia) ?? []), item]);

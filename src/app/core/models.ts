@@ -1,3 +1,5 @@
+import type { Foto } from './auth';
+
 export type Forma = 'debito' | 'cartao' | 'beneficio';
 
 export interface Carteira {
@@ -12,6 +14,8 @@ export interface Membro {
   user_id: string;
   nome: string;
   papel: 'dono' | 'membro';
+  /** cópia de user_metadata.foto (trigger 017) */
+  foto: Foto | null;
 }
 
 export interface Categoria {

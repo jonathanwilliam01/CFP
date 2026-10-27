@@ -8,6 +8,14 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.10.4',
+    data: '2026-10-27',
+    itens: [
+      'Foto dos membros na carteira e no chat; toque para ver em tela cheia',
+      'Contas por recebimento: quanto de conta cai em cada dia de recebimento (ex.: vale dia 20 e salário dia 7), quanto falta pagar e quanto sobra',
+    ],
+  },
+  {
     versao: 'v1.26.10.3',
     data: '2026-10-26',
     itens: [

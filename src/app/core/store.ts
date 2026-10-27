@@ -61,6 +61,7 @@ export class Store {
   readonly cartaoPadrao = computed(() => this.cartoesAtivos().find((c) => c.padrao) ?? null);
   readonly beneficiosAtivos = computed(() => this.beneficios().filter((b) => b.ativo));
   readonly membroMap = computed(() => new Map(this.membros().map((m) => [m.user_id, m.nome])));
+  readonly membroPorId = computed(() => new Map(this.membros().map((m) => [m.user_id, m])));
 
   readonly gastosMes = computed(() => this.gastos().filter((g) => noMes(g.data, this.mes())));
   readonly gastosMesAnterior = computed(() => this.gastos().filter((g) => noMes(g.data, addMeses(this.mes(), -1))));

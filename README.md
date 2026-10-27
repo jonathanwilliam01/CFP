@@ -66,6 +66,7 @@ A cada build publicado na Vercel: nova nota no topo de `src/app/core/versao.ts` 
 - **Conta fixa no cartão**: entra uma vez em cada fatura a partir da primeira (por padrão a fatura aberta no cadastro), vence com a fatura, não aparece como conta separada e fica paga quando a fatura é paga.
 - **Conta variável**: valor previsto = média das últimas 12 contas (pagas ou incluídas no histórico), a partir de 3; antes disso usa o valor estimado.
 - **Benefícios** (VR/VA): gastos e contas fixas pagos com benefício descontam do saldo dele e não entram nas saídas.
+- **Por recebimento** (Contas): com entradas fixas em dois ou mais dias (ex.: vale dia 20 e salário dia 7), cada conta fica com o último recebimento até o vencimento; vencimento antes do primeiro recebimento do mês fica com o último (vence dia 3 → vale do dia 20). Contas pagas com benefício ficam de fora.
 - **Registros**: controles avulsos (ex.: carro), não entram nas contas do mês.
 - **Parcelamentos**: geram um gasto por parcela; no cartão, cada parcela cai numa fatura.
 - **Importar fatura ou extrato** (Gastos/Cartões → Importar): CSV do Nubank, CSV de outros bancos (colunas de data, descrição e valor achadas pelo nome) ou OFX. Pagamentos, estornos e créditos ficam de fora. Lança no cartão escolhido ou como Pix/Débito; já lançado (mesmo valor na mesma fatura, ou no mesmo dia no débito) vem desmarcado. No cartão, parcela vira parcelamento com as próximas. Tudo entra numa transação. Descrição e categoria escolhidas ficam lembradas no aparelho.

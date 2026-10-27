@@ -77,6 +77,47 @@ export function contasDoMes(
   return [...fixas, ...faturas].sort((a, b) => a.vencimento.localeCompare(b.vencimento));
 }
 
+export interface Recebimento {
+  dia: number;
+  nome: string;
+  recebe: number;
+  contas: ContaMes[];
+  total: number;
+  aPagar: number;
+  sobra: number;
+}
+
+/**
+ * Contas por dia de recebimento das entradas fixas (ex.: vale dia 20 e salário dia 7).
+ * Cada conta fica com o último recebimento até o dia do vencimento; antes do primeiro, com o último do mês.
+ * Contas pagas com benefício ficam de fora. Menos de dois dias de recebimento: lista vazia.
+ */
+export function porRecebimento(mes: string, contas: ContaMes[], recorrencias: Recorrencia[], pagamentos: Pagamento[]): Recebimento[] {
+  const dias = new Map<number, Recorrencia[]>();
+  for (const r of recorrencias.filter((r) => r.tipo === 'entrada' && ativaNoMes(r, mes)))
+    dias.set(r.dia, [...(dias.get(r.dia) ?? []), r]);
+  if (dias.size < 2) return [];
+  const grupos = [...dias.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([dia, es]) => ({
+      dia,
+      nome: es.map((e) => e.descricao).join(' + '),
+      recebe: soma(es, (e) => pagamentos.find((p) => p.ref_id === e.id && p.mes === mes)?.valor ?? e.valor),
+      contas: [] as ContaMes[],
+    }));
+  for (const c of contas) {
+    if (c.beneficio_id) continue;
+    const dia = +c.vencimento.slice(8);
+    let g = grupos[grupos.length - 1];
+    for (const x of grupos) if (x.dia <= dia) g = x;
+    g.contas.push(c);
+  }
+  return grupos.map((g) => {
+    const total = soma(g.contas, (c) => c.valor);
+    return { ...g, total, aPagar: soma(g.contas.filter((c) => !c.pago), (c) => c.valor), sobra: g.recebe - total };
+  });
+}
+
 export interface ResumoMes {
   entradas: number;
   entradasFixas: number;

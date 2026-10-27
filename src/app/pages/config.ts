@@ -8,13 +8,15 @@ import { Push } from '../core/push';
 import { Store } from '../core/store';
 import { Tema } from '../core/tema';
 import { q, supabase } from '../core/supabase';
+import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
 import { IconePicker } from '../shared/icone-picker';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Visor } from '../shared/visor';
 
 @Component({
-  imports: [FormsModule, Icon, IconePicker, Sheet],
+  imports: [FormsModule, Avatar, Icon, IconePicker, Sheet, Visor],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -52,7 +54,9 @@ import { Toast } from '../shared/toast';
           <div class="list">
             @for (m of s.membros(); track m.user_id) {
               <div class="row">
-                <span class="ico"><app-icon name="person" /></span>
+                <button type="button" class="foto" [disabled]="!m.foto" (click)="foto.set(m.foto?.url ?? null)" [attr.aria-label]="'Ver foto de ' + m.nome">
+                  <app-avatar [size]="40" [foto]="m.foto ?? null" [nome]="m.nome" />
+                </button>
                 <div class="grow">
                   <div class="t">{{ m.nome }}{{ m.user_id === auth.user()?.id ? ' (você)' : '' }}</div>
                   <div class="s">{{ m.papel === 'dono' ? 'Dono' : 'Membro' }}</div>
@@ -168,9 +172,13 @@ import { Toast } from '../shared/toast';
         }
       </form>
     </app-sheet>
+
+    <app-visor [(url)]="foto" />
   `,
   styles: `
     .linha { display: flex; gap: 8px; }
+    .foto { border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; }
+    .foto:disabled { cursor: default; }
     .linha input { flex: 1; min-width: 0; }
     .convite { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--primary-soft); border-radius: 14px; padding: 12px; }
     .cod { font-size: 1.5rem; font-weight: 800; letter-spacing: 0.2em; color: var(--primary); }
@@ -191,6 +199,7 @@ export default class Config {
   private router = inject(Router);
 
   protected ocupado = signal(false);
+  protected foto = signal<string | null>(null);
   protected catAberta = signal(false);
   protected tipoCat = signal<'gasto' | 'entrada'>('gasto');
   protected cats = computed(() => this.s.categorias().filter((c) => c.tipo === this.tipoCat()));

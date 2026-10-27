@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { Auth, Foto } from '../core/auth';
 
-/** Foto do usuário recortada em círculo; sem foto, as iniciais */
+/** Foto do usuário (ou de outro membro, com foto e nome) recortada em círculo; sem foto, as iniciais */
 @Component({
   selector: 'app-avatar',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,8 +26,10 @@ export class Avatar {
   readonly size = input(32);
   /** enquadramento em edição; sem ele usa a foto salva */
   readonly foto = input<Foto | null | undefined>(undefined);
+  /** nome para as iniciais; sem ele usa o do usuário */
+  readonly nome = input<string>();
   protected f = computed(() => (this.foto() === undefined ? this.auth.foto() : this.foto()));
   protected iniciais = computed(
-    () => this.auth.nome().split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('') || '?',
+    () => (this.nome() ?? this.auth.nome()).split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('') || '?',
   );
 }

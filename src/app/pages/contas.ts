@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { addMeses, diaNoMes, diffDias, hoje, mesAtual, mesFatura, nomeMes } from '../core/datas';
-import { MAX_MEDIA, MIN_MEDIA, fixasNaFatura, mediaContas } from '../core/financas';
+import { MAX_MEDIA, MIN_MEDIA, fixasNaFatura, mediaContas, porRecebimento } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, parseValor, soma } from '../core/formato';
 import { Cartao, ContaMes, Gasto, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
@@ -43,8 +43,24 @@ interface FormFixa {
         <div class="stat"><div class="l">À vista no mês</div><div class="v">{{ s.resumo().avista | brl }}</div></div>
       </div>
 
+      @if (recebimentos().length) {
+        <h2>Por recebimento</h2>
+        <div class="stats">
+          @for (g of recebimentos(); track g.dia) {
+            <button type="button" class="stat rec" [class.on]="diaSel() === g.dia" (click)="diaSel.set(diaSel() === g.dia ? null : g.dia)">
+              <div class="l">Dia {{ g.dia }} · {{ g.nome }}</div>
+              <div class="lin"><span>Recebe</span><b class="pos">{{ g.recebe | brl }}</b></div>
+              <div class="lin"><span>Contas</span><b>{{ g.total | brl }}</b></div>
+              <div class="lin"><span>A pagar</span><b class="neg">{{ g.aPagar | brl }}</b></div>
+              <div class="lin sobra"><span>Sobra</span><b [class.neg]="g.sobra < 0">{{ g.sobra | brl }}</b></div>
+            </button>
+          }
+        </div>
+        <p class="small muted">Cada conta fica com o último recebimento até o vencimento. Toque para ver só as contas dele.</p>
+      }
+
       <section class="card list">
-        @for (c of s.contasMes(); track c.tipo + c.ref_id) {
+        @for (c of contasLista(); track c.tipo + c.ref_id) {
           <button class="row" (click)="abrir(c)">
             <span class="ico" [style.background]="c.cor + '22'" [style.color]="c.cor"><app-icon [name]="c.icone" /></span>
             <div class="grow">
@@ -213,6 +229,13 @@ interface FormFixa {
   `,
   styles: `
     .list { padding-top: 4px; padding-bottom: 4px; }
+    .rec { font: inherit; color: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
+    .rec.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+    .rec .l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+    .lin { display: flex; justify-content: space-between; gap: 6px; font-size: 0.85rem; }
+    .lin span { color: var(--ink-2); }
+    .lin b { font-variant-numeric: tabular-nums; }
+    .sobra { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 2px; }
     .dir { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
     .riscado { color: var(--ink-3); }
     .itens { max-height: 40dvh; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; }
@@ -240,6 +263,9 @@ export default class Contas {
   protected maxMedia = MAX_MEDIA;
   protected mesAtualCurto = mesAtual().slice(0, 7);
 
+  protected recebimentos = computed(() => porRecebimento(this.s.mes(), this.s.contasMes(), this.s.recorrencias(), this.s.pagamentos()));
+  protected diaSel = signal<number | null>(null);
+  protected contasLista = computed(() => this.recebimentos().find((g) => g.dia === this.diaSel())?.contas ?? this.s.contasMes());
   protected total = computed(() => soma(this.s.contasMes().filter((c) => !c.beneficio_id), (c) => c.valor));
   /** Compras no crédito com data no mês, por cartão (a fatura delas pode ser de outro mês) */
   protected credito = computed(() => {

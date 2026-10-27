@@ -6,6 +6,7 @@ import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Visor } from '../shared/visor';
 import { fecharNoVoltar } from '../shared/voltar';
 
 const TAM = 220;
@@ -14,14 +15,14 @@ const MAX_LADO = 1024;
 /** Minha conta: dados do usuário e foto de perfil (visualizar, trocar, enquadrar) */
 @Component({
   selector: 'app-conta',
-  imports: [Avatar, Icon, Sheet],
+  imports: [Avatar, Icon, Sheet, Visor],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-sheet [open]="open()" (openChange)="fechar()" [titulo]="editando() ? 'Foto de perfil' : 'Minha conta'">
       @if (!editando()) {
         <div class="form">
           <div class="perfil">
-            <button type="button" class="foto" (click)="auth.foto() ? vendo.set(true) : editar()" [attr.aria-label]="auth.foto() ? 'Ver foto' : 'Adicionar foto'">
+            <button type="button" class="foto" (click)="auth.foto() ? vendo.set(auth.foto()!.url) : editar()" [attr.aria-label]="auth.foto() ? 'Ver foto' : 'Adicionar foto'">
               <app-avatar [size]="72" />
             </button>
             <div class="dados">
@@ -88,12 +89,7 @@ const MAX_LADO = 1024;
       }
     </app-sheet>
 
-    @if (vendo() && auth.foto(); as f) {
-      <div class="visor" (click)="vendo.set(false)">
-        <img [src]="f.url" alt="Foto de perfil" />
-        <button type="button" class="btn ghost icon fechar" aria-label="Fechar"><app-icon name="close" /></button>
-      </div>
-    }
+    <app-visor [(url)]="vendo" />
   `,
   styles: `
     .perfil { display: flex; align-items: center; gap: 16px; }
@@ -114,13 +110,6 @@ const MAX_LADO = 1024;
       background: var(--card-2); color: var(--ink-2); font: inherit; font-weight: 600; cursor: pointer;
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
     }
-    .visor {
-      position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / 0.85);
-      display: grid; place-items: center; padding: 24px; animation: fade 0.15s;
-    }
-    .visor img { max-width: 100%; max-height: 100%; border-radius: 16px; object-fit: contain; }
-    .fechar { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 12px); right: 12px; }
-    @keyframes fade { from { opacity: 0; } }
   `,
 })
 export class Conta {
@@ -131,7 +120,7 @@ export class Conta {
 
   readonly open = model(false);
   protected tam = TAM;
-  protected vendo = signal(false);
+  protected vendo = signal<string | null>(null);
   protected editando = signal(false);
   protected salvando = signal(false);
   protected ajuste = signal<Foto | null>(null);
@@ -150,7 +139,6 @@ export class Conta {
 
   constructor() {
     fecharNoVoltar(() => this.editando(), () => this.cancelar());
-    fecharNoVoltar(() => this.vendo(), () => this.vendo.set(false));
   }
 
   editar() {

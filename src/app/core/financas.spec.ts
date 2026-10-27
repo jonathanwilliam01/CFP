@@ -1,4 +1,4 @@
-import { contasDoMes, creditoBeneficios, mediaContas, resumoMes, saldoBeneficio, statusOrcamentos } from './financas';
+import { contasDoMes, creditoBeneficios, mediaContas, porRecebimento, resumoMes, saldoBeneficio, statusOrcamentos } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -57,6 +57,24 @@ describe('resumoMes', () => {
     expect(r.entradas).toBe(5200);
     expect(r.saldo).toBe(5050);
     expect(r.aPagar).toBe(100);
+  });
+});
+
+describe('porRecebimento', () => {
+  const mes = '2026-10-01';
+  const vale = conta({ id: 'e1', tipo: 'entrada', descricao: 'Vale', valor: 2000, dia: 20 });
+  const salario = conta({ id: 'e2', tipo: 'entrada', descricao: 'Salário', valor: 3000, dia: 7 });
+
+  it('separa as contas pelo último recebimento até o vencimento', () => {
+    const recs = [vale, salario, conta({ dia: 3 }), conta({ id: 'r2', dia: 10, valor: 200 }), conta({ id: 'r3', dia: 25, valor: 50 }),
+      conta({ id: 'r4', dia: 12, valor: 90, beneficio_id: 'b1' })];
+    const contas = contasDoMes(mes, recs, [], [], [pago({ ref_id: 'r2', valor: 200 })], new Map());
+    const l = porRecebimento(mes, contas, recs, [pago({ ref_id: 'e2', valor: 3100 })]);
+    expect(l.map((g) => [g.dia, g.recebe, g.total, g.aPagar, g.sobra])).toEqual([[7, 3100, 200, 0, 2900], [20, 2000, 150, 150, 1850]]);
+  });
+
+  it('com um só dia de recebimento não separa', () => {
+    expect(porRecebimento(mes, [], [salario], [])).toEqual([]);
   });
 });
 

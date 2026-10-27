@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.26.10.4 — 2026-10-27
+- Foto dos membros na carteira e no chat; toque para ver em tela cheia
+- Contas por recebimento: quanto de conta cai em cada dia de recebimento (ex.: vale dia 20 e salário dia 7), quanto falta pagar e quanto sobra
+
 ## v1.26.10.3 — 2026-10-26
 - Categoria padrão Gasolina
 - Resumo mensal com entradas e gastos somando os benefícios (VR/VA), sem mudar o saldo em dinheiro
