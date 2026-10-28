@@ -49,7 +49,7 @@ import { Toast } from '../shared/toast';
             <span class="ico" [style.background]="c.cor + '22'" [style.color]="c.cor"><app-icon [name]="c.icone" /></span>
             <div class="grow">
               <div class="t">{{ c.descricao }}</div>
-              <div class="s">Vence {{ c.vencimento | dia }}{{ c.media ? ' · pela média' : '' }}{{ c.beneficio_id ? ' · ' + beneficioNome(c.beneficio_id) : '' }}{{ c.mes !== s.mes() ? ' · paga com o salário deste mês' : '' }}</div>
+              <div class="s">Vence {{ c.vencimento | dia }}{{ c.media ? ' · pela média' : '' }}{{ c.informado ? ' · valor do mês' : '' }}{{ c.beneficio_id ? ' · ' + beneficioNome(c.beneficio_id) : '' }}{{ c.mes !== s.mes() ? ' · paga com o salário deste mês' : '' }}</div>
             </div>
             <div class="dir">
               <span class="v" [class.riscado]="c.pago">{{ c.valor | brl }}</span>
@@ -115,14 +115,21 @@ import { Toast } from '../shared/toast';
             </div>
           }
           @if (c.pago) {
-            <div class="aviso sucesso"><app-icon class="i" name="check_circle" /><div><div class="t">Paga em {{ c.pago.pago_em | dia }}</div><div class="s">{{ c.pago.valor | brl }}</div></div></div>
+            <div class="aviso sucesso"><app-icon class="i" name="check_circle" /><div><div class="t">Paga em {{ c.pago.pago_em! | dia }}</div><div class="s">{{ c.pago.valor | brl }}</div></div></div>
             <button class="btn ghost block" (click)="desfazer(c)">Desfazer pagamento</button>
           } @else {
             <div class="grid2">
-              <label class="field"><span>Valor pago</span><input inputmode="decimal" [(ngModel)]="valorPago" /></label>
+              <label class="field"><span>{{ variavel(c) ? 'Valor da conta' : 'Valor pago' }}</span><input inputmode="decimal" [(ngModel)]="valorPago" /></label>
               <label class="field"><span>Pago em</span><input type="date" [(ngModel)]="pagoEm" /></label>
             </div>
             <button class="btn block" (click)="pagar(c)"><app-icon name="check" [size]="18" />Marcar como paga</button>
+            @if (variavel(c)) {
+              <p class="small muted">Salve o valor que chegou para contar nas saídas deste mês sem pagar agora. Os outros meses continuam pela média.</p>
+              <button class="btn ghost block" (click)="pagar(c, true)">Salvar só o valor do mês</button>
+              @if (c.informado) {
+                <button class="btn ghost block" (click)="voltarMedia(c)">Voltar para a média</button>
+              }
+            }
           }
           @if (c.tipo === 'recorrencia') {
             <button class="btn ghost block" (click)="editarFixaId(c.ref_id)">Editar conta fixa</button>
@@ -239,19 +246,41 @@ export default class Contas {
     this.detalhe.set(true);
   }
 
-  async pagar(c: ContaMes) {
+  variavel(c: ContaMes) {
+    return c.tipo === 'recorrencia' && !!this.s.recorrencias().find((r) => r.id === c.ref_id)?.variavel;
+  }
+
+  async pagar(c: ContaMes, soValor = false) {
     try {
-      const id = await this.s.pagar(c.tipo, c.ref_id, parseValor(this.valorPago), this.pagoEm, c.mes);
-      this.toast.feito(`${c.descricao} paga`, () => this.s.desfazerPagamento(id));
+      const valor = parseValor(this.valorPago);
+      if (soValor) {
+        if (!valor) return this.toast.erro('Informe o valor');
+        await this.s.pagar(c.tipo, c.ref_id, valor, null, c.mes);
+        this.toast.ok(`Valor de ${c.descricao} salvo`);
+      } else {
+        const id = await this.s.pagar(c.tipo, c.ref_id, valor, this.pagoEm, c.mes);
+        this.toast.feito(`${c.descricao} paga`, () => this.s.desfazerPagamento(id));
+      }
       this.detalhe.set(false);
     } catch (e) {
       this.toast.erro(e);
     }
   }
 
+  // variável mantém o valor do mês
   async desfazer(c: ContaMes) {
     try {
-      await this.s.desfazerPagamento(c.pago!.id);
+      if (this.variavel(c)) await this.s.pagar(c.tipo, c.ref_id, c.pago!.valor, null, c.mes);
+      else await this.s.desfazerPagamento(c.pago!.id);
+      this.detalhe.set(false);
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
+
+  async voltarMedia(c: ContaMes) {
+    try {
+      await this.s.desfazerPagamento(c.informado!.id);
       this.detalhe.set(false);
     } catch (e) {
       this.toast.erro(e);

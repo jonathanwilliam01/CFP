@@ -110,7 +110,8 @@ export interface Pagamento {
   ref_id: string;
   mes: string;
   valor: number;
-  pago_em: string;
+  /** null: valor do mês informado (conta variável), ainda não pago */
+  pago_em: string | null;
 }
 
 export interface Cofrinho {
@@ -175,6 +176,8 @@ export interface ContaMes {
   pago: Pagamento | null;
   /** valor previsto pela média de conta variável */
   media?: boolean;
+  /** valor do mês informado, ainda não pago */
+  informado?: Pagamento | null;
   /** conta fixa paga com benefício */
   beneficio_id?: string | null;
 }

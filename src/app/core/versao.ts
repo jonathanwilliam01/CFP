@@ -8,6 +8,13 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.10.6',
+    data: '2026-10-28',
+    itens: [
+      'Conta variável: valor que chegou no mês pode ser salvo sem pagar e já conta nas saídas; os outros meses seguem pela média (migration 019)',
+    ],
+  },
+  {
     versao: 'v1.26.10.5',
     data: '2026-10-28',
     itens: [

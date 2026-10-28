@@ -40,6 +40,14 @@ describe('contasDoMes', () => {
     expect(l[0].pago?.valor).toBe(120);
   });
 
+  it('valor do mês informado conta sem marcar paga', () => {
+    const l = contasDoMes(mes, [conta({ variavel: true })], [], [], [pago({ valor: 180, pago_em: null })], new Map());
+    expect(l[0].valor).toBe(180);
+    expect(l[0].pago).toBeNull();
+    expect(l[0].media).toBe(false);
+    expect(l[0].informado?.valor).toBe(180);
+  });
+
   it('respeita início e fim da conta fixa', () => {
     expect(contasDoMes(mes, [conta({ inicio: '2026-11-01' })], [], [], [], new Map())).toEqual([]);
     expect(contasDoMes(mes, [conta({ fim: '2026-09-01' })], [], [], [], new Map())).toEqual([]);

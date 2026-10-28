@@ -275,8 +275,8 @@ export class Store {
     await this.recarregar('cartoes');
   }
 
-  /** Registra a baixa e devolve o id do pagamento */
-  async pagar(tipo: 'recorrencia' | 'fatura', refId: string, valor: number, pagoEm: string, mes = this.mes()) {
+  /** Registra a baixa e devolve o id do pagamento; sem pagoEm só grava o valor do mês */
+  async pagar(tipo: 'recorrencia' | 'fatura', refId: string, valor: number, pagoEm: string | null, mes = this.mes()) {
     const { id } = await q<{ id: string }>(
       supabase.from('pagamentos').upsert(
         { carteira_id: this.carteiraId(), tipo, ref_id: refId, mes, valor, pago_em: pagoEm },

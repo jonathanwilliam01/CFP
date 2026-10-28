@@ -37,7 +37,8 @@ export function contasDoMes(
     .map((r) => {
       const m = mesConta(r);
       const c = r.categoria_id ? categorias.get(r.categoria_id) : undefined;
-      const p = pago('recorrencia', r.id, m);
+      const reg = pago('recorrencia', r.id, m);
+      const p = reg?.pago_em ? reg : null;
       return {
         tipo: 'recorrencia',
         ref_id: r.id,
@@ -46,9 +47,10 @@ export function contasDoMes(
         cor: c?.cor ?? '#64748b',
         vencimento: diaNoMes(m, r.dia),
         mes: m,
-        valor: p?.valor ?? r.valor,
+        valor: reg?.valor ?? r.valor,
         pago: p,
-        media: r.variavel && !p,
+        media: r.variavel && !reg,
+        informado: p ? null : reg,
         beneficio_id: r.beneficio_id,
       };
     });

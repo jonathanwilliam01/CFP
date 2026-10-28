@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.26.10.6 — 2026-10-28
+- Conta variável: valor que chegou no mês pode ser salvo sem pagar e já conta nas saídas; os outros meses seguem pela média (migration 019)
+
 ## v1.26.10.5 — 2026-10-28
 - Logo CFP sai da barra superior; menu lateral com a sigla e o nome completo no topo e o botão Lançamento logo abaixo
 - Lançamento com "Repete todo mês": vira conta fixa ou entrada fixa (valor variável, salário do mês anterior e data final opcionais)
