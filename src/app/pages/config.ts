@@ -6,7 +6,7 @@ import { Insights } from '../core/insights';
 import { Categoria, Membro } from '../core/models';
 import { Push } from '../core/push';
 import { Store } from '../core/store';
-import { Tema } from '../core/tema';
+import { CORES, Cor, Tema } from '../core/tema';
 import { q, supabase } from '../core/supabase';
 import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
@@ -133,6 +133,16 @@ import { Visor } from '../shared/visor';
           <button type="button" [class.on]="tema.modo() === 'escuro'" (click)="tema.modo.set('escuro')"><app-icon name="dark_mode" [size]="18" />Escuro</button>
         </div>
         <p class="small muted">Automático segue o tema do celular.</p>
+        <div class="field">
+          <span>Cor principal</span>
+          <div class="cores">
+            @for (c of cores; track c.id) {
+              <button type="button" [class.on]="tema.cor() === c.id" [style.--c]="c.hex" (click)="tema.cor.set(c.id)" [attr.aria-label]="c.nome" [title]="c.nome">
+                @if (tema.cor() === c.id) { <app-icon name="check" [size]="18" /> }
+              </button>
+            }
+          </div>
+        </div>
       </div>
 
       <div class="card form">
@@ -177,6 +187,12 @@ import { Visor } from '../shared/visor';
   `,
   styles: `
     .linha { display: flex; gap: 8px; }
+    .cores { display: flex; gap: 10px; flex-wrap: wrap; }
+    .cores button {
+      width: 38px; height: 38px; border-radius: 50%; border: 3px solid var(--card); background: var(--c); color: #fff;
+      box-shadow: 0 0 0 1px var(--line); cursor: pointer; display: grid; place-items: center;
+    }
+    .cores button.on { box-shadow: 0 0 0 2px var(--c); }
     .foto { border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; }
     .foto:disabled { cursor: default; }
     .linha input { flex: 1; min-width: 0; }
@@ -194,6 +210,7 @@ export default class Config {
   protected s = inject(Store);
   protected insights = inject(Insights);
   protected tema = inject(Tema);
+  protected cores = (Object.keys(CORES) as Cor[]).map((id) => ({ id, hex: CORES[id], nome: id[0].toUpperCase() + id.slice(1) }));
   protected push = inject(Push);
   private toast = inject(Toast);
   private router = inject(Router);
@@ -277,10 +294,9 @@ export default class Config {
     if (ok) this.catAberta.set(false);
   }
 
-  async excluirCategoria() {
-    if (!confirm('Excluir a categoria? Os lançamentos ficam sem categoria.')) return;
-    const ok = await this.exec(() => this.s.excluir('categorias', this.cat.id), 'Categoria excluída');
-    if (ok) this.catAberta.set(false);
+  excluirCategoria() {
+    this.s.excluirAdiado('categorias', this.cat.id, 'Categoria excluída');
+    this.catAberta.set(false);
   }
 
   trocar(id: string) {

@@ -8,6 +8,29 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.10.5',
+    data: '2026-10-28',
+    itens: [
+      'Logo CFP sai da barra superior; menu lateral com a sigla e o nome completo no topo e o botão Lançamento logo abaixo',
+      'Lançamento com "Repete todo mês": vira conta fixa ou entrada fixa (valor variável, salário do mês anterior e data final opcionais)',
+      'Reajuste de valor de contas e entradas fixas a partir de um mês, também nas variáveis (a média volta a contar dali); contas encerradas ficam escondidas',
+      'Lançamento abre no último tipo usado; segurar o + escolhe Gasto, Parcelado, Entrada ou Conta fixa',
+      'Atalho N no computador para novo lançamento',
+      'Menu recolhido mostra o nome do item ao passar o mouse',
+      'Escolha da cor principal (azul, vermelho, verde, laranja ou roxo) em Configurações, nos temas claro e escuro',
+      'Saldo do mês em verde (positivo) ou vermelho (negativo), entradas em verde e saídas em vermelho, em qualquer cor principal',
+      'Excluir com "Desfazer" por 5 segundos no lugar da confirmação',
+      'Mensagens novas do chat aparecem nas notificações',
+      'Reajuste feito numa única operação no banco e com histórico de valores na edição da conta (migration 018)',
+      '"Repete todo mês" com data de hoje ou anterior já marca o primeiro mês como pago ou recebido',
+      'Lançamento sem internet fica guardado no aparelho e é enviado quando a conexão volta',
+      '"Lançar de novo hoje" na edição de um gasto ou entrada',
+      '"Desfazer" também ao marcar conta paga ou entrada recebida',
+      'Card do saldo compara os gastos com o mês anterior e alterna entre só dinheiro e com benefícios',
+      'Aviso quando uma conta variável vem 30% ou mais acima da média',
+    ],
+  },
+  {
     versao: 'v1.26.10.4',
     data: '2026-10-27',
     itens: [

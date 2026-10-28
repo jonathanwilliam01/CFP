@@ -1,4 +1,4 @@
-import { addMeses, diaNoMes, fimMes, inicioMes, mesesEntre } from './datas';
+import { addMeses, diaNoMes, fimMes, inicioMes, mesFatura, mesesEntre } from './datas';
 import { pct, soma } from './formato';
 import {
   Beneficio, Cartao, Categoria, ContaMes, Gasto, Orcamento, Pagamento, Recorrencia, UsoBeneficio,
@@ -299,3 +299,48 @@ export function mediasVariaveis(recorrencias: Recorrencia[], valores: { ref_id: 
 }
 
 export const proximosMeses = (mes: string, n: number) => Array.from({ length: n }, (_, i) => addMeses(mes, i));
+
+/** Primeiro mês e dia de uma fixa criada pelo lançamento: no cartão, a fatura da data e o vencimento do cartão */
+export function inicioFixa(data: string, cartao?: Cartao) {
+  return cartao
+    ? { inicio: mesFatura(data, cartao.fechamento_dia, cartao.vencimento_dia), dia: cartao.vencimento_dia }
+    : { inicio: inicioMes(data), dia: Number(data.slice(8, 10)) };
+}
+
+/** Cadeia de reajustes de uma recorrência, da mais antiga à mais nova */
+export function historicoReajustes(recorrencias: Recorrencia[], id: string) {
+  const porId = new Map(recorrencias.map((r) => [r.id, r]));
+  let r = porId.get(id);
+  if (!r) return [];
+  const vistos = new Set<string>();
+  while (r.reajuste_de && porId.has(r.reajuste_de) && !vistos.has(r.id)) {
+    vistos.add(r.id);
+    r = porId.get(r.reajuste_de)!;
+  }
+  const l: Recorrencia[] = [];
+  for (let x: Recorrencia | undefined = r; x && !l.includes(x); x = recorrencias.find((y) => y.reajuste_de === x!.id)) l.push(x);
+  return l;
+}
+
+export const ACIMA_MEDIA = 1.3;
+
+/** Contas variáveis cuja última conta (até o mês seguinte) veio 30% ou mais acima da média das anteriores */
+export function variaveisAcima(recorrencias: Recorrencia[], valores: { ref_id: string; mes: string; valor: number }[], mes: string) {
+  const l: { r: Recorrencia; mes: string; valor: number; media: number; pct: number }[] = [];
+  for (const r of recorrencias.filter((x) => x.variavel)) {
+    const vs = valores.filter((v) => v.ref_id === r.id && v.mes <= addMeses(mes, 1)).sort((a, b) => b.mes.localeCompare(a.mes));
+    const [ult, ...ant] = vs;
+    if (!ult || ult.mes < mes) continue;
+    const media = mediaContas(ant);
+    if (media && ult.valor >= media * ACIMA_MEDIA) l.push({ r, mes: ult.mes, valor: ult.valor, media, pct: Math.round((ult.valor / media - 1) * 100) });
+  }
+  return l;
+}
+
+/** Variação % dos gastos lançados contra o mês anterior; no mês corrente compara até o mesmo dia */
+export function variacaoGastos(gastos: { data: string; valor: number }[], mes: string, hoje: string) {
+  const corte = inicioMes(hoje) === mes ? Number(hoje.slice(8, 10)) : 31;
+  const ate = (m: string) => soma(gastos.filter((g) => noMes(g.data, m) && Number(g.data.slice(8, 10)) <= corte), (g) => g.valor);
+  const ant = ate(addMeses(mes, -1));
+  return ant > 0 ? Math.round((ate(mes) / ant - 1) * 100) : null;
+}

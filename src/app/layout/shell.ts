@@ -2,13 +2,14 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { Auth } from '../core/auth';
 import { Chat } from '../core/chat';
+import { Fila } from '../core/fila';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Tema } from '../core/tema';
 import { VERSAO } from '../core/versao';
 import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
-import { Lancar, LancarSheet } from '../shared/lancar';
+import { Lancar, LancarSheet, Modo } from '../shared/lancar';
 import { MesPicker } from '../shared/mes-picker';
 import { Conta } from './conta';
 import { ATALHOS, PRINCIPAIS } from './menu';
@@ -17,11 +18,10 @@ import { ATALHOS, PRINCIPAIS } from './menu';
   selector: 'app-shell',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '[class.recolhido]': 'recolhido()' },
+  host: { '[class.recolhido]': 'recolhido()', '(document:keydown)': 'atalho($event)' },
   template: `
     <header class="top">
       <div class="marca">
-        <a routerLink="/" class="logo" aria-label="Início">CFP</a>
         <button type="button" class="user" (click)="conta.set(true)" aria-label="Minha conta">
           <app-avatar />
           <span class="nome">{{ auth.nome() }}</span>
@@ -29,6 +29,12 @@ import { ATALHOS, PRINCIPAIS } from './menu';
       </div>
       <app-mes-picker />
       <div class="acoes">
+        @if (fila.itens().length; as n) {
+          <button type="button" class="bell" (click)="fila.enviar()" [attr.aria-label]="n + ' lançamento(s) esperando internet'" [title]="n + ' lançamento(s) esperando internet. Toque para tentar enviar'">
+            <app-icon name="cloud_upload" />
+            <span class="dot espera">{{ n }}</span>
+          </button>
+        }
         <button type="button" class="bell" (click)="tema.alternar()" [attr.aria-label]="tema.escuro() ? 'Tema claro' : 'Tema escuro'">
           <app-icon [name]="tema.escuro() ? 'light_mode' : 'dark_mode'" [size]="20" />
         </button>
@@ -42,12 +48,16 @@ import { ATALHOS, PRINCIPAIS } from './menu';
     </header>
 
     <aside class="side">
-      <button class="btn block lanca" type="button" (click)="lancar.novo()" title="Lançamento">
+      <a routerLink="/" class="side-marca" aria-label="Início">
+        <span class="logo">CFP</span>
+        <span class="r">Controle Financeiro Pessoal</span>
+      </a>
+      <button class="btn block lanca" type="button" (click)="lancar.novo()" aria-label="Lançamento" (mouseenter)="dica($event, 'Lançamento (N)')" (mouseleave)="tip.set(null)">
         <app-icon name="add" [size]="20" /><span class="r">Lançamento</span>
       </button>
       <nav>
         @for (m of principais; track m.rota) {
-          <a [routerLink]="m.rota" routerLinkActive="on" #rla="routerLinkActive" [routerLinkActiveOptions]="{ exact: m.rota === '/' }" [title]="m.rotulo">
+          <a [routerLink]="m.rota" routerLinkActive="on" #rla="routerLinkActive" [routerLinkActiveOptions]="{ exact: m.rota === '/' }" [attr.aria-label]="m.rotulo" (mouseenter)="dica($event, m.rotulo)" (mouseleave)="tip.set(null)">
             <app-icon [name]="m.icone" [fill]="rla.isActive" /><span class="r">{{ m.rotulo }}</span>
             @if (badge(m.rota); as n) {
               <span class="n">{{ n }}</span>
@@ -56,7 +66,7 @@ import { ATALHOS, PRINCIPAIS } from './menu';
         }
         <hr />
         @for (m of atalhos; track m.rota) {
-          <a [routerLink]="m.rota" routerLinkActive="on" #rla="routerLinkActive" [title]="m.rotulo">
+          <a [routerLink]="m.rota" routerLinkActive="on" #rla="routerLinkActive" [attr.aria-label]="m.rotulo" (mouseenter)="dica($event, m.rotulo)" (mouseleave)="tip.set(null)">
             <app-icon [name]="m.icone" [fill]="rla.isActive" /><span class="r">{{ m.rotulo }}</span>
             @if (badge(m.rota); as n) {
               <span class="n">{{ n }}</span>
@@ -65,18 +75,32 @@ import { ATALHOS, PRINCIPAIS } from './menu';
         }
       </nav>
       <div class="pe">
-        <button type="button" class="recolher" (click)="alternarMenu()" [title]="recolhido() ? 'Expandir menu' : 'Recolher menu'">
+        <button type="button" class="recolher" (click)="alternarMenu()" [attr.aria-label]="recolhido() ? 'Expandir menu' : 'Recolher menu'" (mouseenter)="dica($event, 'Expandir menu')" (mouseleave)="tip.set(null)">
           <app-icon [name]="recolhido() ? 'left_panel_open' : 'left_panel_close'" /><span class="r">Recolher menu</span>
         </button>
         <a class="versao r" routerLink="/novidades">CFP {{ versao }} · Novidades</a>
       </div>
     </aside>
 
+    @if (tip(); as t) {
+      <span class="tip" [style.top.px]="t.y">{{ t.texto }}</span>
+    }
+
     <main><router-outlet /></main>
 
-    <button class="fab" type="button" (click)="lancar.novo()" aria-label="Lançar gasto">
-      <app-icon name="add" [size]="28" />
+    <button class="fab" type="button" aria-label="Lançar (segure para escolher o tipo)" (click)="tocarFab()"
+      (pointerdown)="pressionar()" (pointerup)="soltar()" (pointerleave)="soltar()" (pointercancel)="soltar()" (contextmenu)="$event.preventDefault()">
+      <app-icon [name]="menuLanc() ? 'close' : 'add'" [size]="28" />
     </button>
+
+    @if (menuLanc()) {
+      <div class="menu-back" (click)="menuLanc.set(false)"></div>
+      <div class="menu-lanc" role="menu">
+        @for (o of opcoes; track o.rotulo) {
+          <button type="button" role="menuitem" (click)="abrirComo(o.modo, o.fixa)"><app-icon [name]="o.icone" [size]="20" />{{ o.rotulo }}</button>
+        }
+      </div>
+    }
 
     @if (s.membros().length > 1) {
       <a class="chat-fab" routerLink="/chat" routerLinkActive="on" aria-label="Chat">
@@ -125,6 +149,7 @@ import { ATALHOS, PRINCIPAIS } from './menu';
       background: var(--danger); color: #fff; font-size: 0.68rem; font-weight: 800;
       display: grid; place-items: center; padding: 0 4px; border: 2px solid var(--bg);
     }
+    .dot.espera { background: var(--warn); }
     .nav {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
       height: calc(var(--nav-h) + var(--safe-b)); padding-bottom: var(--safe-b);
@@ -146,6 +171,22 @@ import { ATALHOS, PRINCIPAIS } from './menu';
       transition: transform 0.1s;
     }
     .fab:active { transform: translateX(-50%) scale(0.93); }
+    .fab { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+    .menu-back { position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.3); animation: fade 0.15s; }
+    .menu-lanc {
+      position: fixed; z-index: 32; left: 50%; transform: translateX(-50%); bottom: calc(var(--safe-b) + 96px);
+      display: flex; flex-direction: column; gap: 4px; padding: 6px; min-width: 210px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.2);
+      animation: sobe 0.15s;
+    }
+    .menu-lanc button {
+      display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 0; background: none; border-radius: 10px;
+      font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; text-align: left;
+    }
+    .menu-lanc button:active, .menu-lanc button:hover { background: var(--card-2); }
+    .menu-lanc app-icon { color: var(--primary); }
+    @keyframes fade { from { opacity: 0; } }
+    @keyframes sobe { from { opacity: 0; transform: translate(-50%, 10px); } }
     .chat-fab {
       position: fixed; z-index: 31; right: 16px; bottom: calc(var(--nav-h) + var(--safe-b) + 16px);
       width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
@@ -164,7 +205,7 @@ import { ATALHOS, PRINCIPAIS } from './menu';
     /* desktop: menu lateral no lugar da barra inferior */
     @media (min-width: 1024px) {
       :host.recolhido { --side-w: 76px; }
-      .nav, .fab { display: none; }
+      .nav, .fab, .menu-lanc, .menu-back { display: none; }
       .chat-fab { bottom: 24px; right: 24px; width: 56px; height: 56px; }
       .top { padding-left: calc(var(--side-w) + 24px); padding-right: 24px; }
       main { display: block; margin-left: var(--side-w); }
@@ -173,6 +214,10 @@ import { ATALHOS, PRINCIPAIS } from './menu';
         position: fixed; top: 0; bottom: 0; left: 0; z-index: 25; width: var(--side-w);
         display: flex; flex-direction: column; gap: 12px; padding: 16px 12px 0;
         background: var(--card); border-right: 1px solid var(--line); transition: width 0.2s;
+      }
+      .side-marca {
+        display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 4px 0 4px;
+        color: var(--ink-2); font-size: 0.78rem; font-weight: 700; text-align: center; white-space: nowrap;
       }
       .side nav { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; scrollbar-width: thin; }
       .side nav a, .recolher {
@@ -186,12 +231,18 @@ import { ATALHOS, PRINCIPAIS } from './menu';
         margin-left: auto; min-width: 20px; height: 20px; border-radius: 10px; padding: 0 5px;
         background: var(--danger); color: #fff; font-size: 0.7rem; font-weight: 800; display: grid; place-items: center;
       }
+      .tip {
+        position: fixed; z-index: 40; left: calc(var(--side-w) + 6px); transform: translateY(-50%); pointer-events: none;
+        background: var(--ink); color: var(--bg); font-size: 0.82rem; font-weight: 700; padding: 6px 10px; border-radius: 8px;
+        white-space: nowrap; box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+      }
+      .lanca { box-shadow: 0 6px 16px color-mix(in srgb, var(--primary) 35%, transparent); }
       .pe { border-top: 1px solid var(--line); padding: 8px 0 12px; display: flex; flex-direction: column; gap: 4px; }
       .recolher { border: 0; background: none; font: inherit; cursor: pointer; width: 100%; }
       .versao { text-align: center; font-size: 0.78rem; color: var(--ink-3); font-weight: 600; padding: 4px; white-space: nowrap; }
       :host.recolhido .r { display: none; }
       :host.recolhido .side nav a, :host.recolhido .recolher { justify-content: center; padding: 10px 0; }
-      :host.recolhido .lanca { padding: 0; }
+      :host.recolhido .lanca { padding: 0; width: 52px; height: 52px; margin: 0 auto; border-radius: 16px; flex-shrink: 0; }
       :host.recolhido .side .n { position: absolute; top: 2px; right: 6px; min-width: 16px; height: 16px; font-size: 0.62rem; }
     }
   `,
@@ -203,18 +254,71 @@ export class Shell {
   protected chat = inject(Chat);
   protected lancar = inject(Lancar);
   protected tema = inject(Tema);
+  protected fila = inject(Fila);
 
   protected principais = PRINCIPAIS;
   protected atalhos = ATALHOS;
   protected versao = VERSAO;
   protected conta = signal(false);
   protected recolhido = signal(localStorage.getItem('cfp.menu') === 'recolhido');
+  protected tip = signal<{ texto: string; y: number } | null>(null);
+  protected menuLanc = signal(false);
+  protected opcoes: { rotulo: string; icone: string; modo: Modo; fixa?: boolean }[] = [
+    { rotulo: 'Gasto', icone: 'receipt_long', modo: 'gasto' },
+    { rotulo: 'Parcelado', icone: 'event_repeat', modo: 'parcelado' },
+    { rotulo: 'Entrada', icone: 'payments', modo: 'entrada' },
+    { rotulo: 'Conta fixa', icone: 'calendar_month', modo: 'gasto', fixa: true },
+  ];
+  private pressao: ReturnType<typeof setTimeout> | undefined;
+  private segurou = false;
 
   badge(rota: string) {
     return rota === '/notificacoes' ? this.insights.naoLidas().length : rota === '/chat' ? this.chat.naoLidas() : 0;
   }
 
+  /** Nome do item ao passar o mouse no menu recolhido */
+  dica(ev: MouseEvent, texto: string) {
+    if (!this.recolhido()) return;
+    const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+    this.tip.set({ texto, y: r.top + r.height / 2 });
+  }
+
+  // segurar o + abre a escolha do tipo de lançamento
+  pressionar() {
+    this.segurou = false;
+    this.pressao = setTimeout(() => {
+      this.segurou = true;
+      this.menuLanc.set(true);
+      navigator.vibrate?.(15);
+    }, 450);
+  }
+
+  soltar() {
+    clearTimeout(this.pressao);
+  }
+
+  tocarFab() {
+    if (this.segurou) return;
+    if (this.menuLanc()) return this.menuLanc.set(false);
+    this.lancar.novo();
+  }
+
+  abrirComo(modo: Modo, fixa = false) {
+    this.menuLanc.set(false);
+    this.lancar.novo(modo, fixa);
+  }
+
+  /** N abre um novo lançamento (fora de campos e painéis) */
+  atalho(e: KeyboardEvent) {
+    if (e.key.toLowerCase() !== 'n' || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    const alvo = e.target as HTMLElement;
+    if (alvo.closest?.('input, textarea, select, [contenteditable]') || document.querySelector('[role="dialog"]')) return;
+    e.preventDefault();
+    this.lancar.novo();
+  }
+
   alternarMenu() {
+    this.tip.set(null);
     this.recolhido.update((v) => !v);
     localStorage.setItem('cfp.menu', this.recolhido() ? 'recolhido' : '');
   }

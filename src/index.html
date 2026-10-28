@@ -26,6 +26,8 @@
       var t = localStorage.getItem('cfp.tema');
       if (t === 'claro') document.documentElement.dataset.theme = 'light';
       if (t === 'escuro') document.documentElement.dataset.theme = 'dark';
+      var c = localStorage.getItem('cfp.cor');
+      if (c && c !== 'azul') document.documentElement.dataset.cor = c;
     </script>
   </head>
   <body>

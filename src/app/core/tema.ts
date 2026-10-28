@@ -2,9 +2,14 @@ import { Injectable, computed, effect, signal } from '@angular/core';
 
 export type ModoTema = 'auto' | 'claro' | 'escuro';
 
+/** Cor principal no tema claro (barra do navegador); o escuro usa o fundo */
+export const CORES = { azul: '#1d5bd8', vermelho: '#d0353f', verde: '#15803d', laranja: '#d9620b', roxo: '#7c3aed' } as const;
+export type Cor = keyof typeof CORES;
+
 @Injectable({ providedIn: 'root' })
 export class Tema {
   readonly modo = signal<ModoTema>((localStorage.getItem('cfp.tema') as ModoTema) || 'auto');
+  readonly cor = signal<Cor>(localStorage.getItem('cfp.cor') as Cor in CORES ? (localStorage.getItem('cfp.cor') as Cor) : 'azul');
   private sistemaEscuro = signal(false);
   readonly escuro = computed(() => (this.modo() === 'auto' ? this.sistemaEscuro() : this.modo() === 'escuro'));
 
@@ -15,11 +20,15 @@ export class Tema {
 
     effect(() => {
       const m = this.modo();
+      const c = this.cor();
       const html = document.documentElement;
       if (m === 'auto') delete html.dataset['theme'];
       else html.dataset['theme'] = m === 'escuro' ? 'dark' : 'light';
+      if (c === 'azul') delete html.dataset['cor'];
+      else html.dataset['cor'] = c;
       localStorage.setItem('cfp.tema', m);
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', this.escuro() ? '#0d1119' : '#1d5bd8');
+      localStorage.setItem('cfp.cor', c);
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', this.escuro() ? '#0d1119' : CORES[c]);
     });
   }
 

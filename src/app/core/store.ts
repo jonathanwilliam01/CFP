@@ -9,6 +9,7 @@ import {
   Beneficio, Carteira, Cartao, Categoria, Cofrinho, CofrinhoMov, Dados, Entrada, Gasto, Membro, Orcamento,
   Pagamento, Recorrencia, Registro, Tabela, UsoBeneficio,
 } from './models';
+import { Toast } from '../shared/toast';
 import { q, supabase } from './supabase';
 
 const CADASTROS = ['categorias', 'cartoes', 'beneficios', 'recorrencias', 'orcamentos', 'cofrinhos', 'cofrinho_movs', 'registros'] as const;
@@ -25,6 +26,7 @@ const TEMPO_REAL = [...CADASTROS, 'gastos', 'entradas', 'pagamentos', 'registro_
 export class Store {
   private auth = inject(Auth);
   private router = inject(Router);
+  private toast = inject(Toast);
 
   readonly carteiras = signal<Carteira[]>([]);
   readonly carteiraId = signal<string | null>(localStorage.getItem('cfp.carteira'));
@@ -241,6 +243,28 @@ export class Store {
     await this.depois(tabela);
   }
 
+  /** Some da tela na hora e só exclui no banco se não desfizer; `recarregar` atualiza telas com carga própria */
+  excluirAdiado(tabela: Tabela, id: string, texto: string, recarregar?: () => unknown) {
+    const locais: Partial<Record<Tabela, WritableSignal<{ id: string }[]>>> = {
+      gastos: this.gastos, entradas: this.entradas, pagamentos: this.pagamentos, categorias: this.categorias, cartoes: this.cartoes,
+      beneficios: this.beneficios, recorrencias: this.recorrencias, orcamentos: this.orcamentos, cofrinhos: this.cofrinhos,
+      cofrinho_movs: this.cofrinhoMovs, registros: this.registros,
+    };
+    locais[tabela]?.update((l) => l.filter((x) => x.id !== id));
+    if (tabela === 'parcelamentos') this.gastos.update((l) => l.filter((g) => g.parcelamento_id !== id));
+    this.toast.adiar(
+      texto,
+      async () => {
+        await this.excluir(tabela, id);
+        await recarregar?.();
+      },
+      async () => {
+        await this.depois(tabela);
+        await recarregar?.();
+      },
+    );
+  }
+
   async depois(tabela: string) {
     if (eCadastro(tabela)) await this.recarregar(tabela);
     if (DO_MES.includes(tabela)) await this.carregarMes();
@@ -251,14 +275,16 @@ export class Store {
     await this.recarregar('cartoes');
   }
 
+  /** Registra a baixa e devolve o id do pagamento */
   async pagar(tipo: 'recorrencia' | 'fatura', refId: string, valor: number, pagoEm: string, mes = this.mes()) {
-    await q(
+    const { id } = await q<{ id: string }>(
       supabase.from('pagamentos').upsert(
         { carteira_id: this.carteiraId(), tipo, ref_id: refId, mes, valor, pago_em: pagoEm },
         { onConflict: 'tipo,ref_id,mes' },
-      ),
+      ).select('id').single(),
     );
     await this.carregarMes();
+    return id;
   }
 
   /** Grava e remove valores mensais de uma conta fixa (histórico das variáveis) */
@@ -272,6 +298,15 @@ export class Store {
         ),
       );
     await this.carregarMes();
+  }
+
+  /**
+   * Novo valor a partir de um mês (RPC reajustar_recorrencia, numa transação): encerra a recorrência no mês anterior
+   * e cria outra igual ligada por reajuste_de. Pagamentos desse mês em diante passam para a nova; nas variáveis a média recomeça ali.
+   */
+  async reajustar(r: Recorrencia, valor: number, mes: string) {
+    await q(supabase.rpc('reajustar_recorrencia', { p_id: r.id, p_valor: valor, p_mes: mes }));
+    await Promise.all([this.recarregar('recorrencias'), this.carregarMes()]);
   }
 
   async desfazerPagamento(id: string) {

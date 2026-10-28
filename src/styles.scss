@@ -1,3 +1,5 @@
+@use "sass:list";
+
 :root {
   --bg: #f2f5f9;
   --card: #ffffff;
@@ -19,8 +21,8 @@
   --info-soft: #dcf1f6;
   --radius: 16px;
   --shadow: 0 1px 2px rgb(20 27 43 / 0.04), 0 4px 16px rgb(20 27 43 / 0.06);
-  --hero: linear-gradient(145deg, #1d5bd8, #143f9a);
-  --hero-shadow: 0 10px 30px rgb(29 91 216 / 0.25);
+  --hero: linear-gradient(145deg, #1f2937, #111827);
+  --hero-shadow: 0 10px 30px rgb(17 24 39 / 0.25);
   --nav-h: 64px;
   --side-w: 248px;
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -47,7 +49,7 @@
   --info: #4cc3dd;
   --info-soft: #10303a;
   --shadow: none;
-  --hero: linear-gradient(145deg, #1f4296, #132a62);
+  --hero: linear-gradient(145deg, #1e2736, #161d29);
   --hero-shadow: none;
   color-scheme: dark;
 }
@@ -59,6 +61,35 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     @include escuro;
+  }
+}
+
+// cor principal escolhida em Configurações (azul é o padrão do :root)
+$cores: (
+  vermelho: (#d0353f, #fbe1e3, #ff7a82, #33060a, #4a1a1e),
+  verde: (#15803d, #dcf3e3, #4ade80, #052e16, #143a24),
+  laranja: (#d9620b, #fde8d6, #ffa24d, #3a1a02, #3f2814),
+  roxo: (#7c3aed, #ece3fd, #b28cff, #1d0b45, #2c1f4d),
+);
+
+@mixin cor-escura($c) {
+  --primary: #{list.nth($c, 3)};
+  --primary-ink: #{list.nth($c, 4)};
+  --primary-soft: #{list.nth($c, 5)};
+}
+
+@each $nome, $c in $cores {
+  :root[data-cor='#{$nome}'] {
+    --primary: #{list.nth($c, 1)};
+    --primary-soft: #{list.nth($c, 2)};
+  }
+  :root[data-cor='#{$nome}'][data-theme='dark'] {
+    @include cor-escura($c);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root[data-cor='#{$nome}']:not([data-theme='light']) {
+      @include cor-escura($c);
+    }
   }
 }
 
@@ -401,6 +432,8 @@ input[type='color'] {
     align-items: center;
     justify-content: center;
     gap: 6px;
+    white-space: nowrap;
+    min-width: 0;
     &.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
   }
 }

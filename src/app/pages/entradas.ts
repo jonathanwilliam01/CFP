@@ -7,6 +7,7 @@ import { Recorrencia } from '../core/models';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
+import { Reajuste } from '../shared/reajuste';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 
@@ -22,7 +23,7 @@ interface FormFixa {
 }
 
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
+  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Reajuste],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -76,6 +77,9 @@ interface FormFixa {
           <label class="field"><span>Valor</span><input name="v" inputmode="decimal" [(ngModel)]="form.valor" /></label>
           <label class="field"><span>Dia que cai</span><input name="dia" type="number" min="1" max="31" [(ngModel)]="form.dia" /></label>
         </div>
+        @if (form.id) {
+          <p class="small muted">Mudar o valor aqui troca todos os meses. Para mudar só a partir de um mês, use o reajuste abaixo.</p>
+        }
         <label class="field"><span>Categoria</span>
           <select name="c" [(ngModel)]="form.categoria_id">
             <option [ngValue]="null">Sem categoria</option>
@@ -87,6 +91,9 @@ interface FormFixa {
           <label class="field"><span>Até (opcional)</span><input name="f" type="month" [(ngModel)]="form.fim" /></label>
         </div>
         <label class="check"><input name="a" type="checkbox" [(ngModel)]="form.ativo" />Ativa</label>
+        @if (editando(); as r) {
+          <app-reajuste [rec]="r" (feito)="aberto.set(false)" />
+        }
         <button class="btn block" type="submit">Salvar</button>
         @if (form.id) {
           <button class="btn danger block" type="button" (click)="excluir()">Excluir</button>
@@ -113,6 +120,7 @@ export default class Entradas {
 
   protected aberto = signal(false);
   protected form: FormFixa = this.vazio();
+  protected editando = signal<Recorrencia | null>(null);
 
   protected fixas = computed(() => this.s.recorrencias().filter((r) => r.tipo === 'entrada' && ativaNoMes(r, this.s.mes())));
 
@@ -126,8 +134,8 @@ export default class Entradas {
       if (p) await this.s.desfazerPagamento(p.id);
       else {
         const dia = diaNoMes(this.s.mes(), r.dia);
-        await this.s.pagar('recorrencia', r.id, r.valor, dia < hoje() ? dia : hoje());
-        this.toast.ok(`${r.descricao} recebida`);
+        const id = await this.s.pagar('recorrencia', r.id, r.valor, dia < hoje() ? dia : hoje());
+        this.toast.feito(`${r.descricao} recebida`, () => this.s.desfazerPagamento(id));
       }
     } catch (e) {
       this.toast.erro(e);
@@ -139,11 +147,13 @@ export default class Entradas {
   }
 
   nova() {
+    this.editando.set(null);
     this.form = this.vazio();
     this.aberto.set(true);
   }
 
   editar(r: Recorrencia) {
+    this.editando.set(r);
     this.form = {
       id: r.id, descricao: r.descricao, valor: String(r.valor).replace('.', ','), dia: r.dia, categoria_id: r.categoria_id,
       inicio: r.inicio.slice(0, 7), fim: r.fim?.slice(0, 7) ?? '', ativo: r.ativo,
@@ -166,13 +176,8 @@ export default class Entradas {
     }
   }
 
-  async excluir() {
-    if (!confirm('Excluir esta entrada fixa?')) return;
-    try {
-      await this.s.excluir('recorrencias', this.form.id!);
-      this.aberto.set(false);
-    } catch (e) {
-      this.toast.erro(e);
-    }
+  excluir() {
+    this.s.excluirAdiado('recorrencias', this.form.id!, 'Entrada fixa excluída');
+    this.aberto.set(false);
   }
 }

@@ -1,4 +1,4 @@
-import { contasDoMes, creditoBeneficios, mediaContas, porRecebimento, resumoMes, saldoBeneficio, statusOrcamentos } from './financas';
+import { contasDoMes, creditoBeneficios, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, porRecebimento, resumoMes, saldoBeneficio, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -122,5 +122,89 @@ describe('creditoBeneficios', () => {
   it('soma os ativos que já começaram no mês', () => {
     const b = (p: Partial<Beneficio>): Beneficio => ({ id: 'b', nome: 'VR', valor_mensal: 500, dia_credito: 1, acumula: true, inicio: '2026-01-01', ativo: true, ...p });
     expect(creditoBeneficios([b({}), b({ valor_mensal: 300, inicio: '2026-11-01' }), b({ valor_mensal: 200, ativo: false })], '2026-10-01')).toBe(500);
+  });
+});
+
+describe('reajuste', () => {
+  // reajuste em novembro: a antiga termina em outubro e a nova começa em novembro
+  const antiga = conta({ id: 'r1', valor: 100, fim: '2026-10-01' });
+  const nova = conta({ id: 'r2', valor: 130, inicio: '2026-11-01', reajuste_de: 'r1' });
+  const valor = (mes: string, l: Recorrencia[], cartoes: Cartao[] = []) =>
+    contasDoMes(mes, l, cartoes, [], [], new Map()).map((c) => c.valor);
+
+  it('meses antes do reajuste ficam com o valor antigo e depois com o novo', () => {
+    expect(valor('2026-10-01', [antiga, nova])).toEqual([100]);
+    expect(valor('2026-11-01', [antiga, nova])).toEqual([130]);
+  });
+
+  it('com salário do mês anterior vale pelo mês do vencimento', () => {
+    const l = [{ ...antiga, paga_mes_anterior: true }, { ...nova, paga_mes_anterior: true }];
+    expect(valor('2026-09-01', l)).toEqual([100]);
+    expect(valor('2026-10-01', l)).toEqual([130]);
+  });
+
+  it('fixa no cartão troca a partir da fatura do reajuste', () => {
+    const l = [{ ...antiga, cartao_id: 'c1' }, { ...nova, cartao_id: 'c1' }];
+    expect(valor('2026-10-01', l, [cartao()])).toEqual([100]);
+    expect(valor('2026-11-01', l, [cartao()])).toEqual([130]);
+  });
+
+  it('variável recomeça a média com os pagamentos movidos para a nova', () => {
+    const vs = [
+      { ref_id: 'r1', mes: '2026-08-01', valor: 90 }, { ref_id: 'r1', mes: '2026-09-01', valor: 110 }, { ref_id: 'r1', mes: '2026-10-01', valor: 100 },
+      { ref_id: 'r2', mes: '2026-11-01', valor: 150 },
+    ];
+    const m = mediasVariaveis([{ ...antiga, variavel: true }, { ...nova, variavel: true }], vs);
+    expect(m.get('r1')).toBe(100);
+    expect(m.has('r2')).toBe(false);
+  });
+
+  it('histórico segue a cadeia em ordem a partir de qualquer elo', () => {
+    const terceira = conta({ id: 'r3', valor: 160, inicio: '2027-03-01', reajuste_de: 'r2' });
+    const l = [terceira, nova, antiga, conta({ id: 'x' })];
+    expect(historicoReajustes(l, 'r2').map((r) => r.id)).toEqual(['r1', 'r2', 'r3']);
+    expect(historicoReajustes(l, 'x').map((r) => r.id)).toEqual(['x']);
+  });
+});
+
+describe('inicioFixa', () => {
+  it('sem cartão usa o mês e o dia da data', () => {
+    expect(inicioFixa('2026-10-15')).toEqual({ inicio: '2026-10-01', dia: 15 });
+  });
+
+  it('no cartão usa a fatura da data e o vencimento do cartão', () => {
+    expect(inicioFixa('2026-10-15', cartao({ fechamento_dia: 1, vencimento_dia: 8 }))).toEqual({ inicio: '2026-11-01', dia: 8 });
+    expect(inicioFixa('2026-10-15', cartao({ fechamento_dia: 20, vencimento_dia: 28 }))).toEqual({ inicio: '2026-10-01', dia: 28 });
+  });
+});
+
+describe('variaveisAcima', () => {
+  const luz = conta({ variavel: true });
+  const vs = (ult: number, mes = '2026-10-01') => [
+    { ref_id: 'r1', mes: '2026-07-01', valor: 100 }, { ref_id: 'r1', mes: '2026-08-01', valor: 100 }, { ref_id: 'r1', mes: '2026-09-01', valor: 100 },
+    { ref_id: 'r1', mes, valor: ult },
+  ];
+
+  it('avisa conta do mês 30% acima da média das anteriores', () => {
+    expect(variaveisAcima([luz], vs(135), '2026-10-01').map((v) => v.pct)).toEqual([35]);
+  });
+
+  it('não avisa abaixo do limite, conta antiga ou sem média', () => {
+    expect(variaveisAcima([luz], vs(125), '2026-10-01')).toEqual([]);
+    expect(variaveisAcima([luz], vs(200, '2026-09-15'), '2026-11-01')).toEqual([]);
+    expect(variaveisAcima([luz], vs(200).slice(2), '2026-10-01')).toEqual([]);
+  });
+});
+
+describe('variacaoGastos', () => {
+  const gs = [gasto({ data: '2026-09-05', valor: 100 }), gasto({ data: '2026-09-25', valor: 300 }), gasto({ data: '2026-10-03', valor: 80 })];
+
+  it('no mês corrente compara até o mesmo dia do mês anterior', () => {
+    expect(variacaoGastos(gs, '2026-10-01', '2026-10-10')).toBe(-20);
+  });
+
+  it('mês fechado compara o mês inteiro; sem gasto anterior não compara', () => {
+    expect(variacaoGastos(gs, '2026-10-01', '2026-11-02')).toBe(-80);
+    expect(variacaoGastos(gs, '2026-09-01', '2026-10-10')).toBeNull();
   });
 });

@@ -136,14 +136,8 @@ export default class Parcelamentos {
     }
   }
 
-  async excluir(p: Parcelamento) {
-    if (!confirm(`Excluir "${p.descricao}" e todas as ${p.num_parcelas} parcelas?`)) return;
-    try {
-      await this.s.excluir('parcelamentos', p.id);
-      await this.carregar();
-      this.toast.ok('Parcelamento excluído');
-    } catch (e) {
-      this.toast.erro(e);
-    }
+  excluir(p: Parcelamento) {
+    this.dados.update((l) => l.filter((x) => x.id !== p.id));
+    this.s.excluirAdiado('parcelamentos', p.id, 'Parcelamento excluído', () => this.carregar());
   }
 }

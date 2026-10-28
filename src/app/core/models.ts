@@ -100,6 +100,8 @@ export interface Recorrencia {
   paga_mes_anterior: boolean;
   /** paga com benefício: desconta do saldo dele e não entra nas saídas */
   beneficio_id: string | null;
+  /** recorrência anterior encerrada pelo reajuste */
+  reajuste_de?: string | null;
 }
 
 export interface Pagamento {

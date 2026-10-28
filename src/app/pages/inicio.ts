@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { diffDias, hoje } from '../core/datas';
-import { porCategoria, saldoBeneficio } from '../core/financas';
-import { BrlPipe, DiaPipe, pct } from '../core/formato';
+import { addMeses, diffDias, hoje, mesAtual } from '../core/datas';
+import { creditoBeneficios, porCategoria, saldoBeneficio, variacaoGastos } from '../core/financas';
+import { BrlPipe, DiaPipe, MesPipe, pct } from '../core/formato';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Donut } from '../shared/graficos';
@@ -10,17 +10,25 @@ import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
 
 @Component({
-  imports: [RouterLink, BrlPipe, DiaPipe, Donut, Icon],
+  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, Donut, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <section class="saldo">
-        <small>Saldo previsto do mês</small>
-        <strong class="num">{{ r().saldo | brl }}</strong>
-        <div class="es">
-          <a routerLink="/entradas"><span>↑ Entradas</span><b class="num">{{ r().entradas | brl }}</b></a>
-          <a routerLink="/contas"><span>↓ Saídas</span><b class="num">{{ r().saidas | brl }}</b></a>
+        <div class="topo">
+          <small>Saldo previsto do mês</small>
+          @if (temBenef()) {
+            <button type="button" class="modo" (click)="alternarBenef()">{{ comBenef() ? 'Com benefícios' : 'Só dinheiro' }}<span aria-hidden="true">⇄</span></button>
+          }
         </div>
+        <strong class="num" [class.sobe]="saldo().saldo >= 0" [class.desce]="saldo().saldo < 0">{{ saldo().saldo | brl }}</strong>
+        <div class="es">
+          <a routerLink="/entradas"><span><i class="sobe">↑</i> Entradas</span><b class="num sobe">{{ saldo().entradas | brl }}</b></a>
+          <a routerLink="/contas"><span><i class="desce">↓</i> Saídas</span><b class="num desce">{{ saldo().saidas | brl }}</b></a>
+        </div>
+        @if (variacao(); as v) {
+          <span class="compara">Gastos lançados <b [class.sobe]="v < 0" [class.desce]="v > 0">{{ v > 0 ? '↑' : '↓' }} {{ v > 0 ? v : -v }}%</b> em relação a {{ mesAnterior() | mes }}{{ noMesAtual() ? ' (até hoje)' : '' }}</span>
+        }
         @if (r().saidas > 0) {
           <div class="pago">
             <div class="bar"><i [style.width.%]="pctPago()"></i></div>
@@ -62,7 +70,7 @@ import { Lancar } from '../shared/lancar';
           </div>
         } @else {
           <div class="empty"><app-icon class="big" name="receipt_long" [size]="40" />Nenhum gasto neste mês ainda.
-            <button class="btn sm" (click)="lancar.novo()">Lançar primeiro gasto</button>
+            <button class="btn sm" (click)="lancar.novo('gasto')">Lançar primeiro gasto</button>
           </div>
         }
       </section>
@@ -145,11 +153,21 @@ import { Lancar } from '../shared/lancar';
       box-shadow: var(--hero-shadow);
     }
     .saldo small { opacity: 0.8; font-weight: 600; }
+    .topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .modo {
+      border: 0; background: rgb(255 255 255 / 0.12); color: #fff; font: inherit; font-size: 0.72rem; font-weight: 700;
+      padding: 4px 10px; border-radius: 999px; cursor: pointer; display: inline-flex; gap: 6px;
+    }
+    .compara { font-size: 0.78rem; opacity: 0.9; margin-top: 6px; }
     .saldo strong { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.03em; }
     .es { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
     .es a { background: rgb(255 255 255 / 0.12); border-radius: 14px; padding: 10px 12px; color: #fff; display: flex; flex-direction: column; }
     .es span { font-size: 0.75rem; opacity: 0.85; font-weight: 600; }
     .es b { font-size: 1.05rem; }
+    .es i { font-style: normal; font-weight: 800; }
+    /* fundo do saldo é neutro: verde e vermelho fixos, independem da cor principal */
+    .sobe { color: #4ade80; }
+    .desce { color: #ff7a7a; }
     .pago { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; opacity: 0.9; }
     .pago .bar { background: rgb(255 255 255 / 0.2); }
     .pago .bar i { background: #fff; }
@@ -177,6 +195,20 @@ export default class Inicio {
   protected lancar = inject(Lancar);
 
   protected r = this.s.resumo;
+  private credito = computed(() => creditoBeneficios(this.s.beneficios(), this.s.mes()));
+  protected temBenef = computed(() => this.credito() > 0 || this.r().beneficios > 0);
+  protected comBenef = signal(localStorage.getItem('cfp.saldo') === 'beneficios');
+  /** Saldo do card: só dinheiro ou somando benefícios (como no resumo mensal) */
+  protected saldo = computed(() => {
+    const r = this.r();
+    if (!this.comBenef() || !this.temBenef()) return r;
+    const entradas = r.entradas + this.credito();
+    const saidas = r.saidas + r.beneficios;
+    return { entradas, saidas, saldo: entradas - saidas };
+  });
+  protected noMesAtual = computed(() => this.s.mes() === mesAtual());
+  protected mesAnterior = computed(() => addMeses(this.s.mes(), -1));
+  protected variacao = computed(() => variacaoGastos(this.s.gastos(), this.s.mes(), hoje()));
   protected pctPago = computed(() => pct(this.r().pago, this.r().pago + this.r().aPagar));
   protected avisos = computed(() => this.insights.avisos().filter((a) => a.nivel === 'perigo' || a.nivel === 'alerta').slice(0, 3));
   protected cats = computed(() => porCategoria(this.s.gastosMes(), this.s.catMap()));
@@ -191,6 +223,11 @@ export default class Inicio {
       return { ...c, guardado, pct: pct(guardado, c.meta) };
     }),
   );
+
+  alternarBenef() {
+    this.comBenef.update((v) => !v);
+    localStorage.setItem('cfp.saldo', this.comBenef() ? 'beneficios' : '');
+  }
 
   status(venc: string) {
     const d = diffDias(hoje(), venc);

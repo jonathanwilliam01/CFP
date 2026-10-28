@@ -1,7 +1,8 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { addDias, diaNoMes, diffDias, hoje, mesAtual, mesFatura } from './datas';
-import { aporteMensal, ativaNoMes, fixasNaFatura, porCategoria, saldoBeneficio } from './financas';
+import { aporteMensal, ativaNoMes, fixasNaFatura, porCategoria, saldoBeneficio, variaveisAcima } from './financas';
 import { moeda, pct, soma } from './formato';
+import { Chat } from './chat';
 import { Store } from './store';
 
 export type NivelAviso = 'perigo' | 'alerta' | 'info' | 'sucesso';
@@ -33,9 +34,22 @@ const GERAIS: Dica[] = [
 @Injectable({ providedIn: 'root' })
 export class Insights {
   private s = inject(Store);
+  private chat = inject(Chat);
   private lidas = signal<string[]>(JSON.parse(localStorage.getItem('cfp.lidas') ?? '[]'));
 
-  readonly avisos = computed<Aviso[]>(() => {
+  /** Mensagens não lidas no chat (vale em qualquer mês) */
+  private avisoChat = computed<Aviso[]>(() => {
+    const m = this.chat.ultimaNaoLida();
+    if (!m) return [];
+    const n = this.chat.naoLidas();
+    const nome = this.s.membroMap().get(m.user_id) ?? 'Chat';
+    const texto = m.texto.length > 80 ? m.texto.slice(0, 80) + '…' : m.texto;
+    return [{ id: `chat-${m.id}`, nivel: 'info', icone: 'chat', titulo: n > 1 ? `${n} mensagens novas no chat` : `Mensagem de ${nome}`, texto: n > 1 ? `${nome}: ${texto}` : texto, link: '/chat' }];
+  });
+
+  readonly avisos = computed<Aviso[]>(() => [...this.avisoChat(), ...this.avisosMes()]);
+
+  private avisosMes = computed<Aviso[]>(() => {
     const s = this.s;
     const mes = s.mes();
     if (mes !== mesAtual()) return [];
@@ -85,6 +99,9 @@ export class Insights {
       if (c.meta > 0 && g >= c.meta)
         l.push({ id: `meta-${c.id}`, nivel: 'sucesso', icone: 'celebration', titulo: `Meta atingida: ${c.nome}`, texto: `Vocês guardaram ${moeda(g)}!`, link: `/cofrinhos/${c.id}` });
     }
+
+    for (const v of variaveisAcima(s.recorrencias(), s.valoresFixas(), mes))
+      l.push({ id: `var-${v.r.id}-${v.mes}`, nivel: 'alerta', icone: 'trending_up', titulo: `${v.r.descricao} veio ${v.pct}% acima da média`, texto: `${moeda(v.valor)} contra média de ${moeda(v.media)}.`, link: '/contas' });
 
     for (const e of s.recorrencias().filter((x) => x.tipo === 'entrada' && ativaNoMes(x, mes))) {
       const d = diffDias(diaNoMes(mes, e.dia), h);

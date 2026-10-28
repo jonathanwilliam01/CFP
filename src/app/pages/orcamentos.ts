@@ -158,14 +158,10 @@ export default class Orcamentos {
     }
   }
 
-  async excluir() {
-    if (!this.f.id || !confirm('Excluir este orçamento?')) return;
-    try {
-      await this.s.excluir('orcamentos', this.f.id);
-      this.toast.ok('Orçamento excluído');
-      this.aberto.set(false);
-    } catch (e) {
-      this.toast.erro(e);
-    }
+  excluir() {
+    if (!this.f.id) return;
+    this.s.excluirAdiado('orcamentos', this.f.id, 'Orçamento excluído');
+    this.aberto.set(false);
   }
+
 }

@@ -159,14 +159,10 @@ export default class Beneficios {
     }
   }
 
-  async excluir() {
-    if (!this.f.id || !confirm('Excluir este benefício?')) return;
-    try {
-      await this.s.excluir('beneficios', this.f.id);
-      this.toast.ok('Benefício excluído');
-      this.aberto.set(false);
-    } catch (e) {
-      this.toast.erro(e);
-    }
+  excluir() {
+    if (!this.f.id) return;
+    this.s.excluirAdiado('beneficios', this.f.id, 'Benefício excluído');
+    this.aberto.set(false);
   }
+
 }

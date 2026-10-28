@@ -170,16 +170,11 @@ export default class Registro {
     }
   }
 
-  async excluirItem() {
-    if (!confirm('Excluir este item?')) return;
-    try {
-      await this.s.excluir('registro_itens', this.it.id);
-      await this.carregar();
-      this.toast.ok('Excluído');
-      this.itemAberto.set(false);
-    } catch (e) {
-      this.toast.erro(e);
-    }
+  excluirItem() {
+    const id = this.it.id;
+    this.itens.update((l) => l.filter((x) => x.id !== id));
+    this.s.excluirAdiado('registro_itens', id, 'Item excluído', () => this.carregar());
+    this.itemAberto.set(false);
   }
 
   editarRegistro() {

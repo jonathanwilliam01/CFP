@@ -19,10 +19,12 @@ export class Chat {
   private lido = signal('');
   private canal: RealtimeChannel | null = null;
 
-  readonly naoLidas = computed(() => {
+  private recebidas = computed(() => {
     const eu = this.auth.user()?.id;
-    return this.mensagens().filter((m) => m.user_id !== eu && m.criado_em > this.lido()).length;
+    return this.mensagens().filter((m) => m.user_id !== eu && m.criado_em > this.lido());
   });
+  readonly naoLidas = computed(() => this.recebidas().length);
+  readonly ultimaNaoLida = computed(() => this.recebidas().at(-1) ?? null);
 
   constructor() {
     effect(() => {

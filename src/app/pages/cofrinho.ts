@@ -155,14 +155,8 @@ export default class Cofrinho {
     }
   }
 
-  async excluirMov(m: CofrinhoMov) {
-    if (!confirm('Excluir esta movimentação?')) return;
-    try {
-      await this.s.excluir('cofrinho_movs', m.id);
-      this.toast.ok('Excluído');
-    } catch (e) {
-      this.toast.erro(e);
-    }
+  excluirMov(m: CofrinhoMov) {
+    this.s.excluirAdiado('cofrinho_movs', m.id, 'Movimentação excluída');
   }
 
   editar() {

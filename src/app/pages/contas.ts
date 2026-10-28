@@ -1,33 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { addMeses, diaNoMes, diffDias, hoje, mesAtual, mesFatura, nomeMes } from '../core/datas';
-import { MAX_MEDIA, MIN_MEDIA, fixasNaFatura, mediaContas, porRecebimento } from '../core/financas';
+import { diffDias, hoje, mesAtual, nomeMes } from '../core/datas';
+import { fixasNaFatura, porRecebimento } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, parseValor, soma } from '../core/formato';
 import { Cartao, ContaMes, Gasto, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
+import { ContaFixa } from '../shared/conta-fixa';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 
-interface FormFixa {
-  id?: string;
-  descricao: string;
-  valor: string;
-  dia: number;
-  categoria_id: string | null;
-  inicio: string;
-  fim: string;
-  ativo: boolean;
-  cartao_id: string | null;
-  variavel: boolean;
-  paga_mes_anterior: boolean;
-  beneficio_id: string | null;
-  hist: { id?: string; mes: string; valor: number }[];
-  removidos: string[];
-}
-
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, MesPipe, Icon, Sheet],
+  imports: [FormsModule, BrlPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -95,15 +79,22 @@ interface FormFixa {
         </section>
       }
 
-      @if (s.recorrencias().length) {
-        <h2>Contas fixas cadastradas</h2>
+      @if (fixas().length || encerradas().length) {
+        <div class="card-head">
+          <h2>Contas fixas cadastradas</h2>
+          @if (encerradas().length) {
+            <button class="btn ghost sm" type="button" (click)="verEncerradas.set(!verEncerradas())">
+              {{ verEncerradas() ? 'Ocultar encerradas' : 'Encerradas (' + encerradas().length + ')' }}
+            </button>
+          }
+        </div>
         <section class="card list">
-          @for (r of fixas(); track r.id) {
+          @for (r of verEncerradas() ? encerradas().concat(fixas()) : fixas(); track r.id) {
             <button class="row" (click)="editarFixa(r)">
               <span class="ico"><app-icon [name]="s.catMap().get(r.categoria_id ?? '')?.icone ?? 'receipt_long'" /></span>
               <div class="grow">
                 <div class="t">{{ r.descricao }}</div>
-                <div class="s">{{ cartaoNome(r) ? 'Na fatura do ' + cartaoNome(r) + ', vence dia ' + r.dia : 'Todo dia ' + r.dia }}{{ r.variavel ? ' · variável' : '' }}{{ r.paga_mes_anterior && !cartaoNome(r) ? ' · salário do mês anterior' : '' }}{{ r.beneficio_id ? ' · ' + beneficioNome(r.beneficio_id) : '' }}{{ r.ativo ? '' : ' · inativa' }}{{ r.fim ? ' · até ' + r.fim.slice(5, 7) + '/' + r.fim.slice(0, 4) : '' }}</div>
+                <div class="s">{{ cartaoNome(r) ? 'Na fatura do ' + cartaoNome(r) + ', vence dia ' + r.dia : 'Todo dia ' + r.dia }}{{ r.variavel ? ' · variável' : '' }}{{ r.paga_mes_anterior && !cartaoNome(r) ? ' · salário do mês anterior' : '' }}{{ r.beneficio_id ? ' · ' + beneficioNome(r.beneficio_id) : '' }}{{ r.ativo ? '' : ' · inativa' }}{{ r.inicio > dataHoje ? ' · a partir de ' + r.inicio.slice(5, 7) + '/' + r.inicio.slice(0, 4) : '' }}{{ r.fim ? ' · até ' + r.fim.slice(5, 7) + '/' + r.fim.slice(0, 4) : '' }}</div>
               </div>
               <span class="v">{{ s.medias().get(r.id) ?? r.valor | brl }}</span>
             </button>
@@ -156,75 +147,10 @@ interface FormFixa {
       }
     </app-sheet>
 
-    <app-sheet [(open)]="formAberto" [titulo]="form.id ? 'Editar conta fixa' : 'Nova conta fixa'">
-      <form class="form" (ngSubmit)="salvarFixa()">
-        <label class="field"><span>Descrição</span><input name="d" [(ngModel)]="form.descricao" placeholder="Ex.: Aluguel, Internet" /></label>
-        <label class="field"><span>Pagamento</span>
-          <select name="pg" [ngModel]="form.cartao_id ?? (form.beneficio_id ? 'b:' + form.beneficio_id : null)" (ngModelChange)="trocarPagamento($event)">
-            <option [ngValue]="null">Boleto/Débito/Pix</option>
-            @for (c of s.cartoesAtivos(); track c.id) { <option [ngValue]="c.id">Cartão {{ c.nome }}</option> }
-            @for (b of s.beneficiosAtivos(); track b.id) { <option [ngValue]="'b:' + b.id">{{ b.nome }}</option> }
-          </select>
-        </label>
-        <label class="check"><input name="var" type="checkbox" [(ngModel)]="form.variavel" />Valor variável (ex.: luz, água)</label>
-        <div class="grid2">
-          <label class="field"><span>{{ form.variavel ? 'Valor estimado' : 'Valor (previsto)' }}</span><input name="v" inputmode="decimal" [(ngModel)]="form.valor" /></label>
-          @if (!form.cartao_id) {
-            <label class="field"><span>Dia do vencimento</span><input name="dia" type="number" min="1" max="31" [(ngModel)]="form.dia" /></label>
-          }
-        </div>
-        @if (form.cartao_id) {
-          <p class="small muted">Entra em todas as faturas a partir da primeira, vence junto com a fatura e é paga com ela.</p>
-        } @else if (form.beneficio_id) {
-          <p class="small muted">Descontada do saldo do benefício todo mês, não entra nas saídas do mês.</p>
-        } @else {
-          <label class="check"><input name="ant" type="checkbox" [(ngModel)]="form.paga_mes_anterior" />Pagar com o salário do mês anterior</label>
-          @if (form.paga_mes_anterior) {
-            <p class="small muted">Entra nas contas e saídas do mês anterior ao vencimento (ex.: vence 07/11, conta em outubro).</p>
-          }
-        }
-        @if (form.variavel) {
-          <div class="hist">
-            <div class="card-head">
-              <h3>Últimas contas</h3>
-              @if (mediaForm(); as m) {
-                <span class="badge info">Média {{ m | brl }}</span>
-              } @else {
-                <span class="badge">Faltam {{ minMedia - form.hist.length }} p/ média</span>
-              }
-            </div>
-            <p class="small muted">A previsão usa a média das últimas {{ maxMedia }} contas (mínimo {{ minMedia }}). Contas pagas entram sozinhas; inclua as anteriores aqui.</p>
-            @for (h of form.hist; track h.mes) {
-              <div class="it">
-                <span>{{ h.mes | mes }}</span>
-                <span class="tit"><span class="num">{{ h.valor | brl }}</span>
-                  <button type="button" class="btn ghost icon sm" (click)="removerHist(h)" aria-label="Remover"><app-icon name="delete" [size]="18" /></button>
-                </span>
-              </div>
-            }
-            <div class="add">
-              <input name="hm" type="month" [max]="mesAtualCurto" [(ngModel)]="histMes" />
-              <input name="hv" inputmode="decimal" placeholder="Valor" [(ngModel)]="histValor" />
-              <button type="button" class="btn ghost icon" (click)="adicionarHist()" aria-label="Adicionar conta"><app-icon name="add" /></button>
-            </div>
-          </div>
-        }
-        <label class="field"><span>Categoria</span>
-          <select name="c" [(ngModel)]="form.categoria_id">
-            <option [ngValue]="null">Sem categoria</option>
-            @for (c of s.catGasto(); track c.id) { <option [ngValue]="c.id">{{ c.nome }}</option> }
-          </select>
-        </label>
-        <div class="grid2">
-          <label class="field"><span>{{ form.cartao_id ? 'Primeira fatura' : 'A partir de' }}</span><input name="i" type="month" [(ngModel)]="form.inicio" /></label>
-          <label class="field"><span>Até (opcional)</span><input name="f" type="month" [(ngModel)]="form.fim" /></label>
-        </div>
-        <label class="check"><input name="a" type="checkbox" [(ngModel)]="form.ativo" />Ativa</label>
-        <button class="btn block" type="submit">Salvar</button>
-        @if (form.id) {
-          <button class="btn danger block" type="button" (click)="excluirFixa()">Excluir</button>
-        }
-      </form>
+    <app-sheet [(open)]="formAberto" [titulo]="fixaSel() ? 'Editar conta fixa' : 'Nova conta fixa'">
+      @if (formAberto()) {
+        <app-conta-fixa [rec]="fixaSel()" (fechar)="formAberto.set(false)" />
+      }
     </app-sheet>
   `,
   styles: `
@@ -241,9 +167,6 @@ interface FormFixa {
     .itens { max-height: 40dvh; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; }
     .it { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
     .it:last-child { border-bottom: 0; }
-    .hist { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
-    .hist .it { align-items: center; padding: 4px 0; }
-    .add { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 4px; }
   `,
 })
 export default class Contas {
@@ -256,12 +179,7 @@ export default class Contas {
   protected pagoEm = hoje();
 
   protected formAberto = signal(false);
-  protected form: FormFixa = this.vazio();
-  protected histMes = '';
-  protected histValor = '';
-  protected minMedia = MIN_MEDIA;
-  protected maxMedia = MAX_MEDIA;
-  protected mesAtualCurto = mesAtual().slice(0, 7);
+  protected fixaSel = signal<Recorrencia | null>(null);
 
   protected recebimentos = computed(() => porRecebimento(this.s.mes(), this.s.contasMes(), this.s.recorrencias(), this.s.pagamentos()));
   protected diaSel = signal<number | null>(null);
@@ -279,7 +197,12 @@ export default class Contas {
       .filter((x) => x.itens.length);
   });
   protected creditoSel = signal<{ cartao: Cartao; itens: Gasto[]; total: number } | null>(null);
-  protected fixas = computed(() => this.s.recorrencias().filter((r) => r.tipo === 'conta'));
+  /** reajuste encerra a anterior: as que já terminaram ficam escondidas */
+  private todasFixas = computed(() => this.s.recorrencias().filter((r) => r.tipo === 'conta'));
+  protected fixas = computed(() => this.todasFixas().filter((r) => !r.fim || r.fim >= mesAtual()));
+  protected encerradas = computed(() => this.todasFixas().filter((r) => r.fim && r.fim < mesAtual()));
+  protected verEncerradas = signal(false);
+  protected dataHoje = hoje();
   protected itensFatura = computed(() => {
     const c = this.sel();
     const cartao = this.s.cartoes().find((x) => x.id === c?.ref_id);
@@ -291,16 +214,6 @@ export default class Contas {
         .map((g) => ({ ...g, fixa: false })),
     ];
   });
-
-  // nova conta no cartão começa na fatura aberta; benefício vem como 'b:<id>'
-  trocarPagamento(v: string | null) {
-    const id = v?.startsWith('b:') ? null : v;
-    this.form.beneficio_id = v?.startsWith('b:') ? v.slice(2) : null;
-    this.form.cartao_id = id;
-    const c = this.s.cartoes().find((x) => x.id === id);
-    if (c && !this.form.id) this.form.inicio = mesFatura(hoje(), c.fechamento_dia, c.vencimento_dia).slice(0, 7);
-    if (!c && !this.form.id) this.form.inicio = mesAtual().slice(0, 7);
-  }
 
   beneficioNome(id: string) {
     return this.s.beneficios().find((b) => b.id === id)?.nome ?? 'Benefício';
@@ -328,8 +241,8 @@ export default class Contas {
 
   async pagar(c: ContaMes) {
     try {
-      await this.s.pagar(c.tipo, c.ref_id, parseValor(this.valorPago), this.pagoEm, c.mes);
-      this.toast.ok('Conta paga');
+      const id = await this.s.pagar(c.tipo, c.ref_id, parseValor(this.valorPago), this.pagoEm, c.mes);
+      this.toast.feito(`${c.descricao} paga`, () => this.s.desfazerPagamento(id));
       this.detalhe.set(false);
     } catch (e) {
       this.toast.erro(e);
@@ -345,27 +258,13 @@ export default class Contas {
     }
   }
 
-  private vazio(): FormFixa {
-    return {
-      descricao: '', valor: '', dia: 10, categoria_id: null, inicio: mesAtual().slice(0, 7), fim: '', ativo: true, cartao_id: null,
-      variavel: false, paga_mes_anterior: false, beneficio_id: null, hist: [], removidos: [],
-    };
-  }
-
   novaFixa() {
-    this.form = this.vazio();
-    this.proximoHist();
+    this.fixaSel.set(null);
     this.formAberto.set(true);
   }
 
   editarFixa(r: Recorrencia) {
-    this.form = {
-      id: r.id, descricao: r.descricao, valor: String(r.valor).replace('.', ','), dia: r.dia, categoria_id: r.categoria_id,
-      inicio: r.inicio.slice(0, 7), fim: r.fim?.slice(0, 7) ?? '', ativo: r.ativo, cartao_id: r.cartao_id ?? null,
-      variavel: r.variavel, paga_mes_anterior: r.paga_mes_anterior, beneficio_id: r.beneficio_id ?? null, removidos: [],
-      hist: this.s.valoresFixas().filter((v) => v.ref_id === r.id).map(({ id, mes, valor }) => ({ id, mes, valor })),
-    };
-    this.proximoHist();
+    this.fixaSel.set(r);
     this.formAberto.set(true);
   }
 
@@ -374,65 +273,4 @@ export default class Contas {
     this.detalhe.set(false);
     if (r) this.editarFixa(r);
   }
-
-  async salvarFixa() {
-    const f = this.form;
-    const media = f.variavel ? this.mediaForm() : null;
-    if (!f.descricao.trim()) return this.toast.erro('Preencha a descrição');
-    if (!parseValor(f.valor) && !media) return this.toast.erro(f.variavel ? `Informe um valor estimado ou ao menos ${MIN_MEDIA} contas` : 'Preencha o valor');
-    try {
-      const dia = this.s.cartoes().find((c) => c.id === f.cartao_id)?.vencimento_dia ?? (f.dia || 1);
-      const id = await this.s.salvar('recorrencias', {
-        id: f.id, tipo: 'conta', descricao: f.descricao.trim(), valor: parseValor(f.valor) || media || 0, dia,
-        categoria_id: f.categoria_id, inicio: `${f.inicio || mesAtual().slice(0, 7)}-01`, fim: f.fim ? `${f.fim}-01` : null, ativo: f.ativo,
-        cartao_id: f.cartao_id, variavel: f.variavel, paga_mes_anterior: !f.cartao_id && !f.beneficio_id && f.paga_mes_anterior,
-        beneficio_id: f.cartao_id ? null : f.beneficio_id,
-      });
-      if (f.variavel) {
-        const novos = f.hist.filter((h) => !h.id).map((h) => ({ mes: h.mes, valor: h.valor, pago_em: diaNoMes(h.mes, dia) }));
-        await this.s.salvarValores(id, novos, f.removidos);
-      }
-      this.toast.ok('Conta fixa salva');
-      this.formAberto.set(false);
-    } catch (e) {
-      this.toast.erro(e);
-    }
-  }
-
-  mediaForm() {
-    return mediaContas(this.form.hist);
-  }
-
-  /** sugere o mês anterior ao mais antigo já informado */
-  private proximoHist() {
-    const ant = this.form.hist.map((h) => h.mes).sort()[0];
-    this.histMes = addMeses(ant ?? mesAtual(), -1).slice(0, 7);
-    this.histValor = '';
-  }
-
-  adicionarHist() {
-    const valor = parseValor(this.histValor);
-    if (!this.histMes || !valor) return this.toast.erro('Informe mês e valor');
-    const mes = `${this.histMes}-01`;
-    const atual = this.form.hist.find((h) => h.mes === mes);
-    if (atual?.id) this.form.removidos.push(atual.id);
-    this.form.hist = [...this.form.hist.filter((h) => h.mes !== mes), { mes, valor }].sort((a, b) => b.mes.localeCompare(a.mes));
-    this.proximoHist();
-  }
-
-  removerHist(h: { id?: string; mes: string }) {
-    if (h.id) this.form.removidos.push(h.id);
-    this.form.hist = this.form.hist.filter((x) => x.mes !== h.mes);
-  }
-
-  async excluirFixa() {
-    if (!confirm('Excluir esta conta fixa?')) return;
-    try {
-      await this.s.excluir('recorrencias', this.form.id!);
-      this.formAberto.set(false);
-    } catch (e) {
-      this.toast.erro(e);
-    }
-  }
-
 }

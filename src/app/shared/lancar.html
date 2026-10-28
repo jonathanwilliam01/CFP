@@ -52,7 +52,7 @@
     </label>
 
     <div class="field">
-      <span>{{ l.modo() === 'parcelado' ? 'Data da compra / 1ª parcela' : 'Data' }}</span>
+      <span>{{ l.modo() === 'parcelado' ? 'Data da compra / 1ª parcela' : repete() && !cartaoFixa() ? (l.modo() === 'entrada' ? 'Primeiro recebimento' : 'Primeiro vencimento') : 'Data' }}</span>
       <div class="data">
         <button type="button" class="chip" [class.on]="f().data === hoje" (click)="set('data', hoje)">Hoje</button>
         <button type="button" class="chip" [class.on]="f().data === ontem" (click)="set('data', ontem)">Ontem</button>
@@ -88,11 +88,38 @@
       </div>
     }
 
+    @if (podeRepetir()) {
+      <div class="fixa" [class.on]="repete()">
+        <label class="check"><input name="rep" type="checkbox" [ngModel]="f().repete" (ngModelChange)="set('repete', $event)" />Repete todo mês</label>
+        @if (repete()) {
+          @if (l.modo() === 'gasto') {
+            <label class="check"><input name="var" type="checkbox" [ngModel]="f().variavel" (ngModelChange)="set('variavel', $event)" />Valor variável (ex.: luz, água)</label>
+            @if (f().pagamento === 'debito') {
+              <label class="check"><input name="ant" type="checkbox" [ngModel]="f().anterior" (ngModelChange)="set('anterior', $event)" />Pagar com o salário do mês anterior</label>
+            }
+          }
+          @if (podeJaPago()) {
+            <label class="check"><input name="jp" type="checkbox" [ngModel]="f().jaPago" (ngModelChange)="set('jaPago', $event)" />{{ l.modo() === 'entrada' ? 'Já recebida' : 'Já paga' }} em {{ inicioFixa() | mes }}</label>
+          }
+          <label class="field"><span>Até (opcional)</span>
+            <input name="fim" type="month" [ngModel]="f().fim" (ngModelChange)="set('fim', $event)" />
+          </label>
+          <p class="hint">
+            Vira {{ l.modo() === 'entrada' ? 'entrada' : 'conta' }} fixa{{ cartaoFixa() ? ' na fatura' : '' }}, todo dia <b>{{ diaFixa() }}</b>
+            a partir de <b>{{ inicioFixa() | mes }}</b>. Reajuste de valor fica na edição dela em {{ l.modo() === 'entrada' ? 'Entradas' : 'Contas' }}.
+          </p>
+        }
+      </div>
+    }
+
     <div class="acoes">
       <button class="btn block" type="submit" [disabled]="salvando()">Salvar</button>
       @if (!editando()) {
         <button class="btn ghost block" type="button" [disabled]="salvando()" (click)="salvar(true)">Salvar e lançar outro</button>
       } @else {
+        @if (!l.gasto()?.parcelamento_id) {
+          <button class="btn ghost block" type="button" (click)="lancarDeNovo()"><app-icon name="content_copy" [size]="18" />Lançar de novo hoje</button>
+        }
         <button class="btn danger block" type="button" (click)="excluir()">
           {{ l.gasto()?.parcelamento_id ? 'Excluir só esta parcela' : 'Excluir' }}
         </button>

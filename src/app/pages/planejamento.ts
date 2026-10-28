@@ -232,14 +232,11 @@ export default class Planejamento {
     }
   }
 
-  async excluir() {
-    if (!this.form.id || !confirm('Excluir este evento?')) return;
-    try {
-      await this.s.excluir('planos', this.form.id);
-      await this.carregarPlanos();
-      this.sheet.set(false);
-    } catch (e) {
-      this.toast.erro(e);
-    }
+  excluir() {
+    const id = this.form.id;
+    if (!id) return;
+    this.planos.update((l) => l.filter((p) => p.id !== id));
+    this.s.excluirAdiado('planos', id, 'Evento excluído', () => this.carregarPlanos());
+    this.sheet.set(false);
   }
 }
