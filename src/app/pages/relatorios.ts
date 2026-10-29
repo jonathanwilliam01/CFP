@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { addDias, addMeses, fimMes, hoje, nomeMes } from '../core/datas';
 import { contasDoMes, noMes, porCategoria, resumoMes } from '../core/financas';
-import { BrlPipe, MesPipe, pct, soma } from '../core/formato';
+import { BrlPipe, MesPipe, baixarCsv, csvData, csvTexto, csvValor, pct, soma } from '../core/formato';
 import { Entrada, Gasto, Pagamento } from '../core/models';
 import { Store } from '../core/store';
 import { Barras, Calor, Coluna, Donut, Empilhadas, Pilha } from '../shared/graficos';
@@ -255,26 +255,20 @@ export default class Relatorios {
     const cartoes = new Map(this.s.cartoes().map((c) => [c.id, c.nome]));
     const benef = new Map(this.s.beneficios().map((b) => [b.id, b.nome]));
     const membros = this.s.membroMap();
-    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const linhas = [...this.consumo()]
       .sort((a, b) => a.data.localeCompare(b.data))
       .map((g) =>
         [
-          g.data.split('-').reverse().join('/'),
-          esc(g.descricao),
-          esc((g.categoria_id && cats.get(g.categoria_id)?.nome) || ''),
-          g.forma === 'cartao' ? esc(cartoes.get(g.cartao_id!) ?? 'Cartão') : g.forma === 'beneficio' ? esc(benef.get(g.beneficio_id!) ?? 'Benefício') : 'À vista',
+          csvData(g.data),
+          csvTexto(g.descricao),
+          csvTexto((g.categoria_id && cats.get(g.categoria_id)?.nome) || ''),
+          g.forma === 'cartao' ? csvTexto(cartoes.get(g.cartao_id!) ?? 'Cartão') : g.forma === 'beneficio' ? csvTexto(benef.get(g.beneficio_id!) ?? 'Benefício') : 'À vista',
           g.fatura_mes ? g.fatura_mes.slice(0, 7) : '',
-          esc((g.criado_por && membros.get(g.criado_por)) || ''),
-          g.valor.toFixed(2).replace('.', ','),
+          csvTexto((g.criado_por && membros.get(g.criado_por)) || ''),
+          csvValor(g.valor),
         ].join(';'),
       );
-    const csv = '﻿' + ['Data;Descrição;Categoria;Pagamento;Fatura;Pessoa;Valor', ...linhas].join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    a.download = `cfp-gastos-${this.lista()[0].slice(0, 7)}-a-${this.s.mes().slice(0, 7)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    baixarCsv(`cfp-gastos-${this.lista()[0].slice(0, 7)}-a-${this.s.mes().slice(0, 7)}.csv`, 'Data;Descrição;Categoria;Pagamento;Fatura;Pessoa;Valor', linhas);
   }
 }
 

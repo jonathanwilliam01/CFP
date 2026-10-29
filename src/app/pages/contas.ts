@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { diffDias, hoje, inicioMes, mesAtual, mesesEntre, nomeMes } from '../core/datas';
-import { Recebimento, aporteMensal, fixasNaFatura, noMes, porRecebimento } from '../core/financas';
+import { ACIMA_MEDIA, CompraRecorrente, Recebimento, aporteMensal, fixasNaFatura, mediaContas, noMes, porRecebimento } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, moeda, parseValor, soma } from '../core/formato';
 import { Cartao, Cofrinho, ContaMes, Gasto, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
@@ -121,6 +121,21 @@ import { Toast } from '../shared/toast';
         </section>
       }
 
+      @if (s.sugestoesFixas().length) {
+        <div class="card-head"><h2>Parecem contas fixas</h2></div>
+        <section class="card list">
+          <p class="small muted">Lançadas uma vez por mês nos últimos 3 meses com valor parecido. Virando conta fixa, entram sozinhas a partir do mês seguinte ao último lançamento.</p>
+          @for (x of s.sugestoesFixas(); track x.chave) {
+            <div class="row">
+              <span class="ico"><app-icon [name]="s.catMap().get(x.categoria_id ?? '')?.icone ?? 'autorenew'" /></span>
+              <div class="grow"><div class="t">{{ x.descricao }}</div><div class="s">Todo dia {{ x.dia }}{{ x.cartao_id ? ' · ' + cartaoNomeId(x.cartao_id) : '' }} · {{ x.valor | brl }}</div></div>
+              <button class="btn sm" type="button" (click)="criarSugestao(x)">Criar</button>
+              <button class="btn ghost sm" type="button" (click)="s.ignorarSugestao(x.chave)" aria-label="Ignorar"><app-icon name="close" [size]="18" /></button>
+            </div>
+          }
+        </section>
+      }
+
       @if (fixas().length || encerradas().length) {
         <div class="card-head">
           <h2>Contas fixas cadastradas</h2>
@@ -164,6 +179,14 @@ import { Toast } from '../shared/toast';
               <label class="field"><span>{{ variavel(c) ? 'Valor da conta' : 'Valor pago' }}</span><input inputmode="decimal" [(ngModel)]="valorPago" /></label>
               <label class="field"><span>Pago em</span><input type="date" [(ngModel)]="pagoEm" /></label>
             </div>
+            @if (variavel(c) && historico(c); as h) {
+              @if (h.media) {
+                <p class="small muted">Média {{ h.media | brl }} · últimas: @for (v of h.ultimas; track v.mes; let ult = $last) { <span>{{ v.mes | mes: true }} {{ v.valor | brl }}{{ ult ? '' : ',' }}</span> }</p>
+              }
+              @if (acima(h.media); as p) {
+                <div class="aviso alerta"><app-icon class="i" name="trending_up" /><div><div class="t">{{ p }}% acima da média</div><div class="s">Confira a leitura ou se houve cobrança a mais.</div></div></div>
+              }
+            }
             <button class="btn block" (click)="pagar(c)"><app-icon name="check" [size]="18" />Marcar como paga</button>
             @if (variavel(c)) {
               <p class="small muted">Salve o valor que chegou para contar nas saídas deste mês sem pagar agora. Os outros meses continuam pela média.</p>
@@ -198,7 +221,7 @@ import { Toast } from '../shared/toast';
 
     <app-sheet [(open)]="formAberto" [titulo]="fixaSel() ? 'Editar conta fixa' : 'Nova conta fixa'">
       @if (formAberto()) {
-        <app-conta-fixa [rec]="fixaSel()" (fechar)="formAberto.set(false)" />
+        <app-conta-fixa [rec]="fixaSel()" [sugestao]="sugestao()" (fechar)="formAberto.set(false)" />
       }
     </app-sheet>
   `,
@@ -236,6 +259,7 @@ export default class Contas {
 
   protected formAberto = signal(false);
   protected fixaSel = signal<Recorrencia | null>(null);
+  protected sugestao = signal<CompraRecorrente | null>(null);
 
   protected recebimentos = computed(() => porRecebimento(this.s.mes(), this.s.contasMes(), this.s.recorrencias(), this.s.pagamentos(), this.s.reservasDia()));
   protected nomesReservas = (g: Recebimento) => g.reservas.map((r) => `${r.nome} ${moeda(r.valor)}`).join(', ');
@@ -372,6 +396,17 @@ export default class Contas {
     this.detalhe.set(true);
   }
 
+  /** Valores anteriores ao mês da conta (variável): média e as 3 últimas */
+  historico(c: ContaMes) {
+    const ant = this.s.valoresFixas().filter((v) => v.ref_id === c.ref_id && v.mes < c.mes).sort((a, b) => b.mes.localeCompare(a.mes));
+    return { media: mediaContas(ant), ultimas: ant.slice(0, 3) };
+  }
+
+  acima(media: number | null) {
+    const v = parseValor(this.valorPago);
+    return media && v >= media * ACIMA_MEDIA ? Math.round((v / media - 1) * 100) : 0;
+  }
+
   variavel(c: ContaMes) {
     return c.tipo === 'recorrencia' && !!this.s.recorrencias().find((r) => r.id === c.ref_id)?.variavel;
   }
@@ -413,12 +448,24 @@ export default class Contas {
     }
   }
 
+  criarSugestao(x: CompraRecorrente) {
+    this.fixaSel.set(null);
+    this.sugestao.set(x);
+    this.formAberto.set(true);
+  }
+
+  cartaoNomeId(id: string) {
+    return this.s.cartoes().find((c) => c.id === id)?.nome ?? '';
+  }
+
   novaFixa() {
+    this.sugestao.set(null);
     this.fixaSel.set(null);
     this.formAberto.set(true);
   }
 
   editarFixa(r: Recorrencia) {
+    this.sugestao.set(null);
     this.fixaSel.set(r);
     this.formAberto.set(true);
   }

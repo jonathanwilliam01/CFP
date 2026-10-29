@@ -63,7 +63,7 @@
       </select>
     </label>
 
-    @if (l.modo() === 'gasto' && !repete()) {
+    @if ((l.modo() === 'gasto' && !repete()) || l.modo() === 'parcelado') {
       <label class="field">
         <span>Marcadores (opcional)</span>
         <input name="tags" autocomplete="off" placeholder="Ex.: viagem, reforma" [ngModel]="f().tags" (ngModelChange)="set('tags', $event)" />

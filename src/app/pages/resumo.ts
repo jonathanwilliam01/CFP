@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { nomeMes } from '../core/datas';
-import { creditoBeneficios, porCategoria } from '../core/financas';
-import { BrlPipe, DiaPipe, MesPipe, moeda, pct, soma } from '../core/formato';
+import { diaNoMes, nomeMes } from '../core/datas';
+import { ativaNoMes, creditoBeneficios, porCategoria } from '../core/financas';
+import { BrlPipe, DiaPipe, MesPipe, baixarCsv, csvData, csvTexto, csvValor, moeda, pct, soma } from '../core/formato';
 import { Insights } from '../core/insights';
 import { Gasto } from '../core/models';
 import { Store } from '../core/store';
@@ -16,7 +16,11 @@ import { Toast } from '../shared/toast';
     <div class="page">
       <div class="page-head">
         <h1 class="cap">{{ s.mes() | mes }}</h1>
-        <button class="btn ghost sm" type="button" (click)="compartilhar()"><app-icon name="share" [size]="16" /> Compartilhar</button>
+        <div class="acoes no-print">
+          <button class="btn ghost sm" type="button" (click)="exportar()"><app-icon name="download" [size]="16" /> CSV</button>
+          <button class="btn ghost sm" type="button" (click)="imprimir()"><app-icon name="picture_as_pdf" [size]="16" /> PDF</button>
+          <button class="btn ghost sm" type="button" (click)="compartilhar()"><app-icon name="share" [size]="16" /> Compartilhar</button>
+        </div>
       </div>
 
       <section class="card hero">
@@ -147,6 +151,7 @@ import { Toast } from '../shared/toast';
     .grande { font-size: 1.5rem; font-weight: 800; }
     .orc { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; }
     .orc .l { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+    .acoes { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
     .dicas { display: flex; flex-direction: column; gap: 8px; }
   `,
 })
@@ -186,6 +191,33 @@ export default class Resumo {
 
   protected pagas = computed(() => this.s.contasMes().filter((c) => c.pago).length);
   protected pendentes = computed(() => this.s.contasMes().filter((c) => !c.pago));
+
+  /** Tudo do mês num CSV: gastos (pela data), entradas avulsas e fixas, contas e faturas */
+  exportar() {
+    const s = this.s;
+    const mes = s.mes();
+    const cat = (id: string | null) => csvTexto((id && s.catMap().get(id)?.nome) || '');
+    const cartoes = new Map(s.cartoes().map((c) => [c.id, c.nome]));
+    const benef = new Map(s.beneficios().map((b) => [b.id, b.nome]));
+    const membros = s.membroMap();
+    const gastos = [...s.gastosMes()].sort((a, b) => a.data.localeCompare(b.data)).map((g) =>
+      ['Gasto', csvData(g.data), csvTexto(g.descricao), cat(g.categoria_id),
+        csvTexto(g.forma === 'cartao' ? (cartoes.get(g.cartao_id!) ?? 'Cartão') : g.forma === 'beneficio' ? (benef.get(g.beneficio_id!) ?? 'Benefício') : 'À vista'),
+        csvTexto((g.criado_por && membros.get(g.criado_por)) || ''), '', csvValor(g.valor)].join(';'));
+    const avulsas = s.entradasMes().map((e) => ['Entrada', csvData(e.data), csvTexto(e.descricao), cat(e.categoria_id), '', '', '', csvValor(e.valor)].join(';'));
+    const fixas = s.recorrenciasPrev().filter((r) => r.tipo === 'entrada' && ativaNoMes(r, mes)).map((r) => {
+      const p = s.pagamentos().find((x) => x.ref_id === r.id && x.mes === mes);
+      return ['Entrada fixa', csvData(diaNoMes(mes, r.dia)), csvTexto(r.descricao), cat(r.categoria_id), '', '', p ? 'Recebida' : 'Prevista', csvValor(p?.valor ?? r.valor)].join(';');
+    });
+    const contas = s.contasMes().map((c) =>
+      [c.tipo === 'fatura' ? 'Fatura' : 'Conta', csvData(c.vencimento), csvTexto(c.descricao), '', '', '', c.pago ? 'Paga' : 'Em aberto', csvValor(c.valor)].join(';'));
+    baixarCsv(`cfp-${mes.slice(0, 7)}.csv`, 'Tipo;Data;Descrição;Categoria;Pagamento;Pessoa;Situação;Valor', [...gastos, ...avulsas, ...fixas, ...contas]);
+  }
+
+  /** "Salvar como PDF" na janela de impressão do navegador */
+  imprimir() {
+    print();
+  }
 
   async compartilhar() {
     const r = this.r();

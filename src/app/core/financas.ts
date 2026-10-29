@@ -1,5 +1,6 @@
 import { addDias, addMeses, diaNoMes, diasNoMes, diffDias, fimMes, inicioMes, mesFatura, mesesEntre } from './datas';
 import { pct, soma } from './formato';
+import { normalizar } from './texto';
 import {
   Beneficio, Cartao, Categoria, ContaMes, Frequencia, Gasto, Orcamento, OrcamentoFechado, OrcamentoValor, Pagamento, Recorrencia, UsoBeneficio,
 } from './models';
@@ -577,4 +578,45 @@ export function depositoNecessario(falta: number, freq: Frequencia, de: string, 
   let n = 0;
   while (PASSO[freq](de, n) <= prazo) n++;
   return Math.ceil((falta / n) * 100) / 100;
+}
+
+export type GastoHist = Pick<Gasto, 'descricao' | 'valor' | 'data' | 'categoria_id' | 'forma' | 'cartao_id' | 'fatura_mes' | 'parcelamento_id'>;
+
+export interface CompraRecorrente {
+  chave: string;
+  descricao: string;
+  valor: number;
+  dia: number;
+  categoria_id: string | null;
+  cartao_id: string | null;
+  /** primeiro mês da conta fixa: o seguinte ao último lançamento (fatura, no cartão) */
+  inicio: string;
+}
+
+/**
+ * Gasto avulso lançado uma vez por mês nos 3 meses antes de `mes`, com valor parecido (até 25% de diferença)
+ * e sem conta fixa de mesmo nome: candidato a virar conta fixa.
+ */
+export function comprasRecorrentes(gastos: GastoHist[], recorrencias: Recorrencia[], mes: string): CompraRecorrente[] {
+  const fixas = new Set(recorrencias.filter((r) => r.tipo === 'conta').map((r) => normalizar(r.descricao)));
+  const meses = [-3, -2, -1].map((n) => addMeses(mes, n));
+  const grupos = new Map<string, GastoHist[]>();
+  for (const g of gastos) {
+    if (g.parcelamento_id || g.forma === 'beneficio') continue;
+    const k = normalizar(g.descricao);
+    if (k && !fixas.has(k)) grupos.set(k, [...(grupos.get(k) ?? []), g]);
+  }
+  const l: CompraRecorrente[] = [];
+  for (const [chave, gs] of grupos) {
+    if (!meses.every((m) => gs.filter((g) => noMes(g.data, m)).length === 1)) continue;
+    const valores = gs.map((g) => g.valor);
+    if (Math.max(...valores) > Math.min(...valores) * 1.25) continue;
+    const ult = gs.reduce((a, b) => (b.data > a.data ? b : a));
+    const base = ult.forma === 'cartao' && ult.fatura_mes ? ult.fatura_mes : inicioMes(ult.data);
+    l.push({
+      chave, descricao: ult.descricao, valor: ult.valor, dia: Number(ult.data.slice(8, 10)), categoria_id: ult.categoria_id,
+      cartao_id: ult.forma === 'cartao' ? ult.cartao_id : null, inicio: addMeses(base, 1),
+    });
+  }
+  return l.sort((a, b) => b.valor - a.valor);
 }

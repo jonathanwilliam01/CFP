@@ -1,4 +1,4 @@
-import { ajusteOrcamento, categoriasAcima, depositoNecessario, orcamentosNoMes, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
+import { ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -353,5 +353,33 @@ describe('simularDepositos', () => {
   it('depósito necessário por período até o prazo', () => {
     expect(depositoNecessario(600, 'mes', '2026-10-29', '2027-03-31')).toBe(100);
     expect(depositoNecessario(100, 'semana', '2026-10-29', '2026-11-12')).toBe(33.34);
+  });
+});
+
+describe('comprasRecorrentes', () => {
+  const mensal = (data: string, valor = 39.9, p: Partial<Gasto> = {}) => gasto({ descricao: 'Netflix', data, valor, ...p });
+
+  it('sugere gasto lançado uma vez em cada um dos 3 meses anteriores', () => {
+    const l = comprasRecorrentes([mensal('2026-07-15'), mensal('2026-08-15'), mensal('2026-09-14', 44.9)], [], '2026-10-01');
+    expect(l).toEqual([{ chave: 'netflix', descricao: 'Netflix', valor: 44.9, dia: 14, categoria_id: null, cartao_id: null, inicio: '2026-10-01' }]);
+  });
+
+  it('no cartão começa na fatura seguinte à do último lançamento', () => {
+    const c = { forma: 'cartao' as const, cartao_id: 'c1' };
+    const l = comprasRecorrentes(
+      [mensal('2026-07-15', 39.9, { ...c, fatura_mes: '2026-08-01' }), mensal('2026-08-15', 39.9, { ...c, fatura_mes: '2026-09-01' }), mensal('2026-09-15', 39.9, { ...c, fatura_mes: '2026-10-01' })],
+      [], '2026-10-01',
+    );
+    expect(l[0].inicio).toBe('2026-11-01');
+    expect(l[0].cartao_id).toBe('c1');
+  });
+
+  it('ignora mês faltando, mais de um por mês, valor muito diferente, parcela e conta fixa de mesmo nome', () => {
+    const base = [mensal('2026-07-15'), mensal('2026-08-15'), mensal('2026-09-15')];
+    expect(comprasRecorrentes(base.slice(1), [], '2026-10-01')).toEqual([]);
+    expect(comprasRecorrentes([...base, mensal('2026-09-20')], [], '2026-10-01')).toEqual([]);
+    expect(comprasRecorrentes([...base.slice(0, 2), mensal('2026-09-15', 80)], [], '2026-10-01')).toEqual([]);
+    expect(comprasRecorrentes(base.map((g) => ({ ...g, parcelamento_id: 'p' })), [], '2026-10-01')).toEqual([]);
+    expect(comprasRecorrentes(base, [conta({ descricao: 'NETFLIX' })], '2026-10-01')).toEqual([]);
   });
 });

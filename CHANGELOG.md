@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.26.10.9 — 2026-10-29
+- Blocos do Início: esconder, arrastar para ordenar e recolher tocando no título; preferências salvas na conta, valem em todo aparelho
+- Conta variável: ao pagar mostra a média e as últimas contas, com alerta quando o valor vem 30% acima da média
+- Compras que se repetem todo mês viram sugestão de conta fixa em Contas e nos avisos
+- Resumo mensal exporta CSV do mês (gastos, entradas, contas) e PDF pela impressão
+- Busca geral (lupa no topo): gastos e entradas de todos os meses por descrição, categoria, #marcador ou valor, mais cadastros
+- Marcadores no parcelado e na importação (migration 024)
+- Aviso de vencimento com o app fechado usa a média da conta variável (migration 025)
+- Chat: editar e apagar as próprias mensagens (migration 026)
+
 ## v1.26.10.8 — 2026-10-29
 - Início reorganizado: Por recebimento, Próximas contas e saldos no alto; avisos e saldo dia a dia depois de Quem gastou o quê
 - Ordem dos blocos do Início personalizável em Configurações

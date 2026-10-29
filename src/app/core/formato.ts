@@ -17,6 +17,19 @@ export function parseValor(s: string | number | null | undefined): number {
 
 export const soma = <T>(l: T[], f: (x: T) => number) => l.reduce((a, x) => a + f(x), 0);
 
+/** Baixa CSV com `;` e BOM (abre certo no Excel); campos já escapados com `csvTexto` quando texto */
+export function baixarCsv(nome: string, cabecalho: string, linhas: string[]) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff' + [cabecalho, ...linhas].join('\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = nome;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+export const csvTexto = (v: string) => `"${v.replace(/"/g, '""')}"`;
+export const csvValor = (v: number) => v.toFixed(2).replace('.', ',');
+export const csvData = (d: string) => d.split('-').reverse().join('/');
+
 export const pct = (v: number, total: number) => (total > 0 ? Math.round((v / total) * 100) : 0);
 
 @Pipe({ name: 'brl' })

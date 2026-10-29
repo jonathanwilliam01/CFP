@@ -47,6 +47,11 @@ export class Chat {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mensagens', filter: `carteira_id=eq.${id}` }, (p) =>
         this.chegou(p.new as Mensagem),
       )
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'mensagens', filter: `carteira_id=eq.${id}` }, (p) =>
+        this.trocar(p.new as Mensagem),
+      )
+      // delete chega sem filtro (limitação do realtime): só tira se for daqui
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'mensagens' }, (p) => this.tirar((p.old as Mensagem).id))
       .subscribe();
     const l = await q<Mensagem[]>(
       supabase.from('mensagens').select('*').eq('carteira_id', id).order('criado_em', { ascending: false }).limit(200),
@@ -62,6 +67,23 @@ export class Chat {
       supabase.from('mensagens').insert({ carteira_id: this.s.carteiraId(), texto, ...(gastoId ? { gasto_id: gastoId } : {}) }).select('*').single(),
     );
     this.chegou(m);
+  }
+
+  async editar(id: string, texto: string) {
+    this.trocar(await q<Mensagem>(supabase.from('mensagens').update({ texto, editado_em: new Date().toISOString() }).eq('id', id).select('*').single()));
+  }
+
+  async apagar(id: string) {
+    await q(supabase.from('mensagens').delete().eq('id', id));
+    this.tirar(id);
+  }
+
+  private trocar(m: Mensagem) {
+    this.mensagens.update((l) => l.map((x) => (x.id === m.id ? m : x)));
+  }
+
+  private tirar(id: string) {
+    this.mensagens.update((l) => l.filter((x) => x.id !== id));
   }
 
   marcarLidas() {

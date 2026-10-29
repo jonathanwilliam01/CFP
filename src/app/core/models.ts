@@ -220,6 +220,8 @@ export interface Mensagem {
   criado_em: string;
   /** gasto comentado (migration 020) */
   gasto_id?: string | null;
+  /** migration 026 */
+  editado_em?: string | null;
 }
 
 /** Soma dos gastos de um benefício no mês (RPC uso_beneficios) */

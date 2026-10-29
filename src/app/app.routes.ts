@@ -42,6 +42,7 @@ export const routes: Routes = [
       { path: 'config', loadComponent: () => import('./pages/config'), title: 'Configurações · Controle Financeiro Pessoal' },
       { path: 'calendario', loadComponent: () => import('./pages/calendario'), title: 'Calendário · Controle Financeiro Pessoal' },
       { path: 'fechamento', loadComponent: () => import('./pages/fechamento'), title: 'Fechamento do mês · Controle Financeiro Pessoal' },
+      { path: 'busca', loadComponent: () => import('./pages/busca'), title: 'Buscar · Controle Financeiro Pessoal' },
       { path: 'novidades', loadComponent: () => import('./pages/novidades'), title: 'Novidades · Controle Financeiro Pessoal' },
       { path: 'mais', loadComponent: () => import('./pages/mais'), title: 'Mais · Controle Financeiro Pessoal' },
     ],

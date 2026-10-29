@@ -35,6 +35,7 @@ import { ATALHOS, PRINCIPAIS } from './menu';
             <span class="dot espera">{{ n }}</span>
           </button>
         }
+        <a routerLink="/busca" class="bell" aria-label="Buscar"><app-icon name="search" [size]="20" /></a>
         <button type="button" class="bell" (click)="tema.alternar()" [attr.aria-label]="tema.escuro() ? 'Tema claro' : 'Tema escuro'">
           <app-icon [name]="tema.escuro() ? 'light_mode' : 'dark_mode'" [size]="20" />
         </button>

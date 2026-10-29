@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Auth } from './auth';
 import { addMeses, fimMes, hoje, inicioMes, mesAtual } from './datas';
-import { cobrancasBeneficio, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
+import { GastoHist, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
 import {
   Beneficio, Carteira, Cartao, Categoria, Cofrinho, CofrinhoMov, Dados, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado, OrcamentoValor,
@@ -60,8 +60,10 @@ export class Store {
   readonly valoresFixas = signal<Pick<Pagamento, 'id' | 'ref_id' | 'mes' | 'valor'>[]>([]);
   /** Últimos gastos à vista ou no cartão, sem repetir descrição: sugestão de categoria e pagamento */
   readonly recentes = signal<Recente[]>([]);
-  /** Gastos dos 3 meses antes do selecionado (só categoria, valor e data), para comparar categorias */
-  readonly gastosAnteriores = signal<Pick<Gasto, 'categoria_id' | 'valor' | 'data'>[]>([]);
+  /** Gastos dos 3 meses antes do selecionado (campos de GastoHist): comparar categorias e achar compras recorrentes */
+  readonly gastosAnteriores = signal<GastoHist[]>([]);
+  /** Sugestões de conta fixa dispensadas (chave = descrição normalizada), no aparelho */
+  readonly fixasIgnoradas = signal<string[]>(JSON.parse(localStorage.getItem('cfp.sugestoes') ?? '[]'));
 
   readonly catMap = computed(() => new Map(this.categorias().map((c) => [c.id, c])));
   readonly catGasto = computed(() => this.categorias().filter((c) => c.tipo === 'gasto'));
@@ -84,6 +86,16 @@ export class Store {
       return m != null ? { ...r, valor: m } : r;
     }),
   );
+
+  /** Gastos avulsos que se repetem todo mês: sugestão de virar conta fixa */
+  readonly sugestoesFixas = computed(() =>
+    comprasRecorrentes([...this.gastosAnteriores(), ...this.gastosMes()], this.recorrencias(), this.mes()).filter((c) => !this.fixasIgnoradas().includes(c.chave)),
+  );
+
+  ignorarSugestao(chave: string) {
+    this.fixasIgnoradas.update((l) => [...l, chave].slice(-200));
+    localStorage.setItem('cfp.sugestoes', JSON.stringify(this.fixasIgnoradas()));
+  }
 
   readonly cobrancasBeneficio = computed(() => cobrancasBeneficio(this.recorrenciasPrev(), this.valoresFixas(), this.mes()));
 
@@ -225,8 +237,8 @@ export class Store {
       q<Pick<Pagamento, 'id' | 'ref_id' | 'mes' | 'valor'>[]>(
         supabase.from('pagamentos').select('id, ref_id, mes, valor').eq('carteira_id', id).eq('tipo', 'recorrencia').order('mes', { ascending: false }),
       ),
-      q<Pick<Gasto, 'categoria_id' | 'valor' | 'data'>[]>(
-        supabase.from('gastos').select('categoria_id, valor, data').eq('carteira_id', id).gte('data', addMeses(mes, -3)).lt('data', mes),
+      q<GastoHist[]>(
+        supabase.from('gastos').select('descricao, valor, data, categoria_id, forma, cartao_id, fatura_mes, parcelamento_id').eq('carteira_id', id).gte('data', addMeses(mes, -3)).lt('data', mes),
       ),
     ]);
     // troca rápida de mês: descarta a resposta que chegou depois da mais nova

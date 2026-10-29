@@ -5,6 +5,7 @@ import { mesFatura, nomeMes } from '../core/datas';
 import { ItemExtrato, Origem, lerExtrato, palpiteCategoria } from '../core/extrato';
 import { BrlPipe, DiaPipe, soma } from '../core/formato';
 import { Store } from '../core/store';
+import { lerTags } from '../core/texto';
 import { q, supabase } from '../core/supabase';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
@@ -66,6 +67,11 @@ const DEBITO = 'debito';
           </span>
           <b class="num">{{ total() | brl }}</b>
         </div>
+
+        <label class="field">
+          <span>Marcadores para todos (opcional)</span>
+          <input name="tags" autocomplete="off" placeholder="Ex.: viagem, reforma" [(ngModel)]="tags" />
+        </label>
 
         <div class="chips">
           <button type="button" class="chip" (click)="marcar(true)">Marcar todos</button>
@@ -132,6 +138,7 @@ export default class Importar {
   protected linhas = signal<Linha[]>([]);
   protected ignorados = signal(0);
   protected salvando = signal(false);
+  tags = '';
   private origem = signal<Origem>('nubank');
   private escolhido = signal<string | null>(null);
 
@@ -229,6 +236,7 @@ export default class Importar {
     const sel = this.marcadas();
     if (!sel.length) return;
     this.salvando.set(true);
+    const tags = lerTags(this.tags);
     try {
       const itens = sel.map((x) => {
         const parcelar = !!(c && x.parcela && x.parcelas && x.parcela < x.parcelas && x.proximas);
@@ -243,6 +251,7 @@ export default class Importar {
           parcelar,
           parcela: x.parcela,
           parcelas: x.parcelas,
+          tags,
         };
       });
       await q(supabase.rpc('importar_gastos', { p_carteira: this.s.carteiraId(), p_itens: itens }));

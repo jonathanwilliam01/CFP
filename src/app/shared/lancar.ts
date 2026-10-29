@@ -250,9 +250,14 @@ export class LancarSheet {
       // valor total: a última parcela leva a sobra dos centavos (100 em 3x = 33,33 + 33,33 + 33,34)
       const parcela = Math.round(this.valorParcela() * 100) / 100;
       const ultima = f.valorEhTotal ? Math.round((valor - parcela * (f.parcelas - 1)) * 100) / 100 : null;
+      const tags = lerTags(f.tags);
       return {
         tipo: 'parcelamento',
-        params: { p_descricao: descricao, p_categoria: f.categoria_id, p_cartao: cartao, p_valor_parcela: parcela, p_num: f.parcelas, p_primeira: f.data, p_valor_ultima: ultima },
+        params: {
+          p_descricao: descricao, p_categoria: f.categoria_id, p_cartao: cartao, p_valor_parcela: parcela, p_num: f.parcelas, p_primeira: f.data, p_valor_ultima: ultima,
+          // p_tags só com marcador: banco sem a migration 024 segue aceitando
+          ...(tags.length ? { p_tags: tags } : {}),
+        },
       };
     }
     return { tipo: 'inserir', tabela: 'gastos', dados: { id: crypto.randomUUID(), ...this.dadosGasto(f, valor) } };

@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { addMeses, diaNoMes, hoje, mesAtual, mesFatura } from '../core/datas';
-import { MAX_MEDIA, MIN_MEDIA, mediaContas } from '../core/financas';
+import { CompraRecorrente, MAX_MEDIA, MIN_MEDIA, mediaContas } from '../core/financas';
 import { BrlPipe, MesPipe, parseValor } from '../core/formato';
 import { Recorrencia } from '../core/models';
 import { Store } from '../core/store';
@@ -119,6 +119,8 @@ export class ContaFixa implements OnInit {
   private toast = inject(Toast);
 
   readonly rec = input<Recorrencia | null>(null);
+  /** nova conta já preenchida (sugestão de compra recorrente) */
+  readonly sugestao = input<CompraRecorrente | null>(null);
   readonly fechar = output();
 
   protected f = signal<FormFixa>(this.vazio());
@@ -137,6 +139,12 @@ export class ContaFixa implements OnInit {
         variavel: r.variavel, paga_mes_anterior: r.paga_mes_anterior, beneficio_id: r.beneficio_id ?? null, removidos: [],
         hist: this.s.valoresFixas().filter((v) => v.ref_id === r.id).map(({ id, mes, valor }) => ({ id, mes, valor })),
       });
+    const x = this.sugestao();
+    if (!r && x)
+      this.f.update((f) => ({
+        ...f, descricao: x.descricao, valor: String(x.valor).replace('.', ','), dia: x.dia, categoria_id: x.categoria_id,
+        cartao_id: x.cartao_id, inicio: x.inicio.slice(0, 7),
+      }));
     this.proximoHist();
   }
 

@@ -476,3 +476,12 @@ input[type='color'] {
 @media (min-width: 1024px) {
   .page { max-width: 960px; padding: 12px 24px 40px; }
 }
+
+// Resumo → PDF: só o conteúdo da página, fundo branco
+@media print {
+  app-shell > :not(main), app-toast, .no-print { display: none !important; }
+  app-shell > main { margin: 0 !important; }
+  body { background: #fff; }
+  .page { max-width: none; padding: 0; }
+  .card { break-inside: avoid; box-shadow: none; }
+}

@@ -109,6 +109,9 @@ export class Insights {
     for (const c of categoriasAcima(s.gastosMes(), s.gastosAnteriores(), s.catMap()))
       l.push({ id: `cat-${c.id}-${mes}`, nivel: 'alerta', icone: 'trending_up', titulo: `${c.nome} ${c.acima}% acima do normal`, texto: `${moeda(c.total)} no mês contra média de ${moeda(c.media)} nos meses anteriores.`, link: '/relatorios' });
 
+    for (const x of s.sugestoesFixas())
+      l.push({ id: `sugfixa-${x.chave}-${mes}`, nivel: 'info', icone: 'autorenew', titulo: `${x.descricao} todo mês`, texto: `Lançado nos últimos 3 meses (${moeda(x.valor)}). Vale virar conta fixa?`, link: '/contas' });
+
     for (const e of s.recorrencias().filter((x) => x.tipo === 'entrada' && ativaNoMes(x, mes))) {
       const d = diffDias(diaNoMes(mes, e.dia), h);
       if (d > 2 && !s.pagamentos().some((p) => p.ref_id === e.id && p.mes === mes))

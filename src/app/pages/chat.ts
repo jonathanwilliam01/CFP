@@ -50,17 +50,23 @@ import { Visor } from '../shared/visor';
               } @else if (!m.eu) {
                 <span class="foto"></span>
               }
-              <div class="msg" [class.eu]="m.eu">
+              <div class="msg" [class.eu]="m.eu" [class.sel]="sel() === m.id" (click)="m.eu && sel.set(sel() === m.id ? null : m.id)">
                 @if (m.membro) { <span class="quem">{{ m.membro.nome }}</span> }
                 @if (m.gasto_id) {
                   @if (gastos().get(m.gasto_id); as g) {
-                    <button type="button" class="ref" (click)="lancar.editarGasto(g)"><app-icon name="receipt_long" [size]="16" /><span>{{ g.descricao }} · {{ g.valor | brl }}</span></button>
+                    <button type="button" class="ref" (click)="lancar.editarGasto(g); $event.stopPropagation()"><app-icon name="receipt_long" [size]="16" /><span>{{ g.descricao }} · {{ g.valor | brl }}</span></button>
                   } @else {
                     <span class="ref"><app-icon name="receipt_long" [size]="16" /><span>Gasto excluído</span></span>
                   }
                 }
                 <p>{{ m.texto }}</p>
-                <span class="hora">{{ m.hora }}</span>
+                <span class="hora">{{ m.editado_em ? 'editada · ' : '' }}{{ m.hora }}</span>
+                @if (sel() === m.id) {
+                  <div class="acoes">
+                    <button type="button" (click)="editar(m); $event.stopPropagation()"><app-icon name="edit" [size]="16" />Editar</button>
+                    <button type="button" (click)="apagar(m.id); $event.stopPropagation()"><app-icon name="delete" [size]="16" />Apagar</button>
+                  </div>
+                }
               </div>
             </div>
           }
@@ -69,6 +75,10 @@ import { Visor } from '../shared/visor';
         }
       </div>
 
+      @if (editando()) {
+        <div class="editando"><app-icon name="edit" [size]="16" /><span>Editando mensagem</span>
+          <button type="button" class="btn ghost sm" (click)="cancelar()">Cancelar</button></div>
+      }
       <form class="enviar" (ngSubmit)="enviar()">
         <input name="texto" placeholder="Mensagem" autocomplete="off" maxlength="2000" [ngModel]="texto()" (ngModelChange)="texto.set($event)" />
         <button class="btn icon" type="submit" [disabled]="!texto().trim() || enviando()" aria-label="Enviar"><app-icon name="send" [size]="20" /></button>
@@ -98,6 +108,18 @@ import { Visor } from '../shared/visor';
     }
     .ref span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .quem { display: block; font-size: 0.75rem; font-weight: 700; color: var(--primary); }
+    .msg.eu { cursor: pointer; }
+    .msg.sel { outline: 2px solid var(--primary-soft); }
+    .acoes { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
+    .acoes button {
+      display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: 8px; padding: 4px 8px;
+      background: rgb(255 255 255 / 0.18); color: inherit; font: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer;
+    }
+    .editando {
+      position: sticky; bottom: calc(var(--nav-h) + var(--safe-b) + 92px);
+      display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; color: var(--primary); background: var(--bg); padding-top: 6px;
+    }
+    .editando span { flex: 1; }
     .hora { display: block; text-align: right; font-size: 0.68rem; opacity: 0.7; margin-top: 1px; }
     .enviar {
       position: sticky; bottom: calc(var(--nav-h) + var(--safe-b) + 30px);
@@ -124,6 +146,9 @@ export default class ChatPage {
   protected texto = signal('');
   protected enviando = signal(false);
   protected foto = signal<string | null>(null);
+  /** mensagem própria tocada (mostra Editar/Apagar) */
+  protected sel = signal<string | null>(null);
+  protected editando = signal<string | null>(null);
   protected lancar = inject(Lancar);
   /** gastos comentados que não estão no mês carregado */
   private extras = signal<Gasto[]>([]);
@@ -170,12 +195,36 @@ export default class ChatPage {
     });
   }
 
+  editar(m: Mensagem) {
+    this.sel.set(null);
+    this.editando.set(m.id);
+    this.texto.set(m.texto);
+  }
+
+  cancelar() {
+    this.editando.set(null);
+    this.texto.set('');
+  }
+
+  async apagar(id: string) {
+    this.sel.set(null);
+    try {
+      await this.chat.apagar(id);
+      if (this.editando() === id) this.cancelar();
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
+
   async enviar() {
     const t = this.texto().trim();
     if (!t) return;
     this.enviando.set(true);
     try {
-      await this.chat.enviar(t);
+      const id = this.editando();
+      if (id) await this.chat.editar(id, t);
+      else await this.chat.enviar(t);
+      this.editando.set(null);
       this.texto.set('');
     } catch (e) {
       this.toast.erro(e);
