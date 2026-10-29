@@ -63,6 +63,15 @@ export function rotuloDia(s: string) {
   return parse(s).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
 }
 
+/** Contagem até o prazo: "faltam 3 meses", "faltam 12 dias" */
+export function faltaPara(prazo: string, de = hoje()) {
+  const d = diffDias(de, prazo);
+  if (d < 0) return 'prazo passou';
+  if (d === 0) return 'prazo é hoje';
+  if (d < 60) return `faltam ${d} dia${d > 1 ? 's' : ''}`;
+  return `faltam ${mesesEntre(de, prazo)} meses`;
+}
+
 /** Mês (dia 1) em que vence a fatura de uma compra. Mesma regra de calc_fatura no banco. */
 export function mesFatura(data: string, fech: number, venc: number) {
   let m = inicioMes(data);

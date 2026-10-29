@@ -2,12 +2,13 @@ import { Component, effect, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { Auth } from './core/auth';
 import { Tema } from './core/tema';
+import { Atualizar } from './shared/atualizar';
 import { ToastView } from './shared/toast';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, ToastView],
-  template: '<router-outlet /><app-toast />',
+  imports: [RouterOutlet, ToastView, Atualizar],
+  template: '<router-outlet /><app-toast /><app-atualizar />',
 })
 export class App {
   private tema = inject(Tema);

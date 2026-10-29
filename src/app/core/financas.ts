@@ -1,7 +1,7 @@
-import { addMeses, diaNoMes, fimMes, inicioMes, mesFatura, mesesEntre } from './datas';
+import { addDias, addMeses, diaNoMes, diasNoMes, diffDias, fimMes, inicioMes, mesFatura, mesesEntre } from './datas';
 import { pct, soma } from './formato';
 import {
-  Beneficio, Cartao, Categoria, ContaMes, Gasto, Orcamento, Pagamento, Recorrencia, UsoBeneficio,
+  Beneficio, Cartao, Categoria, ContaMes, Frequencia, Gasto, Orcamento, OrcamentoValor, Pagamento, Recorrencia, UsoBeneficio,
 } from './models';
 
 export const ativaNoMes = (r: { ativo: boolean; inicio: string; fim: string | null }, mes: string) =>
@@ -86,7 +86,19 @@ export interface Recebimento {
   contas: ContaMes[];
   total: number;
   aPagar: number;
+  /** orçamentos com reserva que caem neste recebimento */
+  reservas: { nome: string; valor: number }[];
+  reservado: number;
   sobra: number;
+}
+
+/** Reserva de orçamento distribuída no mês (ver reservasPorDia) */
+export interface ReservaDia {
+  dia: number;
+  valor: number;
+  nome: string;
+  /** dia do vencimento da fatura, mesmo quando vence no mês seguinte */
+  vence?: number;
 }
 
 /**
@@ -94,7 +106,13 @@ export interface Recebimento {
  * Cada conta fica com o último recebimento até o dia do vencimento; antes do primeiro, com o último do mês.
  * Contas pagas com benefício ficam de fora. Menos de dois dias de recebimento: lista vazia.
  */
-export function porRecebimento(mes: string, contas: ContaMes[], recorrencias: Recorrencia[], pagamentos: Pagamento[]): Recebimento[] {
+export function porRecebimento(
+  mes: string,
+  contas: ContaMes[],
+  recorrencias: Recorrencia[],
+  pagamentos: Pagamento[],
+  reservas: ReservaDia[] = [],
+): Recebimento[] {
   const dias = new Map<number, Recorrencia[]>();
   for (const r of recorrencias.filter((r) => r.tipo === 'entrada' && ativaNoMes(r, mes)))
     dias.set(r.dia, [...(dias.get(r.dia) ?? []), r]);
@@ -106,17 +124,23 @@ export function porRecebimento(mes: string, contas: ContaMes[], recorrencias: Re
       nome: es.map((e) => e.descricao).join(' + '),
       recebe: soma(es, (e) => pagamentos.find((p) => p.ref_id === e.id && p.mes === mes)?.valor ?? e.valor),
       contas: [] as ContaMes[],
+      res: new Map<string, number>(),
     }));
-  for (const c of contas) {
-    if (c.beneficio_id) continue;
-    const dia = +c.vencimento.slice(8);
+  const grupo = (dia: number) => {
     let g = grupos[grupos.length - 1];
     for (const x of grupos) if (x.dia <= dia) g = x;
-    g.contas.push(c);
+    return g;
+  };
+  for (const c of contas) if (!c.beneficio_id) grupo(+c.vencimento.slice(8)).contas.push(c);
+  for (const r of reservas) {
+    const g = grupo(r.vence ?? r.dia);
+    g.res.set(r.nome, (g.res.get(r.nome) ?? 0) + r.valor);
   }
-  return grupos.map((g) => {
+  return grupos.map(({ res, ...g }) => {
     const total = soma(g.contas, (c) => c.valor);
-    return { ...g, total, aPagar: soma(g.contas.filter((c) => !c.pago), (c) => c.valor), sobra: g.recebe - total };
+    const lista = [...res.entries()].map(([nome, v]) => ({ nome, valor: Math.round(v * 100) / 100 }));
+    const reservado = soma(lista, (r) => r.valor);
+    return { ...g, total, aPagar: soma(g.contas.filter((c) => !c.pago), (c) => c.valor), reservas: lista, reservado, sobra: g.recebe - total - reservado };
   });
 }
 
@@ -129,6 +153,8 @@ export interface ResumoMes {
   faturas: number;
   contasFixas: number;
   beneficios: number;
+  /** limite ainda não gasto dos orçamentos com reserva */
+  reservado: number;
   consumo: number;
   saldo: number;
   pago: number;
@@ -142,6 +168,7 @@ export function resumoMes(
   recorrencias: Recorrencia[],
   contas: ContaMes[],
   pagamentos: Pagamento[],
+  reservado = 0,
 ): ResumoMes {
   const doMes = gastos.filter((g) => noMes(g.data, mes));
   // contas pagas com benefício contam como benefício, fora das saídas
@@ -156,7 +183,7 @@ export function resumoMes(
     (r) => pagamentos.find((p) => p.ref_id === r.id && p.mes === mes)?.valor ?? r.valor,
   );
   const entradas = entradasFixas + entradasAvulsas;
-  const saidas = avista + faturas + contasFixas;
+  const saidas = avista + faturas + contasFixas + reservado;
   const pago = soma(contas.filter((c) => c.pago), (c) => c.valor);
   return {
     entradas,
@@ -167,6 +194,7 @@ export function resumoMes(
     faturas,
     contasFixas,
     beneficios,
+    reservado,
     consumo: soma(doMes, (g) => g.valor),
     saldo: entradas - saidas,
     pago,
@@ -248,31 +276,90 @@ export type Nivel = 'ok' | 'alerta' | 'estourado';
 export interface StatusOrcamento {
   orcamento: Orcamento;
   nome: string;
+  /** forma de pagamento do orçamento ('' = qualquer) */
+  pagamento: string;
   icone: string;
   cor: string;
   gasto: number;
   pct: number;
   nivel: Nivel;
+  /** parte do limite ainda não gasta que entra nas saídas previstas (reserva, mês atual em diante) */
+  reservado: number;
 }
 
-export function statusOrcamentos(orcamentos: Orcamento[], gastosMes: Gasto[], categorias: Map<string, Categoria>): StatusOrcamento[] {
+/** Gastos que contam no orçamento: categoria e forma; no cartão, os da fatura que entra nas contas do mês */
+export function gastosDoOrcamento(o: Orcamento, gastos: Gasto[], mes: string, cartoes: Cartao[]) {
+  const daCat = o.categoria_id ? gastos.filter((g) => g.categoria_id === o.categoria_id) : gastos;
+  if (o.forma === 'cartao') {
+    const c = cartoes.find((x) => x.id === o.cartao_id);
+    return c ? daCat.filter((g) => g.cartao_id === c.id && g.fatura_mes === faturaDoMes(mes, c)) : [];
+  }
+  return daCat.filter((g) => noMes(g.data, mes) && (!o.forma || g.forma === o.forma));
+}
+
+export function statusOrcamentos(
+  orcamentos: Orcamento[],
+  gastos: Gasto[],
+  mes: string,
+  categorias: Map<string, Categoria>,
+  cartoes: Cartao[] = [],
+  atual = mes,
+): StatusOrcamento[] {
   return orcamentos
     .map((o) => {
       const c = o.categoria_id ? categorias.get(o.categoria_id) : undefined;
-      const gasto = soma(o.categoria_id ? gastosMes.filter((g) => g.categoria_id === o.categoria_id) : gastosMes, (g) => g.valor);
+      const gasto = soma(gastosDoOrcamento(o, gastos, mes, cartoes), (g) => g.valor);
       const p = o.valor > 0 ? Math.round((gasto / o.valor) * 100) : 0;
+      const pagamento = o.forma === 'cartao' ? cartoes.find((x) => x.id === o.cartao_id)?.nome ?? 'Cartão' : o.forma === 'debito' ? 'Pix/Débito' : '';
       return {
         orcamento: o,
         nome: c?.nome ?? 'Geral (todos os gastos)',
+        pagamento,
         icone: c?.icone ?? 'bar_chart',
         cor: c?.cor ?? '#0f766e',
         gasto,
         pct: p,
         nivel: (p >= 100 ? 'estourado' : p >= o.alerta_pct ? 'alerta' : 'ok') as Nivel,
+        reservado: o.reserva && o.forma && mes >= atual ? Math.max(0, Math.round((o.valor - gasto) * 100) / 100) : 0,
       };
     })
     .sort((a, b) => b.pct - a.pct);
 }
+
+/**
+ * Reservas no saldo dia a dia: no cartão, no vencimento da fatura (vence no mês seguinte: último dia);
+ * no débito, dividida pelos dias que restam do mês.
+ */
+export function reservasPorDia(mes: string, status: StatusOrcamento[], cartoes: Cartao[], hoje: string) {
+  const n = diasNoMes(mes);
+  const l: ReservaDia[] = [];
+  for (const s of status.filter((x) => x.reservado > 0)) {
+    const o = s.orcamento;
+    const nome = s.pagamento ? `${s.nome} · ${s.pagamento}` : s.nome;
+    const c = o.forma === 'cartao' ? cartoes.find((x) => x.id === o.cartao_id) : undefined;
+    if (c) {
+      const venc = diaNoMes(faturaDoMes(mes, c), c.vencimento_dia);
+      l.push({ dia: noMes(venc, mes) ? Number(venc.slice(8, 10)) : n, valor: s.reservado, nome, vence: Number(venc.slice(8, 10)) });
+      continue;
+    }
+    const ini = noMes(hoje, mes) ? Number(hoje.slice(8, 10)) : 1;
+    for (let d = ini; d <= n; d++) l.push({ dia: d, valor: s.reservado / (n - ini + 1), nome });
+  }
+  return l;
+}
+
+/** Ajuste do orçamento que vale no mês: entre os que cobrem o mês, o que começou por último */
+export function ajusteOrcamento(o: Orcamento, valores: OrcamentoValor[], mes: string) {
+  let v: OrcamentoValor | undefined;
+  for (const x of valores)
+    if (x.orcamento_id === o.id && x.mes <= mes && (!x.ate || x.ate >= mes) && (!v || x.mes > v.mes || (x.mes === v.mes && x.criado_em > v.criado_em)))
+      v = x;
+  return v;
+}
+
+/** Orçamentos com o limite do mês */
+export const orcamentosNoMes = (orcamentos: Orcamento[], valores: OrcamentoValor[], mes: string) =>
+  orcamentos.map((o) => ({ ...o, valor: ajusteOrcamento(o, valores, mes)?.valor ?? o.valor }));
 
 /** Valor mensal necessário para bater a meta até o prazo */
 export function aporteMensal(meta: number, guardado: number, prazo: string | null, mes: string) {
@@ -345,4 +432,143 @@ export function variacaoGastos(gastos: { data: string; valor: number }[], mes: s
   const ate = (m: string) => soma(gastos.filter((g) => noMes(g.data, m) && Number(g.data.slice(8, 10)) <= corte), (g) => g.valor);
   const ant = ate(addMeses(mes, -1));
   return ant > 0 ? Math.round((ate(mes) / ant - 1) * 100) : null;
+}
+
+export interface DiaSaldo {
+  dia: number;
+  data: string;
+  entra: number;
+  sai: number;
+  saldo: number;
+}
+
+/**
+ * Saldo acumulado dia a dia no mês; o último dia bate com o saldo do resumo.
+ * Entradas fixas no dia previsto (ou no recebimento), avulsas e à vista na data, contas no vencimento (paga: no pagamento).
+ * Conta que vence no mês seguinte (salário do mês anterior) cai no último dia.
+ */
+export function saldoDiario(
+  mes: string,
+  gastos: Gasto[],
+  entradas: { data: string; valor: number }[],
+  recorrencias: Recorrencia[],
+  contas: ContaMes[],
+  pagamentos: Pagamento[],
+  reservas: { dia: number; valor: number }[] = [],
+): DiaSaldo[] {
+  const n = diasNoMes(mes);
+  const entra = new Array<number>(n + 1).fill(0);
+  const sai = new Array<number>(n + 1).fill(0);
+  const dia = (d: string) => Number(d.slice(8, 10));
+  for (const r of recorrencias.filter((x) => x.tipo === 'entrada' && ativaNoMes(x, mes))) {
+    const p = pagamentos.find((x) => x.ref_id === r.id && x.mes === mes);
+    entra[p?.pago_em && noMes(p.pago_em, mes) ? dia(p.pago_em) : Math.min(r.dia, n)] += p?.valor ?? r.valor;
+  }
+  for (const e of entradas) if (noMes(e.data, mes)) entra[dia(e.data)] += e.valor;
+  for (const g of gastos) if (g.forma === 'debito' && noMes(g.data, mes)) sai[dia(g.data)] += g.valor;
+  for (const r of reservas) sai[r.dia] += r.valor;
+  for (const c of contas) {
+    if (c.beneficio_id) continue;
+    const pg = c.pago?.pago_em;
+    sai[pg && noMes(pg, mes) ? dia(pg) : noMes(c.vencimento, mes) ? dia(c.vencimento) : n] += c.valor;
+  }
+  let saldo = 0;
+  return Array.from({ length: n }, (_, i) => {
+    const d = i + 1;
+    saldo += entra[d] - sai[d];
+    return { dia: d, data: diaNoMes(mes, d), entra: entra[d], sai: sai[d], saldo: Math.round(saldo * 100) / 100 };
+  });
+}
+
+/** Parcelas que pesam no mês: no cartão pela fatura das contas do mês, no débito pela data */
+export function parcelasDoMes(mes: string, gastos: Gasto[], cartoes: Cartao[]) {
+  const porId = new Map(cartoes.map((c) => [c.id, c]));
+  const p = gastos.filter((g) => g.parcelamento_id);
+  return {
+    cartao: soma(p.filter((g) => {
+      const c = g.forma === 'cartao' && g.cartao_id ? porId.get(g.cartao_id) : undefined;
+      return !!c && g.fatura_mes === faturaDoMes(mes, c);
+    }), (g) => g.valor),
+    debito: soma(p.filter((g) => g.forma === 'debito' && noMes(g.data, mes)), (g) => g.valor),
+  };
+}
+
+/** % do mês já passado (só no mês corrente) */
+export const ritmoMes = (mes: string, hoje: string) =>
+  inicioMes(hoje) === mes ? Math.round((Number(hoje.slice(8, 10)) / diasNoMes(mes)) * 100) : null;
+
+export const ACIMA_CATEGORIA = 1.5;
+
+/**
+ * Categorias com gasto no mês 50% ou mais acima da média mensal dos meses anteriores (até 3, mínimo 2 com gasto).
+ * Média abaixo de `minimo` fica de fora para não avisar por pouco.
+ */
+export function categoriasAcima(
+  doMes: { categoria_id: string | null; valor: number }[],
+  anteriores: { categoria_id: string | null; valor: number; data: string }[],
+  categorias: Map<string, Categoria>,
+  minimo = 50,
+) {
+  const meses = new Set(anteriores.map((g) => inicioMes(g.data))).size;
+  if (meses < 2) return [];
+  const media = new Map(porCategoria(anteriores, categorias).map((c) => [c.id, c.total / meses]));
+  return porCategoria(doMes, categorias)
+    .map((c) => ({ ...c, media: media.get(c.id) ?? 0 }))
+    .filter((c) => c.id && c.media >= minimo && c.total >= c.media * ACIMA_CATEGORIA)
+    .map((c) => ({ ...c, acima: Math.round((c.total / c.media - 1) * 100) }));
+}
+
+/**
+ * Fatura aberta na data: total atual e projeção até o fechamento.
+ * Compras avulsas do ciclo seguem o ritmo diário; parcelas e contas fixas entram como estão. Menos de 3 dias de ciclo: sem projeção.
+ */
+export function faturaProjetada(
+  c: Cartao,
+  gastos: Pick<Gasto, 'cartao_id' | 'valor' | 'data' | 'fatura_mes' | 'parcelamento_id'>[],
+  recorrencias: Recorrencia[],
+  hoje: string,
+) {
+  const mes = mesFatura(hoje, c.fechamento_dia, c.vencimento_dia);
+  const m = inicioMes(hoje);
+  const fecha = Number(hoje.slice(8, 10)) >= c.fechamento_dia ? diaNoMes(addMeses(m, 1), c.fechamento_dia) : diaNoMes(m, c.fechamento_dia);
+  const abriu = diaNoMes(addMeses(inicioMes(fecha), -1), c.fechamento_dia);
+  const dela = gastos.filter((g) => g.cartao_id === c.id && g.fatura_mes === mes);
+  const atual = soma(dela, (g) => g.valor) + soma(fixasNaFatura(mes, c, recorrencias), (f) => f.valor);
+  const avulsas = soma(dela.filter((g) => !g.parcelamento_id && g.data >= abriu && g.data <= hoje), (g) => g.valor);
+  const passados = diffDias(abriu, hoje) + 1;
+  const resto = diffDias(abriu, fecha) - passados;
+  const projetada = passados >= 3 ? atual + (avulsas / passados) * Math.max(resto, 0) : atual;
+  return { mes, fecha, atual, projetada: Math.round(projetada * 100) / 100 };
+}
+
+const PASSO: Record<Frequencia, (d: string, i: number) => string> = {
+  semana: (d, i) => addDias(d, 7 * i),
+  quinzena: (d, i) => addDias(d, 15 * i),
+  mes: (d, i) => addMeses(d, i),
+};
+
+/**
+ * Depósitos de `valor` a cada período, o primeiro em `de`: quantos e em que data cobrem o que falta;
+ * com prazo, quanto junta até ele e quantos dias antes (negativo: depois) a meta chega.
+ */
+export function simularDepositos(falta: number, valor: number, freq: Frequencia, de: string, prazo: string | null) {
+  if (valor <= 0 || falta <= 0) return null;
+  const depositos = Math.ceil(falta / valor - 1e-9);
+  const data = PASSO[freq](de, depositos - 1);
+  let noPrazo = 0;
+  if (prazo) while (noPrazo < depositos && PASSO[freq](de, noPrazo) <= prazo) noPrazo++;
+  return {
+    depositos,
+    data,
+    total: depositos * valor,
+    ...(prazo ? { ateOPrazo: Math.min(noPrazo * valor, falta), folga: diffDias(data, prazo) } : {}),
+  };
+}
+
+/** Quanto depositar por período para cobrir o que falta até o prazo (primeiro depósito em `de`) */
+export function depositoNecessario(falta: number, freq: Frequencia, de: string, prazo: string) {
+  if (falta <= 0 || prazo < de) return null;
+  let n = 0;
+  while (PASSO[freq](de, n) <= prazo) n++;
+  return Math.ceil((falta / n) * 100) / 100;
 }

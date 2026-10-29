@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.26.10.7 — 2026-10-29
+- Página de apresentação antes do login, com botões para entrar e criar conta
+- Calendário do mês: contas, entradas e gastos por dia, com cor pelo valor gasto
+- Saldo dia a dia no Início e no Calendário, com o dia de menor saldo
+- Relatórios com categorias empilhadas mês a mês, linha de tendência e mapa de calor dos gastos por dia
+- Renda comprometida no Início: quanto das entradas está em contas fixas, parcelas, cartão e à vista
+- Parcelamentos com as parcelas dos próximos 12 meses e o mês em que cada valor fica livre
+- Orçamentos com a marca de onde o gasto deveria estar no dia e aviso de "acima do ritmo"
+- Lançamento por texto: "mercado 120 nubank ontem #casa" preenche valor, cartão, data, categoria, parcelas e marcadores
+- Descrição já usada repete a categoria e o pagamento da última vez
+- Arrastar para o lado: pagar conta, excluir gasto ou lançar de novo hoje
+- Planejamento: copiar os eventos do mês anterior
+- Marcadores nos gastos (ex.: #viagem), com filtro em Gastos e bloco em Relatórios (migration 020)
+- Fechamento do mês: saldo, contas em aberto, orçamentos, maiores gastos e cofrinhos; aviso no Início na primeira semana
+- Quem gastou o quê: total de cada membro no mês no Início
+- Comentário no chat sobre um gasto, direto na edição dele (migration 020)
+- Cofrinhos com contagem até o prazo e aporte do mês em Contas, com botão Guardar
+- Aviso quando uma categoria passa 50% da média dos meses anteriores
+- Fatura projetada: quanto a fatura aberta deve fechar no ritmo atual, em Cartões e no aviso de fechamento
+- Orçamento: limite diferente só para um mês, por alguns meses ou daí em diante, sem mudar os meses anteriores; "Usar o padrão neste mês" (migration 021)
+- Cofrinhos: bandeira com quanto depositar por mês, quinzena ou semana para chegar à meta no prazo
+- Cofrinhos: simulação de depósitos (ex.: 50 por semana) com quantos depósitos e em que data chega ao valor, comparando com o prazo; plano salvo aparece na lista e em Contas (migration 021)
+- Aviso "Nova versão disponível" ao abrir ou voltar para o app: um toque atualiza
+- Contas por recebimento também no Início
+- Orçamento por forma de pagamento (ex.: mercado no cartão X ou no Pix): conta só os gastos nela, no cartão pela fatura do mês (migration 022)
+- Orçamento que conta como gasto previsto: o que falta do limite entra nas saídas e no saldo do mês e do planejamento
+- Por recebimento considera os orçamentos com reserva: o que falta gastar entra no recebimento do vencimento (cartão) ou dos dias restantes (Pix/débito) e diminui a sobra, com bandeira de orçamento nos cartões, na fatura e na lista de Contas
+
 ## v1.26.10.6 — 2026-10-28
 - Conta variável: valor que chegou no mês pode ser salvo sem pagar e já conta nas saídas; os outros meses seguem pela média (migration 019)
 

@@ -102,7 +102,7 @@ export const logadoGuard: CanActivateFn = async () => {
   const auth = inject(Auth);
   const router = inject(Router);
   await auth.aguardar();
-  return auth.user() ? true : router.parseUrl('/login');
+  return auth.user() ? true : router.parseUrl('/apresentacao');
 };
 
 export const deslogadoGuard: CanActivateFn = async () => {

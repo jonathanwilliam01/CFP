@@ -8,6 +8,18 @@
       </div>
     }
 
+    @if (!editando()) {
+      <div class="rapido">
+        <app-icon name="bolt" [size]="18" />
+        <input name="rapido" autocomplete="off" enterkeyhint="done" aria-label="Escrever o lançamento"
+          [placeholder]="l.modo() === 'entrada' ? 'Escreva: salário 3500 05/10' : 'Escreva: mercado 120 nubank ontem #casa'"
+          [ngModel]="rapido()" (ngModelChange)="rapido.set($event)" (keydown.enter)="$event.preventDefault(); aplicarTexto()" />
+        @if (rapido().trim()) {
+          <button type="button" class="btn sm" (click)="aplicarTexto()">Preencher</button>
+        }
+      </div>
+    }
+
     <label class="valor" [class.entrada]="l.modo() === 'entrada'">
       <span>R$</span>
       <input name="valor" inputmode="decimal" placeholder="0,00" autocomplete="off" autofocus
@@ -50,6 +62,13 @@
         @for (c of cats(); track c.id) { <option [ngValue]="c.id">{{ c.nome }}</option> }
       </select>
     </label>
+
+    @if (l.modo() === 'gasto' && !repete()) {
+      <label class="field">
+        <span>Marcadores (opcional)</span>
+        <input name="tags" autocomplete="off" placeholder="Ex.: viagem, reforma" [ngModel]="f().tags" (ngModelChange)="set('tags', $event)" />
+      </label>
+    }
 
     <div class="field">
       <span>{{ l.modo() === 'parcelado' ? 'Data da compra / 1ª parcela' : repete() && !cartaoFixa() ? (l.modo() === 'entrada' ? 'Primeiro recebimento' : 'Primeiro vencimento') : 'Data' }}</span>
@@ -128,5 +147,19 @@
         }
       }
     </div>
+
+    @if (l.gasto() && s.membros().length > 1) {
+      <div class="coment">
+        <span class="lbl">Comentários no chat</span>
+        @for (m of comentarios(); track m.id) {
+          <p class="cm"><b>{{ s.membroMap().get(m.user_id) ?? '' }}</b> {{ m.texto }}</p>
+        }
+        <div class="env">
+          <input name="coment" autocomplete="off" maxlength="2000" placeholder="Perguntar ou comentar sobre este gasto"
+            [ngModel]="comentario()" (ngModelChange)="comentario.set($event)" (keydown.enter)="$event.preventDefault(); comentar()" />
+          <button type="button" class="btn icon" aria-label="Enviar comentário" [disabled]="!comentario().trim()" (click)="comentar()"><app-icon name="send" [size]="18" /></button>
+        </div>
+      </div>
+    }
   </form>
 </app-sheet>

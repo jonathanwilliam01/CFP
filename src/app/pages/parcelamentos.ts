@@ -1,17 +1,18 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { addMeses, inicioMes, mesAtual, mesFatura } from '../core/datas';
+import { addMeses, inicioMes, mesAtual, mesFatura, nomeMes } from '../core/datas';
 import { BrlPipe, MesPipe, pct, soma } from '../core/formato';
 import { Gasto, Parcelamento } from '../core/models';
 
 type Parcela = Pick<Gasto, 'parcelamento_id' | 'valor' | 'data' | 'fatura_mes'>;
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
+import { Empilhadas, Pilha } from '../shared/graficos';
 import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
 import { Toast } from '../shared/toast';
 
 @Component({
-  imports: [BrlPipe, MesPipe, Icon],
+  imports: [BrlPipe, MesPipe, Icon, Empilhadas],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -24,6 +25,22 @@ import { Toast } from '../shared/toast';
         <div class="stat"><div class="l">Parcelas por mês</div><div class="v">{{ porMes() | brl }}</div></div>
         <div class="stat"><div class="l">Falta pagar</div><div class="v">{{ restante() | brl }}</div></div>
       </div>
+
+      @if (ativos().length) {
+        <section class="card">
+          <div class="card-head"><h2>Parcelas nos próximos meses</h2></div>
+          <app-empilhadas [colunas]="linhaTempo()" />
+          @if (libera().length) {
+            <div class="libera">
+              @for (l of libera(); track l.mes) {
+                <div class="lib"><app-icon name="lock_open" [size]="18" />
+                  <span class="grow">Em <b class="cap">{{ l.mes | mes }}</b> libera <b class="num pos">{{ l.valor | brl }}</b>/mês<span class="small muted"> · {{ l.nomes }}</span></span>
+                </div>
+              }
+            </div>
+          }
+        </section>
+      }
 
       <div class="seg">
         <button type="button" [class.on]="aba() === 'ativos'" (click)="aba.set('ativos')">Em andamento ({{ ativos().length }})</button>
@@ -69,6 +86,10 @@ import { Toast } from '../shared/toast';
     .cab { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
     .grow { flex: 1; min-width: 0; }
     .grow b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .libera { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+    .lib { display: flex; gap: 8px; align-items: flex-start; font-size: 0.88rem; color: var(--ink-2); }
+    .lib app-icon { color: var(--ok); }
+    .cap { text-transform: capitalize; }
     .info { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
   `,
 })
@@ -112,6 +133,30 @@ export default class Parcelamentos {
   protected finalizados = computed(() => this.lista().filter((x) => x.pagas >= x.p.num_parcelas));
   protected porMes = computed(() => soma(this.ativos(), (x) => x.p.valor_parcela));
   protected restante = computed(() => soma(this.ativos(), (x) => x.restante));
+
+  private meses = computed(() => Array.from({ length: 12 }, (_, i) => addMeses(mesAtual(), i)));
+
+  protected linhaTempo = computed<Pilha[]>(() =>
+    this.meses().map((mes, i) => ({
+      rotulo: nomeMes(mes, true),
+      destaque: i === 0,
+      partes: [{ nome: 'Parcelas', cor: 'var(--primary)', valor: soma(this.parcelas().filter((g) => (g.fatura_mes ?? inicioMes(g.data)) === mes), (g) => g.valor) }],
+    })),
+  );
+
+  /** Mês seguinte à última parcela: quanto deixa de sair por mês */
+  protected libera = computed(() => {
+    const m = new Map<string, { valor: number; nomes: string[] }>();
+    for (const x of this.ativos()) {
+      const mes = addMeses(x.fim, 1);
+      if (mes > this.meses()[11]) continue;
+      const a = m.get(mes) ?? { valor: 0, nomes: [] };
+      a.valor += x.p.valor_parcela;
+      a.nomes.push(x.p.descricao);
+      m.set(mes, a);
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([mes, a]) => ({ mes, valor: a.valor, nomes: a.nomes.join(', ') }));
+  });
 
   constructor() {
     effect(() => {

@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { addDias, diaNoMes, diffDias, hoje, mesAtual, mesFatura } from './datas';
-import { aporteMensal, ativaNoMes, fixasNaFatura, porCategoria, saldoBeneficio, variaveisAcima } from './financas';
+import { aporteMensal, ativaNoMes, categoriasAcima, faturaProjetada, fixasNaFatura, porCategoria, saldoBeneficio, variaveisAcima } from './financas';
 import { moeda, pct, soma } from './formato';
 import { Chat } from './chat';
 import { Store } from './store';
@@ -74,15 +74,18 @@ export class Insights {
         const total =
           soma(s.gastos().filter((g) => g.cartao_id === c.id && g.fatura_mes === fm), (g) => g.valor) +
           soma(fixasNaFatura(fm, c, s.recorrenciasPrev()), (f) => f.valor);
-        l.push({ id: `fech-${c.id}-${mes}`, nivel: 'info', icone: 'credit_card', titulo: `Fatura ${c.nome} fecha ${d === 0 ? 'hoje' : `em ${d} dia(s)`}`, texto: total ? `Parcial: ${moeda(total)}.` : 'Compras após o fechamento vão para a próxima fatura.', link: '/cartoes' });
+        // fecha hoje: a projeção já olharia o ciclo seguinte
+        const proj = d > 0 ? faturaProjetada(c, s.gastos(), s.recorrenciasPrev(), h) : null;
+        const ritmo = proj && proj.mes === fm && proj.projetada > total + 1 ? ` No ritmo atual, fecha em ${moeda(proj.projetada)}.` : '';
+        l.push({ id: `fech-${c.id}-${mes}`, nivel: 'info', icone: 'credit_card', titulo: `Fatura ${c.nome} fecha ${d === 0 ? 'hoje' : `em ${d} dia(s)`}`, texto: total ? `Parcial: ${moeda(total)}.${ritmo}` : 'Compras após o fechamento vão para a próxima fatura.', link: '/cartoes' });
       }
     }
 
     for (const o of s.orcamentosStatus()) {
       if (o.nivel === 'estourado')
-        l.push({ id: `orc100-${o.orcamento.id}-${mes}`, nivel: 'perigo', icone: 'flag', titulo: `Orçamento estourado: ${o.nome}`, texto: `${moeda(o.gasto)} de ${moeda(o.orcamento.valor)} (${o.pct}%).`, link: '/orcamentos' });
+        l.push({ id: `orc100-${o.orcamento.id}-${mes}`, nivel: 'perigo', icone: 'flag', titulo: `Orçamento estourado: ${o.nome}${o.pagamento ? ` (${o.pagamento})` : ''}`, texto: `${moeda(o.gasto)} de ${moeda(o.orcamento.valor)} (${o.pct}%).`, link: '/orcamentos' });
       else if (o.nivel === 'alerta')
-        l.push({ id: `orcal-${o.orcamento.id}-${mes}`, nivel: 'alerta', icone: 'warning', titulo: `${o.nome} em ${o.pct}% do orçamento`, texto: `Restam ${moeda(o.orcamento.valor - o.gasto)} no mês.`, link: '/orcamentos' });
+        l.push({ id: `orcal-${o.orcamento.id}-${mes}`, nivel: 'alerta', icone: 'warning', titulo: `${o.nome}${o.pagamento ? ` (${o.pagamento})` : ''} em ${o.pct}% do orçamento`, texto: `Restam ${moeda(o.orcamento.valor - o.gasto)} no mês.`, link: '/orcamentos' });
     }
 
     if (r.entradas > 0 && r.saldo < 0)
@@ -102,6 +105,9 @@ export class Insights {
 
     for (const v of variaveisAcima(s.recorrencias(), s.valoresFixas(), mes))
       l.push({ id: `var-${v.r.id}-${v.mes}`, nivel: 'alerta', icone: 'trending_up', titulo: `${v.r.descricao} veio ${v.pct}% acima da média`, texto: `${moeda(v.valor)} contra média de ${moeda(v.media)}.`, link: '/contas' });
+
+    for (const c of categoriasAcima(s.gastosMes(), s.gastosAnteriores(), s.catMap()))
+      l.push({ id: `cat-${c.id}-${mes}`, nivel: 'alerta', icone: 'trending_up', titulo: `${c.nome} ${c.acima}% acima do normal`, texto: `${moeda(c.total)} no mês contra média de ${moeda(c.media)} nos meses anteriores.`, link: '/relatorios' });
 
     for (const e of s.recorrencias().filter((x) => x.tipo === 'entrada' && ativaNoMes(x, mes))) {
       const d = diffDias(diaNoMes(mes, e.dia), h);

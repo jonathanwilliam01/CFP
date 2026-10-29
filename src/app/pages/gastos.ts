@@ -1,16 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { hoje } from '../core/datas';
 import { BrlPipe, DiaPipe, soma } from '../core/formato';
 import { Gasto } from '../core/models';
 import { Store } from '../core/store';
+import { AcaoDeslizar, Deslizar } from '../shared/deslizar';
 import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
+import { Toast } from '../shared/toast';
 
 type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, Icon],
+  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, Icon, Deslizar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -32,6 +35,13 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
           <button class="chip" [class.on]="filtro() === o.k" (click)="filtro.set(o.k)">@if (o.i) {<app-icon [name]="o.i" [size]="18" />}{{ o.r }}</button>
         }
       </div>
+      @if (tags().length) {
+        <div class="chips">
+          @for (t of tags(); track t) {
+            <button class="chip" [class.on]="tag() === t" (click)="tag.set(tag() === t ? null : t)">#{{ t }}</button>
+          }
+        </div>
+      }
       <select aria-label="Categoria" [ngModel]="cat()" (ngModelChange)="cat.set($event)">
         <option [ngValue]="null">Todas as categorias</option>
         @for (c of s.catGasto(); track c.id) { <option [ngValue]="c.id">{{ c.nome }}</option> }
@@ -46,18 +56,23 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
         <div class="day-label">{{ d.data | dia }} · <span class="num">{{ d.total | brl }}</span></div>
         <section class="card list">
           @for (g of d.itens; track g.id) {
-            <button class="row" (click)="lancar.editarGasto(g)">
-              <span class="ico" [style.background]="(cat_(g)?.cor ?? '#94a3b8') + '22'" [style.color]="(cat_(g)?.cor ?? '#94a3b8')"><app-icon [name]="cat_(g)?.icone ?? 'help'" /></span>
-              <div class="grow">
-                <div class="t">{{ g.descricao }}</div>
-                <div class="s">{{ cat_(g)?.nome ?? 'Sem categoria' }} · {{ forma(g) }}{{ quem(g) }}</div>
-              </div>
-              <span class="v" [class.benef]="g.forma === 'beneficio'">{{ g.valor | brl }}</span>
-            </button>
+            <app-deslizar [esquerda]="excluirAcao" [direita]="g.parcelamento_id ? null : repetirAcao" (esquerdaFeito)="excluir(g)" (direitaFeito)="repetir(g)">
+              <button class="row" (click)="lancar.editarGasto(g)">
+                <span class="ico" [style.background]="(cat_(g)?.cor ?? '#94a3b8') + '22'" [style.color]="(cat_(g)?.cor ?? '#94a3b8')"><app-icon [name]="cat_(g)?.icone ?? 'help'" /></span>
+                <div class="grow">
+                  <div class="t">{{ g.descricao }}@for (t of g.tags ?? []; track t) {<span class="tag">#{{ t }}</span>}</div>
+                  <div class="s">{{ cat_(g)?.nome ?? 'Sem categoria' }} · {{ forma(g) }}{{ quem(g) }}</div>
+                </div>
+                <span class="v" [class.benef]="g.forma === 'beneficio'">{{ g.valor | brl }}</span>
+              </button>
+            </app-deslizar>
           }
         </section>
       } @empty {
         <div class="empty"><app-icon class="big" name="search_off" [size]="40" />Nenhum gasto encontrado.</div>
+      }
+      @if (dias().length) {
+        <p class="small muted dica">Arraste um gasto para a esquerda para excluir ou para a direita para lançar de novo hoje.</p>
       }
     </div>
   `,
@@ -69,11 +84,15 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
     .total b { font-size: 1.15rem; }
     .list { padding-top: 4px; padding-bottom: 4px; }
     .benef { color: var(--ink-3); }
+    .dica { text-align: center; }
   `,
 })
 export default class Gastos {
   protected s = inject(Store);
   protected lancar = inject(Lancar);
+  private toast = inject(Toast);
+  protected excluirAcao: AcaoDeslizar = { rotulo: 'Excluir', icone: 'delete', cor: 'var(--danger)' };
+  protected repetirAcao: AcaoDeslizar = { rotulo: 'Lançar hoje', icone: 'content_copy', cor: 'var(--primary)' };
 
   protected opcoes: { k: Filtro; r: string; i?: string }[] = [
     { k: 'todos', r: 'Todos' },
@@ -84,6 +103,8 @@ export default class Gastos {
   protected filtro = signal<Filtro>('todos');
   protected cat = signal<string | null>(null);
   protected busca = signal('');
+  protected tag = signal<string | null>(null);
+  protected tags = computed(() => [...new Set(this.s.gastosMes().flatMap((g) => g.tags ?? []))].sort());
 
   protected lista = computed(() => {
     const b = this.busca().trim().toLowerCase();
@@ -91,6 +112,7 @@ export default class Gastos {
       (g) =>
         (this.filtro() === 'todos' || g.forma === this.filtro()) &&
         (!this.cat() || g.categoria_id === this.cat()) &&
+        (!this.tag() || !!g.tags?.includes(this.tag()!)) &&
         (!b || g.descricao.toLowerCase().includes(b)),
     );
   });
@@ -102,6 +124,20 @@ export default class Gastos {
     for (const g of this.lista()) m.set(g.data, [...(m.get(g.data) ?? []), g]);
     return [...m.entries()].map(([data, itens]) => ({ data, itens, total: soma(itens, (g) => g.valor) }));
   });
+
+  excluir(g: Gasto) {
+    this.s.excluirAdiado('gastos', g.id, 'Gasto excluído');
+  }
+
+  async repetir(g: Gasto) {
+    try {
+      const { descricao, categoria_id, valor, forma, cartao_id, beneficio_id, tags } = g;
+      const novo = await this.s.salvar('gastos', { descricao, categoria_id, valor, forma, cartao_id, beneficio_id, data: hoje(), ...(tags?.length ? { tags } : {}) });
+      this.toast.feito(`${g.descricao} lançado hoje`, () => this.s.excluir('gastos', novo));
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
 
   cat_(g: Gasto) {
     return g.categoria_id ? this.s.catMap().get(g.categoria_id) : undefined;

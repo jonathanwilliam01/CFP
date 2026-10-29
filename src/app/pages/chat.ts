@@ -4,17 +4,19 @@ import { RouterLink } from '@angular/router';
 import { Auth } from '../core/auth';
 import { Chat } from '../core/chat';
 import { iso } from '../core/datas';
-import { DiaPipe } from '../core/formato';
+import { BrlPipe, DiaPipe } from '../core/formato';
 import { Insights } from '../core/insights';
-import { Membro, Mensagem } from '../core/models';
+import { Gasto, Membro, Mensagem } from '../core/models';
 import { Store } from '../core/store';
 import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
+import { Lancar } from '../shared/lancar';
 import { Toast } from '../shared/toast';
+import { q, supabase } from '../core/supabase';
 import { Visor } from '../shared/visor';
 
 @Component({
-  imports: [FormsModule, RouterLink, DiaPipe, Avatar, Icon, Visor],
+  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, Avatar, Icon, Visor],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -50,6 +52,13 @@ import { Visor } from '../shared/visor';
               }
               <div class="msg" [class.eu]="m.eu">
                 @if (m.membro) { <span class="quem">{{ m.membro.nome }}</span> }
+                @if (m.gasto_id) {
+                  @if (gastos().get(m.gasto_id); as g) {
+                    <button type="button" class="ref" (click)="lancar.editarGasto(g)"><app-icon name="receipt_long" [size]="16" /><span>{{ g.descricao }} · {{ g.valor | brl }}</span></button>
+                  } @else {
+                    <span class="ref"><app-icon name="receipt_long" [size]="16" /><span>Gasto excluído</span></span>
+                  }
+                }
                 <p>{{ m.texto }}</p>
                 <span class="hora">{{ m.hora }}</span>
               </div>
@@ -83,6 +92,11 @@ import { Visor } from '../shared/visor';
     }
     .msg.eu { background: var(--primary); color: var(--primary-ink); border-color: transparent; border-radius: 16px 16px 4px 16px; }
     .msg p { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .ref {
+      display: flex; align-items: center; gap: 6px; margin: 2px 0 4px; padding: 5px 8px; border-radius: 10px; border: 0;
+      background: rgb(127 127 127 / 0.14); color: inherit; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; text-align: left; max-width: 100%;
+    }
+    .ref span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .quem { display: block; font-size: 0.75rem; font-weight: 700; color: var(--primary); }
     .hora { display: block; text-align: right; font-size: 0.68rem; opacity: 0.7; margin-top: 1px; }
     .enviar {
@@ -110,6 +124,10 @@ export default class ChatPage {
   protected texto = signal('');
   protected enviando = signal(false);
   protected foto = signal<string | null>(null);
+  protected lancar = inject(Lancar);
+  /** gastos comentados que não estão no mês carregado */
+  private extras = signal<Gasto[]>([]);
+  protected gastos = computed(() => new Map([...this.extras(), ...this.s.gastos()].map((g) => [g.id, g])));
 
   protected dias = computed(() => {
     const eu = this.auth.user()?.id;
@@ -135,6 +153,14 @@ export default class ChatPage {
   constructor() {
     this.chat.aberto.set(true);
     inject(DestroyRef).onDestroy(() => this.chat.aberto.set(false));
+    effect(() => {
+      const ids = [...new Set(this.chat.mensagens().map((m) => m.gasto_id).filter((x): x is string => !!x))];
+      untracked(() => {
+        const faltam = ids.filter((id) => !this.gastos().has(id));
+        if (faltam.length)
+          q<Gasto[]>(supabase.from('gastos').select('*').in('id', faltam)).then((l) => this.extras.update((a) => [...a, ...l]), () => undefined);
+      });
+    });
     effect(() => {
       this.chat.mensagens();
       untracked(() => {

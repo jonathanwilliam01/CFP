@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { faltaPara, hoje } from '../core/datas';
+import { depositoNecessario, simularDepositos } from '../core/financas';
 import { BrlPipe, parseValor, soma } from '../core/formato';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
@@ -36,6 +38,15 @@ import { Toast } from '../shared/toast';
                 <div class="bar"><i [style.width.%]="c.pct > 100 ? 100 : c.pct" [style.background]="c.cor"></i></div>
                 <small class="muted num">meta {{ c.meta | brl }}</small>
               }
+              @if (c.prazo && c.pct < 100) {
+                <small class="prazo"><app-icon name="schedule" [size]="14" />{{ falta(c.prazo) }}</small>
+              }
+              @if (c.precisa) {
+                <small class="flag"><app-icon name="flag" [size]="14" [fill]="true" />{{ c.precisa | brl }}/mês até a meta</small>
+              }
+              @if (c.chega) {
+                <small class="muted">Plano {{ c.deposito | brl }}/{{ nomes[c.frequencia ?? 'mes'] }} · chega {{ c.chega }}</small>
+              }
             </a>
           }
         </div>
@@ -66,6 +77,8 @@ import { Toast } from '../shared/toast';
     .cof { display: flex; flex-direction: column; gap: 6px; color: inherit; }
     .top { display: flex; justify-content: space-between; align-items: flex-start; }
     .v { font-weight: 800; font-size: 1.05rem; }
+    .flag { display: inline-flex; align-items: center; gap: 4px; color: var(--warn); font-weight: 700; font-size: 0.75rem; }
+    .prazo { display: inline-flex; align-items: center; gap: 4px; color: var(--primary); font-weight: 700; font-size: 0.75rem; }
     @media (min-width: 720px) { .grid { grid-template-columns: repeat(3, 1fr); } }
   `,
 })
@@ -79,9 +92,18 @@ export default class Cofrinhos {
   protected lista = computed(() =>
     this.s.cofrinhos().map((c) => {
       const guardado = this.s.guardadoPorCofrinho().get(c.id) ?? 0;
-      return { ...c, guardado, pct: c.meta > 0 ? Math.round((guardado / c.meta) * 100) : 0 };
+      const falta = Math.max(0, c.meta - guardado);
+      const sim = c.deposito ? simularDepositos(falta, c.deposito, c.frequencia ?? 'mes', hoje(), null) : null;
+      return {
+        ...c, guardado,
+        pct: c.meta > 0 ? Math.round((guardado / c.meta) * 100) : 0,
+        precisa: c.prazo ? depositoNecessario(falta, 'mes', hoje(), c.prazo) : null,
+        chega: sim ? `em ${sim.data.slice(5, 7)}/${sim.data.slice(0, 4)}` : null,
+      };
     }),
   );
+  protected falta = faltaPara;
+  protected nomes = { semana: 'semana', quinzena: 'quinzena', mes: 'mês' };
   protected total = computed(() => soma(this.lista(), (c) => c.guardado));
 
   novo() {

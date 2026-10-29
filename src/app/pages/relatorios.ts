@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { addMeses, fimMes, nomeMes } from '../core/datas';
+import { addDias, addMeses, fimMes, hoje, nomeMes } from '../core/datas';
 import { contasDoMes, noMes, porCategoria, resumoMes } from '../core/financas';
 import { BrlPipe, MesPipe, pct, soma } from '../core/formato';
 import { Entrada, Gasto, Pagamento } from '../core/models';
 import { Store } from '../core/store';
-import { Coluna, Donut, Barras } from '../shared/graficos';
+import { Barras, Calor, Coluna, Donut, Empilhadas, Pilha } from '../shared/graficos';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
 
@@ -16,7 +16,7 @@ interface Grupo {
 }
 
 @Component({
-  imports: [BrlPipe, MesPipe, Donut, Barras, Icon],
+  imports: [BrlPipe, MesPipe, Donut, Barras, Empilhadas, Calor, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -47,6 +47,16 @@ interface Grupo {
         <section class="card">
           <div class="card-head"><h2>Entradas x saídas</h2></div>
           <app-barras [colunas]="colunas()" />
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Categorias mês a mês</h2><span class="muted small">consumo</span></div>
+          <app-empilhadas [colunas]="pilhas()" [tendencia]="true" />
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Gastos por dia</h2><span class="muted small">{{ calorDe() | mes }} até hoje</span></div>
+          <app-calor [dias]="calor()" />
         </section>
 
         <section class="card">
@@ -173,6 +183,7 @@ export default class Relatorios {
     };
     return [
       { titulo: 'Por forma de pagamento', itens: agrupar(g, (x) => formas[x.forma]) },
+      { titulo: 'Por marcador', itens: porTag(g, cores) },
       {
         titulo: 'Por cartão',
         itens: agrupar(g.filter((x) => x.forma === 'cartao'), (x) => {
@@ -189,6 +200,35 @@ export default class Relatorios {
         }),
       },
     ];
+  });
+
+  /** Top 5 categorias do período e o resto em "Outras", por mês */
+  protected pilhas = computed<Pilha[]>(() => {
+    const top = this.categorias().slice(0, 5);
+    const ids = new Set(top.map((c) => c.id));
+    return this.lista().map((mes) => {
+      const doMes = this.consumo().filter((g) => noMes(g.data, mes));
+      const fat = porCategoria(doMes, this.s.catMap());
+      return {
+        rotulo: nomeMes(mes, true),
+        destaque: mes === this.s.mes(),
+        partes: [
+          ...top.map((c) => ({ nome: c.nome, cor: c.cor, valor: fat.find((f) => f.id === c.id)?.total ?? 0 })),
+          { nome: 'Outras', cor: '#94a3b8', valor: soma(fat.filter((f) => !ids.has(f.id)), (f) => f.total) },
+        ],
+      };
+    });
+  });
+
+  /** até 6 meses: com mais semanas os quadradinhos ficam pequenos demais no celular */
+  protected calorDe = computed(() => this.lista()[Math.max(0, this.lista().length - 6)]);
+  protected calor = computed(() => {
+    const fim = [fimMes(this.s.mes()), hoje()].sort()[0];
+    const tot = new Map<string, number>();
+    for (const g of this.consumo()) tot.set(g.data, (tot.get(g.data) ?? 0) + g.valor);
+    const l: { data: string; valor: number }[] = [];
+    for (let d = this.calorDe(); d <= fim; d = addDias(d, 1)) l.push({ data: d, valor: tot.get(d) ?? 0 });
+    return l;
   });
 
   constructor() {
@@ -236,6 +276,16 @@ export default class Relatorios {
     a.click();
     URL.revokeObjectURL(a.href);
   }
+}
+
+/** Gasto com vários marcadores conta em cada um */
+function porTag(gastos: Gasto[], cores: string[]): Grupo[] {
+  const m = new Map<string, number>();
+  for (const g of gastos) for (const t of g.tags ?? []) m.set(t, (m.get(t) ?? 0) + g.valor);
+  const total = soma([...m.values()], (v) => v);
+  return [...m.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([nome, v], i) => ({ nome: '#' + nome, total: v, cor: cores[i % cores.length], pct: pct(v, total) }));
 }
 
 function agrupar(gastos: Gasto[], chave: (g: Gasto) => [string, string]): Grupo[] {

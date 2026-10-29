@@ -365,6 +365,20 @@ input[type='color'] {
   &.estourado > i { background: var(--danger); }
 }
 
+/* barra com a marca de onde o gasto deveria estar no dia */
+.ritmo {
+  position: relative;
+  > .marca {
+    position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px;
+    border-radius: 2px; background: var(--ink); opacity: 0.5;
+  }
+}
+
+.tag {
+  display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--primary);
+  background: var(--primary-soft); border-radius: 999px; padding: 1px 7px; margin-left: 4px;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

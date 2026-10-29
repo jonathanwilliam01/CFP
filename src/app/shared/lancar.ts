@@ -4,7 +4,9 @@ import { addDias, hoje, mesFatura } from '../core/datas';
 import { inicioFixa } from '../core/financas';
 import { BrlPipe, MesPipe, moeda, parseValor } from '../core/formato';
 import { Entrada, Forma, Gasto } from '../core/models';
-import { Store } from '../core/store';
+import { Chat } from '../core/chat';
+import { Recente, Store } from '../core/store';
+import { lerTags, lerTexto } from '../core/texto';
 import { Fila, ItemFila, semRede } from '../core/fila';
 import { Icon } from './icon';
 import { Sheet } from './sheet';
@@ -63,6 +65,8 @@ interface FormLanc {
   fim: string;
   /** data já passou: marca o primeiro mês como pago/recebido */
   jaPago: boolean;
+  /** marcadores separados por espaço ou vírgula */
+  tags: string;
 }
 
 @Component({
@@ -77,11 +81,19 @@ export class LancarSheet {
   protected s = inject(Store);
   private toast = inject(Toast);
   private fila = inject(Fila);
+  private chat = inject(Chat);
   /** formulário do próximo abrir (lançar de novo) */
   private proxima: FormLanc | null = null;
 
   protected f = signal<FormLanc>(this.vazio());
   protected salvando = signal(false);
+  /** "mercado 120 nubank ontem" vira o formulário */
+  protected rapido = signal('');
+  protected comentario = signal('');
+  protected comentarios = computed(() => {
+    const id = this.l.gasto()?.id;
+    return id ? this.chat.mensagens().filter((m) => m.gasto_id === id) : [];
+  });
   protected hoje = hoje();
   protected ontem = addDias(hoje(), -1);
 
@@ -135,13 +147,13 @@ export class LancarSheet {
   private vazio(): FormLanc {
     return {
       valor: '', descricao: '', categoria_id: null, data: hoje(), pagamento: this.pagamentoPadrao(), parcelas: 2, valorEhTotal: true,
-      repete: this.l.fixa(), variavel: false, anterior: false, fim: '', jaPago: true,
+      repete: this.l.fixa(), variavel: false, anterior: false, fim: '', jaPago: true, tags: '',
     };
   }
 
   private deGasto(g: Gasto): FormLanc {
     const pagamento = g.forma === 'cartao' ? g.cartao_id! : g.forma === 'beneficio' ? `b:${g.beneficio_id}` : 'debito';
-    return { ...this.vazio(), valor: String(g.valor).replace('.', ','), descricao: g.descricao, categoria_id: g.categoria_id, data: g.data, pagamento };
+    return { ...this.vazio(), valor: String(g.valor).replace('.', ','), descricao: g.descricao, categoria_id: g.categoria_id, data: g.data, pagamento, tags: (g.tags ?? []).join(' ') };
   }
 
   private deEntrada(e: Entrada): FormLanc {
@@ -152,12 +164,64 @@ export class LancarSheet {
     this.f.update((f) => ({ ...f, [k]: v }));
   }
 
-  /** Sugere categoria pelo histórico ao digitar descrição já usada */
+  private recente(desc: string) {
+    const d = desc.trim().toLowerCase();
+    return d ? this.s.recentes().find((x) => x.descricao.trim().toLowerCase() === d) : undefined;
+  }
+
+  /** Pagamento usado da última vez, se o cartão ou benefício ainda está ativo (parcelado: só cartão ou débito) */
+  private pagamentoDe(r: Recente) {
+    if (r.forma === 'cartao') return this.s.cartoesAtivos().some((c) => c.id === r.cartao_id) ? r.cartao_id : null;
+    if (r.forma === 'beneficio') return this.l.modo() === 'gasto' && this.s.beneficiosAtivos().some((b) => b.id === r.beneficio_id) ? `b:${r.beneficio_id}` : null;
+    return 'debito';
+  }
+
+  /** Descrição já usada: repete a categoria e, em lançamento novo, o pagamento da última vez */
   sugerir(desc: string) {
     this.set('descricao', desc);
     if (this.l.modo() === 'entrada') return;
-    const r = this.s.recentes().find((x) => x.descricao.trim().toLowerCase() === desc.trim().toLowerCase());
-    if (r?.categoria_id) this.set('categoria_id', r.categoria_id);
+    const r = this.recente(desc);
+    if (!r) return;
+    if (r.categoria_id) this.set('categoria_id', r.categoria_id);
+    const pg = this.editando() ? null : this.pagamentoDe(r);
+    if (pg) this.set('pagamento', pg);
+  }
+
+  /** Preenche o formulário a partir do texto livre; parcelas (10x) passam para Parcelado */
+  aplicarTexto() {
+    const t = lerTexto(this.rapido(), { cartoes: this.s.cartoes(), beneficios: this.s.beneficios(), categorias: this.s.categorias(), hoje: hoje() });
+    const a = this.f();
+    const modo = t.parcelas && this.l.modo() === 'gasto' ? 'parcelado' : this.l.modo();
+    if (modo === 'entrada') t.categoria_id = null;
+    const f: FormLanc = {
+      ...a,
+      valor: t.valor != null ? String(t.valor).replace('.', ',') : a.valor,
+      descricao: t.descricao || a.descricao,
+      data: t.data ?? a.data,
+      pagamento: t.pagamento ?? a.pagamento,
+      categoria_id: t.categoria_id ?? a.categoria_id,
+      parcelas: t.parcelas ?? a.parcelas,
+      tags: t.tags.length ? t.tags.join(' ') : a.tags,
+    };
+    const r = modo === 'entrada' ? undefined : this.recente(f.descricao);
+    if (r && !t.categoria_id && r.categoria_id) f.categoria_id = r.categoria_id;
+    if (r && !t.pagamento) f.pagamento = this.pagamentoDe(r) ?? f.pagamento;
+    this.rapido.set('');
+    if (modo === this.l.modo()) return this.f.set(f);
+    this.proxima = f;
+    this.l.modo.set(modo);
+  }
+
+  async comentar() {
+    const g = this.l.gasto();
+    const t = this.comentario().trim();
+    if (!g || !t) return;
+    try {
+      await this.chat.enviar(t, g.id);
+      this.comentario.set('');
+    } catch (e) {
+      this.toast.erro(e);
+    }
   }
 
   /** Lançamento novo como item da fila (vai direto ou fica no aparelho sem internet) */
@@ -196,10 +260,13 @@ export class LancarSheet {
 
   private dadosGasto(f: FormLanc, valor: number) {
     const forma: Forma = f.pagamento === 'debito' ? 'debito' : f.pagamento.startsWith('b:') ? 'beneficio' : 'cartao';
+    const tags = lerTags(f.tags);
     return {
       descricao: f.descricao.trim(), categoria_id: f.categoria_id, valor, data: f.data, forma,
       cartao_id: forma === 'cartao' ? f.pagamento : null,
       beneficio_id: forma === 'beneficio' ? f.pagamento.slice(2) : null,
+      // só manda a coluna quando há marcador: banco sem a migration 020 segue aceitando o lançamento
+      ...(tags.length || this.l.gasto()?.tags?.length ? { tags } : {}),
     };
   }
 
@@ -247,7 +314,7 @@ export class LancarSheet {
 
   private depois(continuar: boolean, f: FormLanc) {
     if (!this.editando()) localStorage.setItem('cfp.lancar', this.l.modo());
-    if (continuar) this.f.set({ ...this.vazio(), data: f.data, pagamento: f.pagamento, repete: f.repete });
+    if (continuar) this.f.set({ ...this.vazio(), data: f.data, pagamento: f.pagamento, repete: f.repete, tags: f.tags });
     else this.l.aberto.set(false);
   }
 

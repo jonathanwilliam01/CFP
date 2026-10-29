@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { addMeses, fimMes, nomeMes } from '../core/datas';
-import { contasDoMes, noMes, proximosMeses, resumoMes } from '../core/financas';
+import { addMeses, fimMes, mesAtual, nomeMes } from '../core/datas';
+import { contasDoMes, noMes, orcamentosNoMes, proximosMeses, resumoMes, statusOrcamentos } from '../core/financas';
 import { BrlPipe, MesPipe, parseValor, soma } from '../core/formato';
 import { Entrada, Gasto, Pagamento, Plano } from '../core/models';
 import { Store } from '../core/store';
@@ -70,6 +70,9 @@ interface FormPlano {
                   <div><span>Contas fixas</span><b>{{ m.contas | brl }}</b></div>
                   <div><span>Faturas de cartão</span><b>{{ m.faturas | brl }}</b></div>
                   <div><span>Débitos já lançados</span><b>{{ m.debitos | brl }}</b></div>
+                  @if (m.reservado) {
+                    <div><span>Reservado em orçamentos</span><b>{{ m.reservado | brl }}</b></div>
+                  }
                   @if (estimar()) {
                     <div><span>Gastos do dia a dia (estimativa)</span><b>{{ m.variavel | brl }}</b></div>
                   }
@@ -79,7 +82,10 @@ interface FormPlano {
                       <b [class.pos]="p.tipo === 'entrada'" [class.neg]="p.tipo === 'saida'">{{ p.valor | brl }}</b>
                     </button>
                   }
-                  <button class="btn ghost sm" type="button" (click)="novo(m.mes)">+ Evento em {{ m.mes | mes: true }}</button>
+                  <div class="bts">
+                    <button class="btn ghost sm" type="button" (click)="novo(m.mes)">+ Evento em {{ m.mes | mes: true }}</button>
+                    <button class="btn ghost sm" type="button" (click)="copiar(m.mes)"><app-icon name="content_copy" [size]="16" />Copiar de {{ anterior(m.mes) | mes: true }}</button>
+                  </div>
                 </div>
               }
             }
@@ -115,6 +121,7 @@ interface FormPlano {
     .det b { font-variant-numeric: tabular-nums; }
     .plano { background: var(--card-2); border: 0; border-radius: 10px; padding: 8px 10px; font: inherit; color: inherit; cursor: pointer; text-align: left; }
     .plano span { color: var(--ink); }
+    .bts { display: flex; gap: 8px; flex-wrap: wrap; }
   `,
 })
 export default class Planejamento {
@@ -150,19 +157,24 @@ export default class Planejamento {
     return this.meses().map((mes) => {
       const contas = contasDoMes(mes, rec, this.s.cartoes(), d.gastos, d.pagamentos, this.s.catMap());
       const avulsas = soma(d.entradas.filter((e) => noMes(e.data, mes)), (e) => e.valor);
-      const r = resumoMes(mes, d.gastos, avulsas, rec, contas, d.pagamentos);
+      // orçamentos com reserva: o que falta gastar do limite entra como saída
+      const orc = statusOrcamentos(orcamentosNoMes(this.s.orcamentos(), this.s.orcamentoValores(), mes), d.gastos, mes, this.s.catMap(), this.s.cartoes(), mesAtual());
+      const reservado = soma(orc, (o) => o.reservado);
+      const r = resumoMes(mes, d.gastos, avulsas, rec, contas, d.pagamentos, reservado);
       const planos = this.planos().filter((p) => p.mes === mes);
       const pe = soma(planos.filter((p) => p.tipo === 'entrada'), (p) => p.valor);
       const ps = soma(planos.filter((p) => p.tipo === 'saida'), (p) => p.valor);
       const lancadosVariaveis = soma(d.gastos.filter((g) => g.forma === 'debito' && !g.parcelamento_id && noMes(g.data, mes)), (g) => g.valor);
-      const variavel = estimar ? Math.max(media - lancadosVariaveis, 0) : 0;
+      // reserva no débito já cobre parte do dia a dia estimado
+      const reservaDebito = soma(orc.filter((o) => o.orcamento.forma === 'debito'), (o) => o.reservado);
+      const variavel = estimar ? Math.max(media - lancadosVariaveis - reservaDebito, 0) : 0;
       const entradas = r.entradas + pe;
       const saidas = r.saidas + ps + variavel;
       const saldo = entradas - saidas;
       acumulado += saldo;
       return {
         mes, planos, entradas, saidas, saldo, acumulado, variavel,
-        fixas: r.entradasFixas, avulsas: r.entradasAvulsas, contas: r.contasFixas, faturas: r.faturas, debitos: r.avista,
+        reservado, fixas: r.entradasFixas, avulsas: r.entradasAvulsas, contas: r.contasFixas, faturas: r.faturas, debitos: r.avista,
       };
     });
   });
@@ -227,6 +239,25 @@ export default class Planejamento {
       await this.carregarPlanos();
       this.sheet.set(false);
       this.toast.ok('Evento salvo');
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
+
+  protected anterior = (mes: string) => addMeses(mes, -1);
+
+  /** Repete no mês os eventos do mês anterior (os de mesma descrição já existentes ficam) */
+  async copiar(mes: string) {
+    const ant = addMeses(mes, -1);
+    const id = this.s.carteiraId()!;
+    try {
+      const l = await q<Plano[]>(supabase.from('planos').select('*').eq('carteira_id', id).eq('mes', ant));
+      const ja = new Set(this.planos().filter((p) => p.mes === mes).map((p) => p.descricao.toLowerCase()));
+      const novos = l.filter((p) => !ja.has(p.descricao.toLowerCase()));
+      if (!novos.length) return this.toast.erro(l.length ? 'Os eventos já estão neste mês' : `Nenhum evento em ${nomeMes(ant)}`);
+      await q(supabase.from('planos').insert(novos.map((p) => ({ carteira_id: id, tipo: p.tipo, descricao: p.descricao, valor: p.valor, mes }))));
+      await this.carregarPlanos();
+      this.toast.ok(novos.length === 1 ? '1 evento copiado' : `${novos.length} eventos copiados`);
     } catch (e) {
       this.toast.erro(e);
     }

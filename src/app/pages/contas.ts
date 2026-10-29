@@ -1,17 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { diffDias, hoje, mesAtual, nomeMes } from '../core/datas';
-import { fixasNaFatura, porRecebimento } from '../core/financas';
-import { BrlPipe, DiaPipe, MesPipe, parseValor, soma } from '../core/formato';
-import { Cartao, ContaMes, Gasto, Recorrencia } from '../core/models';
+import { RouterLink } from '@angular/router';
+import { diffDias, hoje, inicioMes, mesAtual, mesesEntre, nomeMes } from '../core/datas';
+import { Recebimento, aporteMensal, fixasNaFatura, noMes, porRecebimento } from '../core/financas';
+import { BrlPipe, DiaPipe, MesPipe, moeda, parseValor, soma } from '../core/formato';
+import { Cartao, Cofrinho, ContaMes, Gasto, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
 import { ContaFixa } from '../shared/conta-fixa';
+import { AcaoDeslizar, Deslizar } from '../shared/deslizar';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa],
+  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa, Deslizar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -36,32 +38,70 @@ import { Toast } from '../shared/toast';
               <div class="lin"><span>Recebe</span><b class="pos">{{ g.recebe | brl }}</b></div>
               <div class="lin"><span>Contas</span><b>{{ g.total | brl }}</b></div>
               <div class="lin"><span>A pagar</span><b class="neg">{{ g.aPagar | brl }}</b></div>
+              @if (g.reservado) {
+                <div class="lin orc" [title]="nomesReservas(g)"><span><app-icon name="flag" [size]="14" [fill]="true" />Orçamentos</span><b>{{ g.reservado | brl }}</b></div>
+                <div class="orcn">{{ nomesReservas(g) }}</div>
+              }
               <div class="lin sobra"><span>Sobra</span><b [class.neg]="g.sobra < 0">{{ g.sobra | brl }}</b></div>
             </button>
           }
         </div>
-        <p class="small muted">Cada conta fica com o último recebimento até o vencimento. Toque para ver só as contas dele.</p>
+        <p class="small muted">Cada conta fica com o último recebimento até o vencimento. Toque para ver só as contas dele.
+          @if (temReserva()) { A <app-icon class="fl" name="flag" [size]="13" [fill]="true" /> mostra o que os orçamentos reservam e ainda não foi gasto: entra na sobra. }</p>
       }
 
       <section class="card list">
         @for (c of contasLista(); track c.tipo + c.ref_id) {
+          <app-deslizar [esquerda]="c.pago ? desfazerAcao : pagarAcao" (esquerdaFeito)="c.pago ? desfazer(c) : pagarRapido(c)">
           <button class="row" (click)="abrir(c)">
             <span class="ico" [style.background]="c.cor + '22'" [style.color]="c.cor"><app-icon [name]="c.icone" /></span>
             <div class="grow">
               <div class="t">{{ c.descricao }}</div>
-              <div class="s">Vence {{ c.vencimento | dia }}{{ c.media ? ' · pela média' : '' }}{{ c.informado ? ' · valor do mês' : '' }}{{ c.beneficio_id ? ' · ' + beneficioNome(c.beneficio_id) : '' }}{{ c.mes !== s.mes() ? ' · paga com o salário deste mês' : '' }}</div>
+              <div class="s">Vence {{ c.vencimento | dia }}{{ c.media ? ' · pela média' : '' }}{{ c.informado ? ' · valor do mês' : '' }}{{ c.beneficio_id ? ' · ' + beneficioNome(c.beneficio_id) : '' }}{{ c.mes !== s.mes() ? ' · paga com o salário deste mês' : '' }}@if (c.tipo === 'fatura' && reservaCartao().get(c.ref_id); as rv) { · <span class="fl">⚑ +{{ rv | brl }} reservado</span>}</div>
             </div>
             <div class="dir">
               <span class="v" [class.riscado]="c.pago">{{ c.valor | brl }}</span>
               <span class="badge" [class]="st(c).c">{{ st(c).r }}</span>
             </div>
           </button>
-        } @empty {
+          </app-deslizar>
+        }
+        @for (r of reservasLista(); track r.nome) {
+          <a class="row" routerLink="/orcamentos">
+            <span class="ico flag"><app-icon name="flag" [fill]="true" /></span>
+            <div class="grow"><div class="t">{{ r.nome }}</div><div class="s">Reservado pelo orçamento · ainda não gasto</div></div>
+            <div class="dir"><span class="v">{{ r.valor | brl }}</span><span class="badge orcb">Orçamento</span></div>
+          </a>
+        }
+        @if (!contasLista().length && !reservasLista().length) {
           <div class="empty"><app-icon class="big" name="calendar_month" [size]="40" />Nenhuma conta neste mês.<br />
             <span class="small">Cadastre contas fixas (aluguel, luz, internet) e as faturas dos cartões aparecem aqui sozinhas.</span>
           </div>
         }
       </section>
+      @if (contasLista().length) {
+        <p class="small muted centro">Arraste uma conta para a esquerda para marcar como paga.</p>
+      }
+
+      @if (metas().length) {
+        <h2>Cofrinhos do mês</h2>
+        <section class="card list">
+          @for (m of metas(); track m.c.id) {
+            <div class="row">
+              <a class="ico" [routerLink]="['/cofrinhos', m.c.id]" [style.background]="m.c.cor + '22'" [style.color]="m.c.cor"><app-icon [name]="m.c.icone" /></a>
+              <div class="grow">
+                <div class="t">{{ m.c.nome }}</div>
+                <div class="s">Guardar {{ m.aporte | brl }} no mês · {{ m.prazo }}</div>
+              </div>
+              @if (m.falta > 0) {
+                <button class="btn sm" type="button" (click)="guardar(m.c, m.falta)">Guardar {{ m.falta | brl }}</button>
+              } @else {
+                <span class="badge ok">Guardado</span>
+              }
+            </div>
+          }
+        </section>
+      }
 
       @if (credito().length) {
         <h2>Compras no crédito em {{ s.mes() | mes }}</h2>
@@ -168,9 +208,16 @@ import { Toast } from '../shared/toast';
     .lin { display: flex; justify-content: space-between; gap: 6px; font-size: 0.85rem; }
     .lin span { color: var(--ink-2); }
     .lin b { font-variant-numeric: tabular-nums; }
+    .orc span { display: inline-flex; align-items: center; gap: 3px; color: #8b5cf6; font-weight: 700; }
+    .orc b { color: #8b5cf6; }
+    .orcn { font-size: 0.7rem; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fl { color: #8b5cf6; vertical-align: -2px; }
+    .flag { background: #8b5cf622; color: #8b5cf6; }
+    .orcb { background: #8b5cf622; color: #8b5cf6; }
     .sobra { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 2px; }
     .dir { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
     .riscado { color: var(--ink-3); }
+    .centro { text-align: center; margin-top: -6px; }
     .itens { max-height: 40dvh; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; }
     .it { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
     .it:last-child { border-bottom: 0; }
@@ -188,7 +235,24 @@ export default class Contas {
   protected formAberto = signal(false);
   protected fixaSel = signal<Recorrencia | null>(null);
 
-  protected recebimentos = computed(() => porRecebimento(this.s.mes(), this.s.contasMes(), this.s.recorrencias(), this.s.pagamentos()));
+  protected recebimentos = computed(() => porRecebimento(this.s.mes(), this.s.contasMes(), this.s.recorrencias(), this.s.pagamentos(), this.s.reservasDia()));
+  protected nomesReservas = (g: Recebimento) => g.reservas.map((r) => `${r.nome} ${moeda(r.valor)}`).join(', ');
+  /** Reserva de orçamento ainda não gasta por cartão (soma na fatura prevista) */
+  protected reservaCartao = computed(() => {
+    const m = new Map<string, number>();
+    for (const o of this.s.orcamentosStatus())
+      if (o.reservado && o.orcamento.forma === 'cartao' && o.orcamento.cartao_id) m.set(o.orcamento.cartao_id, (m.get(o.orcamento.cartao_id) ?? 0) + o.reservado);
+    return m;
+  });
+  protected temReserva = computed(() => this.recebimentos().some((g) => g.reservado > 0));
+  /** Reservas dos orçamentos na lista: do recebimento escolhido ou do mês todo */
+  protected reservasLista = computed(() => {
+    const g = this.recebimentos().find((x) => x.dia === this.diaSel());
+    if (g) return g.reservas;
+    const m = new Map<string, number>();
+    for (const r of this.s.reservasDia()) m.set(r.nome, (m.get(r.nome) ?? 0) + r.valor);
+    return [...m.entries()].map(([nome, v]) => ({ nome, valor: Math.round(v * 100) / 100 }));
+  });
   protected diaSel = signal<number | null>(null);
   protected contasLista = computed(() => this.recebimentos().find((g) => g.dia === this.diaSel())?.contas ?? this.s.contasMes());
   protected total = computed(() => soma(this.s.contasMes().filter((c) => !c.beneficio_id), (c) => c.valor));
@@ -221,6 +285,51 @@ export default class Contas {
         .map((g) => ({ ...g, fixa: false })),
     ];
   });
+
+  protected pagarAcao: AcaoDeslizar = { rotulo: 'Pagar', icone: 'check', cor: 'var(--ok)' };
+  protected desfazerAcao: AcaoDeslizar = { rotulo: 'Desfazer', icone: 'undo', cor: 'var(--ink-3)' };
+
+  /** Cofrinhos com prazo: aporte do mês (calculado com o que havia antes dele) e quanto falta guardar */
+  protected metas = computed(() => {
+    const mes = this.s.mes();
+    const l = [];
+    for (const c of this.s.cofrinhos()) {
+      const movs = this.s.cofrinhoMovs().filter((m) => m.cofrinho_id === c.id);
+      const antes = soma(movs.filter((m) => m.data < mes), (m) => m.valor);
+      // sem prazo, o plano mensal do cofrinho serve de aporte
+      const aporte = aporteMensal(c.meta, antes, c.prazo, mes) ?? (c.frequencia === 'mes' && c.deposito && antes < c.meta ? c.deposito : null);
+      if (!aporte) continue;
+      const noMesV = soma(movs.filter((m) => noMes(m.data, mes)), (m) => m.valor);
+      const meses = c.prazo ? mesesEntre(mes, inicioMes(c.prazo)) + 1 : 0;
+      l.push({
+        c,
+        aporte: Math.round(aporte * 100) / 100,
+        falta: Math.max(0, Math.round((aporte - noMesV) * 100) / 100),
+        prazo: !c.prazo ? 'plano mensal' : meses > 1 ? `faltam ${meses} meses` : 'último mês da meta',
+      });
+    }
+    return l;
+  });
+
+  async guardar(c: Cofrinho, valor: number) {
+    try {
+      const data = noMes(hoje(), this.s.mes()) ? hoje() : this.s.mes();
+      const id = await this.s.salvar('cofrinho_movs', { cofrinho_id: c.id, valor, data, descricao: 'Aporte do mês' });
+      this.toast.feito(`${c.nome}: ${moeda(valor)} guardado`, () => this.s.excluir('cofrinho_movs', id));
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
+
+  /** Deslizar: paga com o valor previsto e a data de hoje */
+  async pagarRapido(c: ContaMes) {
+    try {
+      const id = await this.s.pagar(c.tipo, c.ref_id, c.valor, hoje(), c.mes);
+      this.toast.feito(`${c.descricao} paga`, () => this.s.desfazerPagamento(id));
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
 
   beneficioNome(id: string) {
     return this.s.beneficios().find((b) => b.id === id)?.nome ?? 'Benefício';

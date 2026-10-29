@@ -1,15 +1,23 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { addMeses, mesAtual } from '../core/datas';
+import { addMeses, hoje, mesAtual } from '../core/datas';
 import { BrlPipe, MesPipe, pct, soma } from '../core/formato';
-import { faturaDoMes, fixasNaFatura } from '../core/financas';
-import { Cartao } from '../core/models';
+import { faturaDoMes, faturaProjetada, fixasNaFatura } from '../core/financas';
+import { Cartao, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+
+type Futuro = { cartao_id: string; valor: number; fatura_mes: string; data: string; parcelamento_id: string | null };
+
+/** Só mostra quando o ritmo muda o valor da fatura aberta */
+function projetar(c: Cartao, gastos: Futuro[], rec: Recorrencia[]) {
+  const p = faturaProjetada(c, gastos, rec, hoje());
+  return p.projetada > p.atual + 1 ? p : null;
+}
 
 interface FormCartao {
   id?: string;
@@ -68,6 +76,13 @@ interface FormCartao {
                 <i [style.width.%]="c.pctLimite > 100 ? 100 : c.pctLimite"></i>
               </div>
               <p class="small muted">Disponível: <b class="num">{{ c.cartao.limite - c.usado | brl }}</b></p>
+            }
+
+            @if (c.projecao; as p) {
+              <div class="proj">
+                <app-icon name="trending_up" [size]="18" />
+                <span>Fatura de <b class="cap">{{ p.mes | mes: true }}</b> tem <b class="num">{{ p.atual | brl }}</b>; no ritmo atual fecha em <b class="num">{{ p.projetada | brl }}</b> (dia {{ p.fecha.slice(8) }})</span>
+              </div>
             }
 
             <h3 class="sub">Próximas faturas</h3>
@@ -136,13 +151,16 @@ interface FormCartao {
     .fat small { font-size: 0.7rem; color: var(--ink-2); text-transform: capitalize; font-weight: 600; }
     .fat b { font-size: 0.85rem; }
     .fat.zero { opacity: 0.55; }
+    .proj { display: flex; gap: 8px; align-items: flex-start; font-size: 0.85rem; color: var(--ink-2); background: var(--card-2); border-radius: 10px; padding: 8px 10px; }
+    .proj app-icon { color: var(--primary); }
+    .cap { text-transform: capitalize; }
   `,
 })
 export default class Cartoes {
   protected s = inject(Store);
   private toast = inject(Toast);
 
-  private futuros = signal<{ cartao_id: string; valor: number; fatura_mes: string }[]>([]);
+  private futuros = signal<Futuro[]>([]);
   private pagas = signal<{ ref_id: string; mes: string }[]>([]);
   protected aberto = signal(false);
   protected salvando = signal(false);
@@ -163,6 +181,7 @@ export default class Cartoes {
         faturaRef: faturaDoMes(this.s.mes(), cartao),
         faturaMes: fatura?.valor ?? 0,
         pagaMes: !!fatura?.pago,
+        projecao: cartao.ativo ? projetar(cartao, dele, this.s.recorrenciasPrev()) : null,
         proximas: meses.map((mes) => ({
           mes,
           total: soma(dele.filter((g) => g.fatura_mes === mes), (g) => g.valor) + soma(fixasNaFatura(mes, cartao, this.s.recorrenciasPrev()), (f) => f.valor),
@@ -184,8 +203,8 @@ export default class Cartoes {
     const atual = mesAtual();
     try {
       const [g, p] = await Promise.all([
-        q<{ cartao_id: string; valor: number; fatura_mes: string }[]>(
-          supabase.from('gastos').select('cartao_id, valor, fatura_mes').eq('carteira_id', id).eq('forma', 'cartao').gte('fatura_mes', atual),
+        q<Futuro[]>(
+          supabase.from('gastos').select('cartao_id, valor, fatura_mes, data, parcelamento_id').eq('carteira_id', id).eq('forma', 'cartao').gte('fatura_mes', atual),
         ),
         q<{ ref_id: string; mes: string }[]>(
           supabase.from('pagamentos').select('ref_id, mes').eq('carteira_id', id).eq('tipo', 'fatura').gte('mes', atual),

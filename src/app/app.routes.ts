@@ -12,6 +12,7 @@ const carteiraGuard: CanActivateFn = async () => {
 };
 
 export const routes: Routes = [
+  { path: 'apresentacao', canActivate: [deslogadoGuard], loadComponent: () => import('./pages/landing'), title: 'Controle Financeiro Pessoal' },
   { path: 'login', canActivate: [deslogadoGuard], loadComponent: () => import('./pages/login'), title: 'Entrar · Controle Financeiro Pessoal' },
   { path: 'nova-senha', canActivate: [logadoGuard], loadComponent: () => import('./pages/nova-senha'), title: 'Nova senha · Controle Financeiro Pessoal' },
   { path: 'bem-vindo', canActivate: [logadoGuard], loadComponent: () => import('./pages/bem-vindo'), title: 'Bem-vindo · Controle Financeiro Pessoal' },
@@ -39,6 +40,8 @@ export const routes: Routes = [
       { path: 'chat', loadComponent: () => import('./pages/chat'), title: 'Chat · Controle Financeiro Pessoal' },
       { path: 'notificacoes', loadComponent: () => import('./pages/notificacoes'), title: 'Notificações · Controle Financeiro Pessoal' },
       { path: 'config', loadComponent: () => import('./pages/config'), title: 'Configurações · Controle Financeiro Pessoal' },
+      { path: 'calendario', loadComponent: () => import('./pages/calendario'), title: 'Calendário · Controle Financeiro Pessoal' },
+      { path: 'fechamento', loadComponent: () => import('./pages/fechamento'), title: 'Fechamento do mês · Controle Financeiro Pessoal' },
       { path: 'novidades', loadComponent: () => import('./pages/novidades'), title: 'Novidades · Controle Financeiro Pessoal' },
       { path: 'mais', loadComponent: () => import('./pages/mais'), title: 'Mais · Controle Financeiro Pessoal' },
     ],

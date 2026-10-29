@@ -1,10 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { hoje } from '../core/datas';
-import { aporteMensal } from '../core/financas';
+import { faltaPara, hoje } from '../core/datas';
+import { aporteMensal, depositoNecessario, simularDepositos } from '../core/financas';
 import { BrlPipe, DiaPipe, parseValor, soma } from '../core/formato';
-import { CofrinhoMov } from '../core/models';
+import { CofrinhoMov, Frequencia } from '../core/models';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
 import { IconePicker } from '../shared/icone-picker';
@@ -37,14 +37,70 @@ import { Toast } from '../shared/toast';
               <p class="small muted num">Faltam {{ cf.meta - guardado() | brl }}</p>
             }
           }
+          @if (cf.prazo && guardado() < cf.meta) {
+            <span class="badge info"><app-icon name="schedule" [size]="14" />{{ falta(cf.prazo) }}</span>
+          }
+          @if (necessario(); as n) {
+            <div class="flag">
+              <app-icon name="flag" [size]="20" [fill]="true" />
+              <div>
+                <b>Para chegar a {{ cf.meta | brl }} até {{ dataBr(cf.prazo!) }}</b>
+                <span class="num">{{ n.mes | brl }} por mês · {{ n.quinzena | brl }} por quinzena · {{ n.semana | brl }} por semana</span>
+              </div>
+            </div>
+          }
           @if (aporte(); as a) {
-            <p class="small">Guarde <b class="num">{{ a | brl }}</b> por mês para chegar no prazo.</p>
+            <button class="btn ghost sm" type="button" (click)="guardarAporte(a)">Guardar o aporte do mês ({{ a | brl }})</button>
           }
           <div class="acoes">
             <button class="btn" type="button" (click)="mover(1)">Depositar</button>
             <button class="btn ghost" type="button" (click)="mover(-1)">Retirar</button>
           </div>
         </div>
+
+        @if (cf.meta <= 0 || faltaMeta() > 0) {
+          <div class="card plano">
+            <div class="card-head"><h2>Planejar depósitos</h2>
+              @if (cf.deposito) { <span class="badge ok">Plano: {{ cf.deposito | brl }}/{{ nomes[cf.frequencia ?? 'mes'] }}</span> }
+            </div>
+            <div class="grid2">
+              <label class="field"><span>Vou depositar (R$)</span>
+                <input name="simv" inputmode="decimal" placeholder="Ex.: 50" [ngModel]="simValor()" (ngModelChange)="simValor.set($event)" /></label>
+              <div class="field"><span>A cada</span>
+                <div class="seg">
+                  @for (fq of frequencias; track fq) {
+                    <button type="button" [class.on]="simFreq() === fq" (click)="simFreq.set(fq)">{{ nomes[fq] }}</button>
+                  }
+                </div>
+              </div>
+            </div>
+            <label class="field"><span>Chegar a (R$)</span>
+              <input name="sima" inputmode="decimal" placeholder="Ex.: 1.000" [ngModel]="simAlvo()" (ngModelChange)="simAlvo.set($event)" /></label>
+            @if (sim(); as r) {
+              <div class="res">
+                <p>Com <b class="num">{{ simNum() | brl }}</b> por {{ nomes[simFreq()] }}, são <b>{{ r.depositos }} depósitos</b>:
+                  chega a <b class="num">{{ alvoNum() | brl }}</b> em <b>{{ dataBr(r.data) }}</b> ({{ falta(r.data) }}).</p>
+                @if (r.folga !== undefined) {
+                  @if (r.folga >= 0) {
+                    <p class="pos"><app-icon name="check_circle" [size]="16" />Chega {{ tempo(r.folga) }} antes do prazo.</p>
+                  } @else {
+                    <p class="neg"><app-icon name="warning" [size]="16" />Passa {{ tempo(-r.folga) }} do prazo: até {{ dataBr(cf.prazo!) }} junta {{ guardado() + r.ateOPrazo! | brl }}.
+                      @if (necessarioSim(); as n) { Para chegar no prazo, deposite {{ n | brl }} por {{ nomes[simFreq()] }}. }
+                    </p>
+                  }
+                }
+              </div>
+              <div class="bts">
+                <button class="btn sm" type="button" [disabled]="salvando()" (click)="salvarPlano()">Salvar como plano</button>
+                @if (cf.deposito) { <button class="btn ghost sm" type="button" [disabled]="salvando()" (click)="salvarPlano(true)">Remover plano</button> }
+              </div>
+            } @else if (alvoNum() && alvoNum() <= guardado()) {
+              <p class="small pos">Já tem {{ guardado() | brl }} guardado.</p>
+            } @else {
+              <p class="small muted">Informe quanto pretende depositar e até quanto quer chegar.</p>
+            }
+          </div>
+        }
 
         <div class="card">
           <div class="card-head"><h2>Histórico</h2></div>
@@ -99,6 +155,18 @@ import { Toast } from '../shared/toast';
     .hero .bar { width: 100%; }
     .ico.big { width: 56px; height: 56px; font-size: 1.8rem; border-radius: 16px; }
     .total { font-size: 1.8rem; font-weight: 800; }
+    .flag {
+      display: flex; gap: 10px; align-items: flex-start; text-align: left; width: 100%;
+      background: var(--warn-soft); color: var(--ink); border-radius: 12px; padding: 10px 12px;
+    }
+    .flag app-icon { color: var(--warn); }
+    .flag div { display: flex; flex-direction: column; gap: 2px; font-size: 0.88rem; }
+    .flag span { color: var(--ink-2); }
+    .plano { display: flex; flex-direction: column; gap: 12px; }
+    .res { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; }
+    .res p { display: block; }
+    .res app-icon { vertical-align: -3px; margin-right: 4px; }
+    .bts { display: flex; gap: 8px; flex-wrap: wrap; }
     .acoes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 6px; }
   `,
 })
@@ -128,6 +196,58 @@ export default class Cofrinho {
     const c = this.c();
     return c ? aporteMensal(c.meta, this.guardado(), c.prazo, this.s.mes()) : null;
   });
+
+  protected falta = faltaPara;
+  protected dataBr = (d: string) => d.split('-').reverse().join('/');
+  protected frequencias: Frequencia[] = ['semana', 'quinzena', 'mes'];
+  protected nomes: Record<Frequencia, string> = { semana: 'semana', quinzena: 'quinzena', mes: 'mês' };
+
+  protected faltaMeta = computed(() => Math.max(0, (this.c()?.meta ?? 0) - this.guardado()));
+  /** Bandeira: quanto depositar por período para bater a meta no prazo */
+  protected necessario = computed(() => {
+    const c = this.c();
+    const f = this.faltaMeta();
+    if (!c?.prazo || !f) return null;
+    const n = (fq: Frequencia) => depositoNecessario(f, fq, hoje(), c.prazo!);
+    const mes = n('mes');
+    return mes ? { mes, quinzena: n('quinzena'), semana: n('semana') } : null;
+  });
+
+  protected simValor = linkedSignal(() => (this.c()?.deposito ? String(this.c()!.deposito).replace('.', ',') : ''));
+  protected simFreq = linkedSignal<Frequencia>(() => this.c()?.frequencia ?? 'mes');
+  protected simNum = computed(() => parseValor(this.simValor()));
+  protected simAlvo = linkedSignal(() => (this.c()?.meta ? String(this.c()!.meta).replace('.', ',') : ''));
+  protected alvoNum = computed(() => parseValor(this.simAlvo()));
+  private faltaSim = computed(() => Math.max(0, this.alvoNum() - this.guardado()));
+  protected sim = computed(() => simularDepositos(this.faltaSim(), this.simNum(), this.simFreq(), hoje(), this.c()?.prazo ?? null));
+  protected necessarioSim = computed(() => {
+    const p = this.c()?.prazo;
+    return p ? depositoNecessario(this.faltaSim(), this.simFreq(), hoje(), p) : null;
+  });
+
+  tempo(dias: number) {
+    if (dias < 60) return `${dias} dia${dias === 1 ? '' : 's'}`;
+    const m = Math.round(dias / 30.4);
+    return `${m} meses`;
+  }
+
+  async salvarPlano(remover = false) {
+    this.salvando.set(true);
+    try {
+      await this.s.salvar('cofrinhos', remover ? { id: this.id(), deposito: null, frequencia: null } : { id: this.id(), deposito: this.simNum(), frequencia: this.simFreq() });
+      this.toast.ok(remover ? 'Plano removido' : 'Plano salvo');
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.salvando.set(false);
+    }
+  }
+
+  guardarAporte(valor: number) {
+    this.sinal.set(1);
+    this.m = { valor: valor.toFixed(2).replace('.', ','), data: hoje(), descricao: 'Aporte do mês' };
+    this.movAberto.set(true);
+  }
 
   mover(sinal: number) {
     this.sinal.set(sinal);

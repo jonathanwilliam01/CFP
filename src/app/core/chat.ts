@@ -49,16 +49,17 @@ export class Chat {
       )
       .subscribe();
     const l = await q<Mensagem[]>(
-      supabase.from('mensagens').select('id, user_id, texto, criado_em').eq('carteira_id', id).order('criado_em', { ascending: false }).limit(200),
+      supabase.from('mensagens').select('*').eq('carteira_id', id).order('criado_em', { ascending: false }).limit(200),
     );
     if (id !== this.s.carteiraId()) return;
     // mantém o que chegou pelo realtime durante a carga
     this.mensagens.update((atual) => [...l.reverse(), ...atual.filter((m) => !l.some((x) => x.id === m.id))]);
   }
 
-  async enviar(texto: string) {
+  /** gastoId: comentário sobre um gasto (migration 020) */
+  async enviar(texto: string, gastoId?: string) {
     const m = await q<Mensagem>(
-      supabase.from('mensagens').insert({ carteira_id: this.s.carteiraId(), texto }).select('id, user_id, texto, criado_em').single(),
+      supabase.from('mensagens').insert({ carteira_id: this.s.carteiraId(), texto, ...(gastoId ? { gasto_id: gastoId } : {}) }).select('*').single(),
     );
     this.chegou(m);
   }

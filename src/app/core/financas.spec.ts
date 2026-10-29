@@ -1,4 +1,4 @@
-import { contasDoMes, creditoBeneficios, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, porRecebimento, resumoMes, saldoBeneficio, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
+import { ajusteOrcamento, categoriasAcima, depositoNecessario, orcamentosNoMes, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -81,6 +81,19 @@ describe('porRecebimento', () => {
     expect(l.map((g) => [g.dia, g.recebe, g.total, g.aPagar, g.sobra])).toEqual([[7, 3100, 200, 0, 2900], [20, 2000, 150, 150, 1850]]);
   });
 
+  it('reservas de orçamento entram no recebimento do vencimento (débito: pelos dias)', () => {
+    const recs = [vale, salario];
+    const reservas = [
+      { dia: 31, vence: 8, valor: 180, nome: 'Mercado · Nu' },
+      { dia: 18, valor: 10, nome: 'Feira · Pix/Débito' },
+      { dia: 19, valor: 10, nome: 'Feira · Pix/Débito' },
+      { dia: 20, valor: 10, nome: 'Feira · Pix/Débito' },
+    ];
+    const l = porRecebimento(mes, [], recs, [], reservas);
+    expect(l.map((g) => [g.dia, g.reservado, g.sobra])).toEqual([[7, 200, 2800], [20, 10, 1990]]);
+    expect(l[0].reservas).toEqual([{ nome: 'Mercado · Nu', valor: 180 }, { nome: 'Feira · Pix/Débito', valor: 20 }]);
+  });
+
   it('com um só dia de recebimento não separa', () => {
     expect(porRecebimento(mes, [], [salario], [])).toEqual([]);
   });
@@ -121,8 +134,22 @@ describe('statusOrcamentos', () => {
     const gastos = [gasto({ categoria_id: 'a', valor: 85 }), gasto({ categoria_id: 'b', valor: 120 })];
     const st = statusOrcamentos(
       [{ id: 'o1', categoria_id: 'a', valor: 100, alerta_pct: 80 }, { id: 'o2', categoria_id: 'b', valor: 100, alerta_pct: 80 }, { id: 'o3', categoria_id: null, valor: 1000, alerta_pct: 80 }],
-      gastos, new Map());
+      gastos, '2026-10-01', new Map());
     expect(st.map((s) => [s.orcamento.id, s.nivel])).toEqual([['o2', 'estourado'], ['o1', 'alerta'], ['o3', 'ok']]);
+  });
+
+  it('por forma de pagamento: cartão pela fatura do mês e reserva do que falta', () => {
+    const gastos = [
+      gasto({ categoria_id: 'm', valor: 120, forma: 'cartao', cartao_id: 'c1', fatura_mes: '2026-10-01' }),
+      gasto({ id: 'g2', categoria_id: 'm', valor: 999, forma: 'cartao', cartao_id: 'c1', fatura_mes: '2026-11-01' }),
+      gasto({ id: 'g3', categoria_id: 'm', valor: 50 }),
+    ];
+    const o = { id: 'o', categoria_id: 'm', valor: 300, alerta_pct: 80, forma: 'cartao' as const, cartao_id: 'c1', reserva: true };
+    const [st] = statusOrcamentos([o], gastos, '2026-10-01', new Map(), [cartao()], '2026-10-01');
+    expect([st.gasto, st.reservado, st.pagamento]).toEqual([120, 180, 'Nu']);
+    expect(statusOrcamentos([o], gastos, '2026-10-01', new Map(), [cartao()], '2026-11-01')[0].reservado).toBe(0);
+    const [deb] = statusOrcamentos([{ ...o, forma: 'debito', cartao_id: null }], gastos, '2026-10-01', new Map(), [cartao()]);
+    expect([deb.gasto, deb.reservado]).toEqual([50, 250]);
   });
 });
 
@@ -214,5 +241,110 @@ describe('variacaoGastos', () => {
   it('mês fechado compara o mês inteiro; sem gasto anterior não compara', () => {
     expect(variacaoGastos(gs, '2026-10-01', '2026-11-02')).toBe(-80);
     expect(variacaoGastos(gs, '2026-09-01', '2026-10-10')).toBeNull();
+  });
+});
+
+describe('saldoDiario', () => {
+  const mes = '2026-10-01';
+  it('acumula por dia e fecha no saldo do resumo', () => {
+    const rec = [conta({ dia: 10 }), conta({ id: 'e1', tipo: 'entrada', descricao: 'Salário', valor: 1000, dia: 5 })];
+    const gastos = [gasto({ data: '2026-10-03', valor: 30 }), gasto({ id: 'g2', forma: 'cartao', cartao_id: 'c1', fatura_mes: mes, valor: 200 })];
+    const contas = contasDoMes(mes, rec, [cartao()], gastos, [], new Map());
+    const l = saldoDiario(mes, gastos, [{ data: '2026-10-20', valor: 50 }], rec, contas, []);
+    expect(l).toHaveLength(31);
+    expect(l[2].saldo).toBe(-30);
+    expect(l[4].saldo).toBe(970);
+    expect(l[7].sai).toBe(200);
+    expect(l[9].saldo).toBe(670);
+    expect(l[30].saldo).toBe(resumoMes(mes, gastos, 50, rec, contas, []).saldo);
+  });
+
+  it('conta paga cai no dia do pagamento', () => {
+    const contas = contasDoMes(mes, [conta()], [], [], [pago({ valor: 100, pago_em: '2026-10-02' })], new Map());
+    const l = saldoDiario(mes, [], [], [conta()], contas, []);
+    expect(l[1].sai).toBe(100);
+  });
+});
+
+describe('parcelasDoMes', () => {
+  it('cartão pela fatura das contas do mês e débito pela data', () => {
+    const g = [
+      gasto({ parcelamento_id: 'p', forma: 'cartao', cartao_id: 'c1', fatura_mes: '2026-10-01', valor: 100 }),
+      gasto({ id: 'g2', parcelamento_id: 'p', forma: 'cartao', cartao_id: 'c1', fatura_mes: '2026-11-01', valor: 100 }),
+      gasto({ id: 'g3', parcelamento_id: 'q', valor: 40 }),
+      gasto({ id: 'g4', valor: 999 }),
+    ];
+    expect(parcelasDoMes('2026-10-01', g, [cartao()])).toEqual({ cartao: 100, debito: 40 });
+  });
+});
+
+describe('ritmoMes', () => {
+  it('só no mês corrente', () => {
+    expect(ritmoMes('2026-10-01', '2026-10-15')).toBe(48);
+    expect(ritmoMes('2026-09-01', '2026-10-15')).toBeNull();
+  });
+});
+
+describe('categoriasAcima', () => {
+  const cats = new Map([['m', { id: 'm', nome: 'Mercado', icone: 'x', cor: '#000', tipo: 'gasto' as const, ordem: 0 }]]);
+  const ant = [
+    { categoria_id: 'm', valor: 300, data: '2026-07-10' },
+    { categoria_id: 'm', valor: 300, data: '2026-08-10' },
+    { categoria_id: 'm', valor: 300, data: '2026-09-10' },
+  ];
+  it('avisa a partir de 50% acima da média', () => {
+    const l = categoriasAcima([{ categoria_id: 'm', valor: 460 }], ant, cats);
+    expect(l.map((c) => [c.nome, c.media, c.acima])).toEqual([['Mercado', 300, 53]]);
+    expect(categoriasAcima([{ categoria_id: 'm', valor: 440 }], ant, cats)).toEqual([]);
+  });
+  it('precisa de 2 meses de histórico', () => {
+    expect(categoriasAcima([{ categoria_id: 'm', valor: 900 }], ant.slice(0, 1), cats)).toEqual([]);
+  });
+});
+
+describe('faturaProjetada', () => {
+  const c = cartao({ fechamento_dia: 25, vencimento_dia: 5 });
+  it('projeta as compras avulsas pelo ritmo do ciclo', () => {
+    // ciclo 25/09 a 24/10 (30 dias), fatura de novembro; hoje 04/10 = 10 dias passados
+    const g = [
+      { cartao_id: 'c1', valor: 100, data: '2026-09-28', fatura_mes: '2026-11-01', parcelamento_id: null },
+      { cartao_id: 'c1', valor: 50, data: '2026-10-01', fatura_mes: '2026-11-01', parcelamento_id: 'p' },
+    ];
+    const r = faturaProjetada(c, g, [], '2026-10-04');
+    expect(r.mes).toBe('2026-11-01');
+    expect(r.fecha).toBe('2026-10-25');
+    expect(r.atual).toBe(150);
+    expect(r.projetada).toBe(350);
+  });
+});
+
+describe('ajusteOrcamento', () => {
+  const o = { id: 'o', categoria_id: null, valor: 500, alerta_pct: 80 };
+  const v = (mes: string, ate: string | null, valor: number, criado_em = '2026-01-01') => ({ id: mes + ate, orcamento_id: 'o', mes, ate, valor, criado_em });
+  const valores = [v('2026-10-01', null, 600), v('2026-12-01', '2026-12-01', 900), v('2027-01-01', '2027-02-01', 700)];
+  it('vale o ajuste que começou por último e volta ao anterior quando acaba', () => {
+    const lim = (mes: string) => orcamentosNoMes([o], valores, mes)[0].valor;
+    expect(lim('2026-09-01')).toBe(500);
+    expect(lim('2026-11-01')).toBe(600);
+    expect(lim('2026-12-01')).toBe(900);
+    expect(lim('2027-02-01')).toBe(700);
+    expect(lim('2027-03-01')).toBe(600);
+    expect(ajusteOrcamento(o, valores, '2026-09-01')).toBeUndefined();
+  });
+});
+
+describe('simularDepositos', () => {
+  it('quantos depósitos e quando chega', () => {
+    expect(simularDepositos(600, 50, 'mes', '2026-10-29', null)).toEqual({ depositos: 12, data: '2027-09-29', total: 600 });
+    expect(simularDepositos(120, 50, 'semana', '2026-10-29', null)?.data).toBe('2026-11-12');
+  });
+  it('com prazo: quanto junta até ele e a folga', () => {
+    const r = simularDepositos(600, 50, 'mes', '2026-10-29', '2027-03-31');
+    expect(r?.ateOPrazo).toBe(300);
+    expect(r?.folga).toBe(-182);
+  });
+  it('depósito necessário por período até o prazo', () => {
+    expect(depositoNecessario(600, 'mes', '2026-10-29', '2027-03-31')).toBe(100);
+    expect(depositoNecessario(100, 'semana', '2026-10-29', '2026-11-12')).toBe(33.34);
   });
 });

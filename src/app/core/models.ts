@@ -63,6 +63,8 @@ export interface Gasto {
   parcelamento_id: string | null;
   parcela: number | null;
   criado_por: string | null;
+  /** marcadores livres (migration 020) */
+  tags?: string[];
 }
 
 export interface Parcelamento {
@@ -121,7 +123,12 @@ export interface Cofrinho {
   prazo: string | null;
   icone: string;
   cor: string;
+  /** plano de depósitos (migration 021) */
+  deposito?: number | null;
+  frequencia?: Frequencia | null;
 }
+
+export type Frequencia = 'semana' | 'quinzena' | 'mes';
 
 export interface CofrinhoMov {
   id: string;
@@ -136,6 +143,21 @@ export interface Orcamento {
   categoria_id: string | null;
   valor: number;
   alerta_pct: number;
+  /** só gastos nessa forma (cartão: no cartao_id, pela fatura do mês); null = qualquer (migration 022) */
+  forma?: 'debito' | 'cartao' | null;
+  cartao_id?: string | null;
+  /** o que falta gastar do limite entra nas saídas previstas */
+  reserva?: boolean;
+}
+
+/** Limite do orçamento de mes até ate (null = daí em diante) */
+export interface OrcamentoValor {
+  id: string;
+  orcamento_id: string;
+  mes: string;
+  ate: string | null;
+  valor: number;
+  criado_em: string;
 }
 
 export interface Plano {
@@ -187,6 +209,8 @@ export interface Mensagem {
   user_id: string;
   texto: string;
   criado_em: string;
+  /** gasto comentado (migration 020) */
+  gasto_id?: string | null;
 }
 
 /** Soma dos gastos de um benefício no mês (RPC uso_beneficios) */
@@ -209,6 +233,7 @@ export interface Tabelas {
   cofrinhos: Cofrinho;
   cofrinho_movs: CofrinhoMov;
   orcamentos: Orcamento;
+  orcamento_valores: OrcamentoValor;
   planos: Plano;
   registros: Registro;
   registro_itens: RegistroItem;
