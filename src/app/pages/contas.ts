@@ -66,12 +66,14 @@ import { Toast } from '../shared/toast';
           </button>
           </app-deslizar>
         }
-        @for (r of reservasLista(); track r.nome) {
-          <a class="row" routerLink="/orcamentos">
-            <span class="ico flag"><app-icon name="flag" [fill]="true" /></span>
-            <div class="grow"><div class="t">{{ r.nome }}</div><div class="s">Reservado pelo orçamento · ainda não gasto</div></div>
-            <div class="dir"><span class="v">{{ r.valor | brl }}</span><span class="badge orcb">Orçamento</span></div>
-          </a>
+        @for (r of reservasLista(); track r.orcamento_id) {
+          <app-deslizar [esquerda]="desconsiderarAcao" (esquerdaFeito)="desconsiderar(r.orcamento_id, r.nome)">
+            <a class="row" routerLink="/orcamentos">
+              <span class="ico flag"><app-icon name="flag" [fill]="true" /></span>
+              <div class="grow"><div class="t">{{ r.nome }}</div><div class="s">Reservado pelo orçamento · ainda não gasto</div></div>
+              <div class="dir"><span class="v">{{ r.valor | brl }}</span><span class="badge orcb">Orçamento</span></div>
+            </a>
+          </app-deslizar>
         }
         @if (!contasLista().length && !reservasLista().length) {
           <div class="empty"><app-icon class="big" name="calendar_month" [size]="40" />Nenhuma conta neste mês.<br />
@@ -79,8 +81,8 @@ import { Toast } from '../shared/toast';
           </div>
         }
       </section>
-      @if (contasLista().length) {
-        <p class="small muted centro">Arraste uma conta para a esquerda para marcar como paga.</p>
+      @if (contasLista().length || reservasLista().length) {
+        <p class="small muted centro">Arraste uma conta para a esquerda para marcar como paga{{ reservasLista().length ? ', ou uma reserva para desconsiderar a sobra do orçamento' : '' }}.</p>
       }
 
       @if (metas().length) {
@@ -249,9 +251,13 @@ export default class Contas {
   protected reservasLista = computed(() => {
     const g = this.recebimentos().find((x) => x.dia === this.diaSel());
     if (g) return g.reservas;
-    const m = new Map<string, number>();
-    for (const r of this.s.reservasDia()) m.set(r.nome, (m.get(r.nome) ?? 0) + r.valor);
-    return [...m.entries()].map(([nome, v]) => ({ nome, valor: Math.round(v * 100) / 100 }));
+    const m = new Map<string, { nome: string; valor: number }>();
+    for (const r of this.s.reservasDia()) {
+      const a = m.get(r.orcamento_id) ?? { nome: r.nome, valor: 0 };
+      a.valor += r.valor;
+      m.set(r.orcamento_id, a);
+    }
+    return [...m.entries()].map(([orcamento_id, a]) => ({ orcamento_id, nome: a.nome, valor: Math.round(a.valor * 100) / 100 }));
   });
   protected diaSel = signal<number | null>(null);
   protected contasLista = computed(() => this.recebimentos().find((g) => g.dia === this.diaSel())?.contas ?? this.s.contasMes());
@@ -285,6 +291,17 @@ export default class Contas {
         .map((g) => ({ ...g, fixa: false })),
     ];
   });
+
+  protected desconsiderarAcao: AcaoDeslizar = { rotulo: 'Desconsiderar sobra', icone: 'block', cor: '#8b5cf6' };
+
+  async desconsiderar(orcamentoId: string, nome: string) {
+    try {
+      const id = await this.s.desconsiderarSobra(orcamentoId);
+      this.toast.feito(`Sobra de ${nome} fora do saldo`, () => this.s.excluir('orcamento_fechados', id));
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
 
   protected pagarAcao: AcaoDeslizar = { rotulo: 'Pagar', icone: 'check', cor: 'var(--ok)' };
   protected desfazerAcao: AcaoDeslizar = { rotulo: 'Desfazer', icone: 'undo', cor: 'var(--ink-3)' };

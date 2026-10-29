@@ -6,13 +6,13 @@ import { addMeses, fimMes, hoje, inicioMes, mesAtual } from './datas';
 import { cobrancasBeneficio, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
 import {
-  Beneficio, Carteira, Cartao, Categoria, Cofrinho, CofrinhoMov, Dados, Entrada, Gasto, Membro, Orcamento, OrcamentoValor,
+  Beneficio, Carteira, Cartao, Categoria, Cofrinho, CofrinhoMov, Dados, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado, OrcamentoValor,
   Pagamento, Recorrencia, Registro, Tabela, UsoBeneficio,
 } from './models';
 import { Toast } from '../shared/toast';
 import { q, supabase } from './supabase';
 
-const CADASTROS = ['categorias', 'cartoes', 'beneficios', 'recorrencias', 'orcamentos', 'orcamento_valores', 'cofrinhos', 'cofrinho_movs', 'registros'] as const;
+const CADASTROS = ['categorias', 'cartoes', 'beneficios', 'recorrencias', 'orcamentos', 'orcamento_valores', 'orcamento_fechados', 'cofrinhos', 'cofrinho_movs', 'registros'] as const;
 type Cadastro = (typeof CADASTROS)[number];
 const eCadastro = (t: string): t is Cadastro => (CADASTROS as readonly string[]).includes(t);
 
@@ -45,6 +45,7 @@ export class Store {
   readonly recorrencias = signal<Recorrencia[]>([]);
   readonly orcamentos = signal<Orcamento[]>([]);
   readonly orcamentoValores = signal<OrcamentoValor[]>([]);
+  readonly orcamentoFechados = signal<OrcamentoFechado[]>([]);
   readonly cofrinhos = signal<Cofrinho[]>([]);
   readonly cofrinhoMovs = signal<CofrinhoMov[]>([]);
   readonly registros = signal<Registro[]>([]);
@@ -96,7 +97,7 @@ export class Store {
   );
 
   /** Orçamentos com o limite do mês selecionado */
-  readonly orcamentosMes = computed(() => orcamentosNoMes(this.orcamentos(), this.orcamentoValores(), this.mes()));
+  readonly orcamentosMes = computed(() => orcamentosNoMes(this.orcamentos(), this.orcamentoValores(), this.mes(), this.orcamentoFechados()));
   /** Reservas dos orçamentos distribuídas pelos dias do mês (saldo dia a dia e recebimentos) */
   readonly reservasDia = computed(() => reservasPorDia(this.mes(), this.orcamentosStatus(), this.cartoes(), hoje()));
   readonly orcamentosStatus = computed(() => statusOrcamentos(this.orcamentosMes(), this.gastos(), this.mes(), this.catMap(), this.cartoes(), mesAtual()));
@@ -169,7 +170,7 @@ export class Store {
   private limpar() {
     this.carteiras.set([]);
     this.membros.set([]);
-    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.cofrinhos, this.cofrinhoMovs, this.registros, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
+    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.orcamentoFechados, this.cofrinhos, this.cofrinhoMovs, this.registros, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
     for (const s of listas) s.set([]);
   }
 
@@ -192,12 +193,12 @@ export class Store {
 
   async recarregar(t: Cadastro) {
     const ordem: Record<Cadastro, string> = {
-      categorias: 'ordem', cartoes: 'nome', beneficios: 'nome', recorrencias: 'dia', orcamentos: 'valor', orcamento_valores: 'mes',
+      categorias: 'ordem', cartoes: 'nome', beneficios: 'nome', recorrencias: 'dia', orcamentos: 'valor', orcamento_valores: 'mes', orcamento_fechados: 'mes',
       cofrinhos: 'criado_em', cofrinho_movs: 'data', registros: 'criado_em',
     };
     const alvo: Record<Cadastro, WritableSignal<any[]>> = {
       categorias: this.categorias, cartoes: this.cartoes, beneficios: this.beneficios, recorrencias: this.recorrencias,
-      orcamentos: this.orcamentos, orcamento_valores: this.orcamentoValores, cofrinhos: this.cofrinhos, cofrinho_movs: this.cofrinhoMovs, registros: this.registros,
+      orcamentos: this.orcamentos, orcamento_valores: this.orcamentoValores, orcamento_fechados: this.orcamentoFechados, cofrinhos: this.cofrinhos, cofrinho_movs: this.cofrinhoMovs, registros: this.registros,
     };
     alvo[t].set(await this.sel(t, ordem[t]));
   }
@@ -331,6 +332,11 @@ export class Store {
     if (ate) antigos = antigos.lte('mes', ate);
     await q(antigos);
     await this.recarregar('orcamento_valores');
+  }
+
+  /** Deixa de reservar no mês o que sobrou do orçamento; devolve o id para desfazer */
+  desconsiderarSobra(orcamentoId: string, mes = this.mes()) {
+    return this.salvar('orcamento_fechados', { orcamento_id: orcamentoId, mes });
   }
 
   async desfazerPagamento(id: string) {

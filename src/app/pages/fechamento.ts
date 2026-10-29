@@ -122,7 +122,7 @@ export default class Fechamento {
       sobra: pct(r.saldo, r.entradas),
       variacao: ant > 0 ? Math.round((r.consumo / ant - 1) * 100) : null,
       abertas: contas.filter((c) => !c.pago && !c.beneficio_id),
-      orcamentos: statusOrcamentos(orcamentosNoMes(this.s.orcamentos(), this.s.orcamentoValores(), mes), d.gastos, mes, this.s.catMap(), this.s.cartoes()),
+      orcamentos: statusOrcamentos(orcamentosNoMes(this.s.orcamentos(), this.s.orcamentoValores(), mes, this.s.orcamentoFechados()), d.gastos, mes, this.s.catMap(), this.s.cartoes()),
       categorias: porCategoria(doMes, this.s.catMap()).slice(0, 5),
       maiores: [...doMes].sort((a, b) => b.valor - a.valor).slice(0, 3),
     };

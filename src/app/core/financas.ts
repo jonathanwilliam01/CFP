@@ -1,7 +1,7 @@
 import { addDias, addMeses, diaNoMes, diasNoMes, diffDias, fimMes, inicioMes, mesFatura, mesesEntre } from './datas';
 import { pct, soma } from './formato';
 import {
-  Beneficio, Cartao, Categoria, ContaMes, Frequencia, Gasto, Orcamento, OrcamentoValor, Pagamento, Recorrencia, UsoBeneficio,
+  Beneficio, Cartao, Categoria, ContaMes, Frequencia, Gasto, Orcamento, OrcamentoFechado, OrcamentoValor, Pagamento, Recorrencia, UsoBeneficio,
 } from './models';
 
 export const ativaNoMes = (r: { ativo: boolean; inicio: string; fim: string | null }, mes: string) =>
@@ -87,7 +87,7 @@ export interface Recebimento {
   total: number;
   aPagar: number;
   /** orçamentos com reserva que caem neste recebimento */
-  reservas: { nome: string; valor: number }[];
+  reservas: { orcamento_id: string; nome: string; valor: number }[];
   reservado: number;
   sobra: number;
 }
@@ -96,6 +96,7 @@ export interface Recebimento {
 export interface ReservaDia {
   dia: number;
   valor: number;
+  orcamento_id: string;
   nome: string;
   /** dia do vencimento da fatura, mesmo quando vence no mês seguinte */
   vence?: number;
@@ -124,7 +125,7 @@ export function porRecebimento(
       nome: es.map((e) => e.descricao).join(' + '),
       recebe: soma(es, (e) => pagamentos.find((p) => p.ref_id === e.id && p.mes === mes)?.valor ?? e.valor),
       contas: [] as ContaMes[],
-      res: new Map<string, number>(),
+      res: new Map<string, { nome: string; valor: number }>(),
     }));
   const grupo = (dia: number) => {
     let g = grupos[grupos.length - 1];
@@ -134,11 +135,13 @@ export function porRecebimento(
   for (const c of contas) if (!c.beneficio_id) grupo(+c.vencimento.slice(8)).contas.push(c);
   for (const r of reservas) {
     const g = grupo(r.vence ?? r.dia);
-    g.res.set(r.nome, (g.res.get(r.nome) ?? 0) + r.valor);
+    const a = g.res.get(r.orcamento_id) ?? { nome: r.nome, valor: 0 };
+    a.valor += r.valor;
+    g.res.set(r.orcamento_id, a);
   }
   return grupos.map(({ res, ...g }) => {
     const total = soma(g.contas, (c) => c.valor);
-    const lista = [...res.entries()].map(([nome, v]) => ({ nome, valor: Math.round(v * 100) / 100 }));
+    const lista = [...res.entries()].map(([orcamento_id, a]) => ({ orcamento_id, nome: a.nome, valor: Math.round(a.valor * 100) / 100 }));
     const reservado = soma(lista, (r) => r.valor);
     return { ...g, total, aPagar: soma(g.contas.filter((c) => !c.pago), (c) => c.valor), reservas: lista, reservado, sobra: g.recebe - total - reservado };
   });
@@ -339,11 +342,11 @@ export function reservasPorDia(mes: string, status: StatusOrcamento[], cartoes: 
     const c = o.forma === 'cartao' ? cartoes.find((x) => x.id === o.cartao_id) : undefined;
     if (c) {
       const venc = diaNoMes(faturaDoMes(mes, c), c.vencimento_dia);
-      l.push({ dia: noMes(venc, mes) ? Number(venc.slice(8, 10)) : n, valor: s.reservado, nome, vence: Number(venc.slice(8, 10)) });
+      l.push({ dia: noMes(venc, mes) ? Number(venc.slice(8, 10)) : n, valor: s.reservado, orcamento_id: o.id, nome, vence: Number(venc.slice(8, 10)) });
       continue;
     }
     const ini = noMes(hoje, mes) ? Number(hoje.slice(8, 10)) : 1;
-    for (let d = ini; d <= n; d++) l.push({ dia: d, valor: s.reservado / (n - ini + 1), nome });
+    for (let d = ini; d <= n; d++) l.push({ dia: d, valor: s.reservado / (n - ini + 1), orcamento_id: o.id, nome });
   }
   return l;
 }
@@ -357,9 +360,12 @@ export function ajusteOrcamento(o: Orcamento, valores: OrcamentoValor[], mes: st
   return v;
 }
 
-/** Orçamentos com o limite do mês */
-export const orcamentosNoMes = (orcamentos: Orcamento[], valores: OrcamentoValor[], mes: string) =>
-  orcamentos.map((o) => ({ ...o, valor: ajusteOrcamento(o, valores, mes)?.valor ?? o.valor }));
+/** Orçamentos com o limite do mês; sobra desconsiderada no mês tira a reserva */
+export const orcamentosNoMes = (orcamentos: Orcamento[], valores: OrcamentoValor[], mes: string, fechados: OrcamentoFechado[] = []) =>
+  orcamentos.map((o) => {
+    const f = fechados.find((x) => x.orcamento_id === o.id && x.mes === mes);
+    return { ...o, valor: ajusteOrcamento(o, valores, mes)?.valor ?? o.valor, ...(f ? { reserva: false, fechado_id: f.id } : {}) };
+  });
 
 /** Valor mensal necessário para bater a meta até o prazo */
 export function aporteMensal(meta: number, guardado: number, prazo: string | null, mes: string) {

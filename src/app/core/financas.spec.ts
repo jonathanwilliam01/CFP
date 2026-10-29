@@ -84,14 +84,14 @@ describe('porRecebimento', () => {
   it('reservas de orçamento entram no recebimento do vencimento (débito: pelos dias)', () => {
     const recs = [vale, salario];
     const reservas = [
-      { dia: 31, vence: 8, valor: 180, nome: 'Mercado · Nu' },
-      { dia: 18, valor: 10, nome: 'Feira · Pix/Débito' },
-      { dia: 19, valor: 10, nome: 'Feira · Pix/Débito' },
-      { dia: 20, valor: 10, nome: 'Feira · Pix/Débito' },
+      { dia: 31, vence: 8, valor: 180, orcamento_id: 'm', nome: 'Mercado · Nu' },
+      { dia: 18, valor: 10, orcamento_id: 'f', nome: 'Feira · Pix/Débito' },
+      { dia: 19, valor: 10, orcamento_id: 'f', nome: 'Feira · Pix/Débito' },
+      { dia: 20, valor: 10, orcamento_id: 'f', nome: 'Feira · Pix/Débito' },
     ];
     const l = porRecebimento(mes, [], recs, [], reservas);
     expect(l.map((g) => [g.dia, g.reservado, g.sobra])).toEqual([[7, 200, 2800], [20, 10, 1990]]);
-    expect(l[0].reservas).toEqual([{ nome: 'Mercado · Nu', valor: 180 }, { nome: 'Feira · Pix/Débito', valor: 20 }]);
+    expect(l[0].reservas).toEqual([{ orcamento_id: 'm', nome: 'Mercado · Nu', valor: 180 }, { orcamento_id: 'f', nome: 'Feira · Pix/Débito', valor: 20 }]);
   });
 
   it('com um só dia de recebimento não separa', () => {
@@ -330,6 +330,13 @@ describe('ajusteOrcamento', () => {
     expect(lim('2027-02-01')).toBe(700);
     expect(lim('2027-03-01')).toBe(600);
     expect(ajusteOrcamento(o, valores, '2026-09-01')).toBeUndefined();
+  });
+
+  it('sobra desconsiderada tira a reserva só naquele mês', () => {
+    const r = { ...o, forma: 'debito' as const, reserva: true };
+    const f = [{ id: 'x', orcamento_id: 'o', mes: '2026-10-01' }];
+    expect(orcamentosNoMes([r], [], '2026-10-01', f)[0]).toMatchObject({ reserva: false, fechado_id: 'x' });
+    expect(orcamentosNoMes([r], [], '2026-11-01', f)[0].reserva).toBe(true);
   });
 });
 

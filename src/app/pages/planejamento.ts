@@ -158,7 +158,7 @@ export default class Planejamento {
       const contas = contasDoMes(mes, rec, this.s.cartoes(), d.gastos, d.pagamentos, this.s.catMap());
       const avulsas = soma(d.entradas.filter((e) => noMes(e.data, mes)), (e) => e.valor);
       // orçamentos com reserva: o que falta gastar do limite entra como saída
-      const orc = statusOrcamentos(orcamentosNoMes(this.s.orcamentos(), this.s.orcamentoValores(), mes), d.gastos, mes, this.s.catMap(), this.s.cartoes(), mesAtual());
+      const orc = statusOrcamentos(orcamentosNoMes(this.s.orcamentos(), this.s.orcamentoValores(), mes, this.s.orcamentoFechados()), d.gastos, mes, this.s.catMap(), this.s.cartoes(), mesAtual());
       const reservado = soma(orc, (o) => o.reservado);
       const r = resumoMes(mes, d.gastos, avulsas, rec, contas, d.pagamentos, reservado);
       const planos = this.planos().filter((p) => p.mes === mes);

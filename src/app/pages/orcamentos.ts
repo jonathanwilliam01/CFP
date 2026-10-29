@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { addMeses, diasNoMes, hoje, nomeMes } from '../core/datas';
 import { StatusOrcamento, ajusteOrcamento, ritmoMes } from '../core/financas';
-import { BrlPipe, MesPipe, soma } from '../core/formato';
+import { BrlPipe, MesPipe, moeda, soma } from '../core/formato';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
@@ -68,7 +68,7 @@ interface FormOrcamento {
           <p class="small muted">Dia {{ dia }} de {{ diasMes() }}: a marca na barra mostra onde o gasto deveria estar hoje ({{ ritmo() }}% do mês).</p>
         }
         @for (o of s.orcamentosStatus(); track o.orcamento.id) {
-          <button type="button" class="item" (click)="editar(o)">
+          <div class="item" role="button" tabindex="0" (click)="editar(o)" (keydown.enter)="editar(o)">
             <div class="lin">
               <span class="ico" [style.background]="o.cor + '22'" [style.color]="o.cor"><app-icon [name]="o.icone" /></span>
               <span class="grow">
@@ -90,7 +90,15 @@ interface FormOrcamento {
                 · <span [class.adiantado]="o.pct > ritmo()! + 10">{{ o.pct > ritmo()! + 10 ? 'acima do ritmo' : 'no ritmo' }}</span>
               }
             </span>
-          </button>
+            @if (o.reservado) {
+              <button type="button" class="btn ghost sm sobra" (click)="$event.stopPropagation(); desconsiderar(o)">
+                <app-icon name="block" [size]="16" />Desconsiderar a sobra de {{ o.reservado | brl }} em {{ s.mes() | mes: true }}
+              </button>
+            } @else if (o.orcamento.fechado_id; as fid) {
+              <span class="s small muted">Sobra desconsiderada em {{ s.mes() | mes: true }} ·
+                <button type="button" class="link" (click)="$event.stopPropagation(); reconsiderar(fid)">voltar a reservar</button></span>
+            }
+          </div>
         } @empty {
           <div class="empty">
             <app-icon class="big" name="track_changes" [size]="40" />
@@ -174,6 +182,8 @@ interface FormOrcamento {
     .item { display: flex; flex-direction: column; gap: 6px; width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line);
       padding: 10px 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
     .item:last-child { border-bottom: 0; }
+    .sobra { align-self: flex-start; margin-top: 2px; }
+    .link { background: none; border: 0; padding: 0; font: inherit; color: var(--primary); font-weight: 700; cursor: pointer; }
     .lin { display: flex; align-items: center; gap: 12px; }
     .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .t { font-weight: 600; }
@@ -239,10 +249,28 @@ export default class Orcamentos {
     this.aberto.set(true);
   }
 
+  async desconsiderar(o: StatusOrcamento) {
+    try {
+      const id = await this.s.desconsiderarSobra(o.orcamento.id);
+      this.toast.feito(`Sobra de ${moeda(o.reservado)} fora do saldo`, () => this.s.excluir('orcamento_fechados', id));
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
+
+  async reconsiderar(id: string) {
+    try {
+      await this.s.excluir('orcamento_fechados', id);
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
+
   editar(o: StatusOrcamento) {
-    const b = o.orcamento;
+    // cadastro, não a versão do mês (sobra desconsiderada tira a reserva só no mês)
+    const b = this.s.orcamentos().find((x) => x.id === o.orcamento.id) ?? o.orcamento;
     this.f = {
-      ...this.vazio(), id: b.id, categoria_id: b.categoria_id, valor: b.valor, alerta_pct: b.alerta_pct,
+      ...this.vazio(), id: b.id, categoria_id: b.categoria_id, valor: o.orcamento.valor, alerta_pct: b.alerta_pct,
       pagamento: b.forma === 'cartao' ? b.cartao_id ?? '' : b.forma === 'debito' ? 'debito' : '', reserva: !!b.reserva || !b.forma,
     };
     this.sel.set(o.orcamento.id);

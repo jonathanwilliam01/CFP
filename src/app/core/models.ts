@@ -148,6 +148,15 @@ export interface Orcamento {
   cartao_id?: string | null;
   /** o que falta gastar do limite entra nas saídas previstas */
   reserva?: boolean;
+  /** só em memória (orcamentosNoMes): sobra desconsiderada no mês, id em orcamento_fechados */
+  fechado_id?: string;
+}
+
+/** Mês em que a sobra do orçamento deixou de ser reservada */
+export interface OrcamentoFechado {
+  id: string;
+  orcamento_id: string;
+  mes: string;
 }
 
 /** Limite do orçamento de mes até ate (null = daí em diante) */
@@ -234,6 +243,7 @@ export interface Tabelas {
   cofrinho_movs: CofrinhoMov;
   orcamentos: Orcamento;
   orcamento_valores: OrcamentoValor;
+  orcamento_fechados: OrcamentoFechado;
   planos: Plano;
   registros: Registro;
   registro_itens: RegistroItem;

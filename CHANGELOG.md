@@ -27,6 +27,7 @@
 - Orçamento por forma de pagamento (ex.: mercado no cartão X ou no Pix): conta só os gastos nela, no cartão pela fatura do mês (migration 022)
 - Orçamento que conta como gasto previsto: o que falta do limite entra nas saídas e no saldo do mês e do planejamento
 - Por recebimento considera os orçamentos com reserva: o que falta gastar entra no recebimento do vencimento (cartão) ou dos dias restantes (Pix/débito) e diminui a sobra, com bandeira de orçamento nos cartões, na fatura e na lista de Contas
+- Orçamento: botão "Desconsiderar a sobra" no mês (também arrastando a reserva em Contas) tira do saldo o que não vai ser gasto; dá para voltar a reservar (migration 023)
 
 ## v1.26.10.6 — 2026-10-28
 - Conta variável: valor que chegou no mês pode ser salvo sem pagar e já conta nas saídas; os outros meses seguem pela média (migration 019)
