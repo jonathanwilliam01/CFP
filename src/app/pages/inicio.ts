@@ -4,6 +4,7 @@ import { addMeses, diffDias, hoje, mesAtual } from '../core/datas';
 import { Recebimento, creditoBeneficios, noMes, parcelasDoMes, porCategoria, porRecebimento, ritmoMes, saldoBeneficio, saldoDiario, variacaoGastos } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, pct, soma } from '../core/formato';
 import { Insights } from '../core/insights';
+import { Painel } from '../core/painel';
 import { Store } from '../core/store';
 import { Avatar } from '../shared/avatar';
 import { Donut, Linha } from '../shared/graficos';
@@ -52,7 +53,7 @@ import { Lancar } from '../shared/lancar';
       }
 
       @if (avisos().length) {
-        <section class="avisos">
+        <section class="avisos" [style.order]="painel.pos('avisos')">
           @for (a of avisos(); track a.id) {
             <a class="aviso" [class]="a.nivel" [routerLink]="a.link ?? '/notificacoes'">
               <app-icon class="i" [name]="a.icone" />
@@ -66,7 +67,7 @@ import { Lancar } from '../shared/lancar';
       }
 
       @if (r().entradas > 0 || r().saidas > 0) {
-        <section class="card">
+        <section class="card" [style.order]="painel.pos('diaadia')">
           <div class="card-head"><h2>Saldo dia a dia</h2><a routerLink="/calendario" class="small">Calendário</a></div>
           <app-linha [valores]="curva()" [marca]="idxHoje()" />
           <p class="small muted cv">Menor saldo <b class="num" [class.neg]="menor().saldo < 0">{{ menor().saldo | brl }}</b> no dia {{ menor().dia }}</p>
@@ -74,7 +75,7 @@ import { Lancar } from '../shared/lancar';
       }
 
       @if (recebimentos().length) {
-        <section class="card">
+        <section class="card" [style.order]="painel.pos('recebimento')">
           <div class="card-head"><h2>Por recebimento</h2><a routerLink="/contas" class="small">Contas</a></div>
           <div class="recs">
             @for (g of recebimentos(); track g.dia) {
@@ -95,7 +96,7 @@ import { Lancar } from '../shared/lancar';
       }
 
       @if (comp(); as c) {
-        <section class="card">
+        <section class="card" [style.order]="painel.pos('comprometida')">
           <div class="card-head"><h2>Renda comprometida</h2><b class="num" [class.neg]="c.preso >= 70">{{ c.preso }}%</b></div>
           <div class="comp" role="img" [attr.aria-label]="c.preso + '% das entradas em contas fixas e parcelas'">
             @for (p of c.partes; track p.nome) { @if (p.pct > 0) { <i [style.flex-grow]="p.pct" [style.background]="p.cor" [title]="p.nome + ': ' + (p.valor | brl)"></i> } }
@@ -108,7 +109,7 @@ import { Lancar } from '../shared/lancar';
       }
 
       @if (pessoas().length > 1) {
-        <section class="card">
+        <section class="card" [style.order]="painel.pos('pessoas')">
           <div class="card-head"><h2>Quem gastou o quê</h2><span class="small muted">{{ s.mes() | mes: true }}</span></div>
           @for (p of pessoas(); track p.id) {
             <div class="pes">
@@ -123,7 +124,7 @@ import { Lancar } from '../shared/lancar';
         </section>
       }
 
-      <section class="card">
+      <section class="card" [style.order]="painel.pos('onde')">
         <div class="card-head"><h2>Onde está indo o dinheiro</h2><a routerLink="/relatorios" class="small">Relatórios</a></div>
         @if (cats().length) {
           <div class="onde">
@@ -148,7 +149,7 @@ import { Lancar } from '../shared/lancar';
       </section>
 
       @if (proximas().length) {
-        <section class="card">
+        <section class="card" [style.order]="painel.pos('proximas')">
           <div class="card-head"><h2>Próximas contas</h2><a routerLink="/contas" class="small">Ver todas</a></div>
           <div class="list">
             @for (c of proximas(); track c.ref_id) {
@@ -164,7 +165,7 @@ import { Lancar } from '../shared/lancar';
       }
 
       @if (s.orcamentosStatus().length) {
-        <section class="card">
+        <section class="card" [style.order]="painel.pos('orcamentos')">
           <div class="card-head"><h2>Orçamentos</h2><a routerLink="/orcamentos" class="small">Ver</a></div>
           @if (ritmo() !== null) { <p class="small muted">A marca mostra onde o gasto deveria estar hoje ({{ ritmo() }}% do mês).</p> }
           @for (o of s.orcamentosStatus().slice(0, 4); track o.orcamento.id) {
@@ -178,7 +179,7 @@ import { Lancar } from '../shared/lancar';
       }
 
       @if (beneficios().length || s.cofrinhos().length) {
-        <section class="mini">
+        <section class="mini" [style.order]="painel.pos('saldos')">
           @for (b of beneficios(); track b.id) {
             <a class="stat" routerLink="/beneficios">
               <div class="l"><span class="li"><app-icon name="restaurant" [size]="16" />{{ b.nome }}</span></div>
@@ -197,7 +198,7 @@ import { Lancar } from '../shared/lancar';
         </section>
       }
 
-      <section class="card">
+      <section class="card" [style.order]="painel.pos('ultimos')">
         <div class="card-head"><h2>Últimos gastos</h2><a routerLink="/gastos" class="small">Ver todos</a></div>
         <div class="list">
           @for (g of s.gastosMes().slice(0, 5); track g.id) {
@@ -213,7 +214,7 @@ import { Lancar } from '../shared/lancar';
       </section>
 
       @if (insights.dicas()[0]; as d) {
-        <a class="card dica" routerLink="/resumo">
+        <a class="card dica" routerLink="/resumo" [style.order]="painel.pos('dica')">
           <app-icon class="i" [name]="d.icone" [size]="28" />
           <div><b>{{ d.titulo }}</b><p class="small muted">{{ d.texto }}</p></div>
         </a>
@@ -289,6 +290,7 @@ export default class Inicio {
   protected s = inject(Store);
   protected insights = inject(Insights);
   protected lancar = inject(Lancar);
+  protected painel = inject(Painel);
 
   protected r = this.s.resumo;
   private credito = computed(() => creditoBeneficios(this.s.beneficios(), this.s.mes()));

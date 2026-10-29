@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.26.10.8 — 2026-10-29
+- Início reorganizado: Por recebimento, Próximas contas e saldos no alto; avisos e saldo dia a dia depois de Quem gastou o quê
+- Ordem dos blocos do Início personalizável em Configurações
+
 ## v1.26.10.7 — 2026-10-29
 - Página de apresentação antes do login, com botões para entrar e criar conta
 - Calendário do mês: contas, entradas e gastos por dia, com cor pelo valor gasto

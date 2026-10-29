@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { Auth } from '../core/auth';
 import { Insights } from '../core/insights';
 import { Categoria, Membro } from '../core/models';
+import { Painel } from '../core/painel';
 import { Push } from '../core/push';
 import { Store } from '../core/store';
 import { CORES, Cor, Tema } from '../core/tema';
@@ -146,6 +147,19 @@ import { Visor } from '../shared/visor';
       </div>
 
       <div class="card form">
+        <div class="card-head"><h2>Ordem do Início</h2><button class="btn ghost sm" type="button" (click)="painel.restaurar()">Padrão</button></div>
+        <div class="blocos">
+          @for (b of painel.lista(); track b.id; let i = $index, ult = $last) {
+            <div class="bl">
+              <span>{{ b.nome }}</span>
+              <button type="button" class="mv" (click)="painel.mover(i, -1)" [disabled]="i === 0" aria-label="Subir"><app-icon name="arrow_upward" [size]="18" /></button>
+              <button type="button" class="mv" (click)="painel.mover(i, 1)" [disabled]="ult" aria-label="Descer"><app-icon name="arrow_downward" [size]="18" /></button>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="card form">
         <h2>Notificações</h2>
         @switch (insights.permissao()) {
           @case ('granted') { <p class="small tit"><app-icon name="check_circle" [size]="18" />Notificações do navegador ativas.</p> }
@@ -203,6 +217,12 @@ import { Visor } from '../shared/visor';
     .seg { margin-bottom: 6px; }
     .linha .btn { flex: 1; }
     .danger-ink { color: var(--danger); }
+    .blocos { display: flex; flex-direction: column; }
+    .bl { display: flex; align-items: center; gap: 4px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
+    .bl:last-child { border-bottom: 0; }
+    .bl span { flex: 1; }
+    .mv { border: 0; background: none; color: var(--ink-2); cursor: pointer; padding: 6px; border-radius: 8px; display: grid; }
+    .mv:disabled { opacity: 0.3; cursor: default; }
   `,
 })
 export default class Config {
@@ -210,6 +230,7 @@ export default class Config {
   protected s = inject(Store);
   protected insights = inject(Insights);
   protected tema = inject(Tema);
+  protected painel = inject(Painel);
   protected cores = (Object.keys(CORES) as Cor[]).map((id) => ({ id, hex: CORES[id], nome: id[0].toUpperCase() + id.slice(1) }));
   protected push = inject(Push);
   private toast = inject(Toast);

@@ -8,6 +8,14 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.10.8',
+    data: '2026-10-29',
+    itens: [
+      'Início reorganizado: Por recebimento, Próximas contas e saldos no alto; avisos e saldo dia a dia depois de Quem gastou o quê',
+      'Ordem dos blocos do Início personalizável em Configurações',
+    ],
+  },
+  {
     versao: 'v1.26.10.7',
     data: '2026-10-29',
     itens: [
