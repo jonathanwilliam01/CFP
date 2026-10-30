@@ -4,7 +4,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-webpush.setVapidDetails(Deno.env.get('VAPID_SUBJECT')!, Deno.env.get('VAPID_PUBLIC_KEY')!, Deno.env.get('VAPID_PRIVATE_KEY')!);
+// web-push exige mailto: ou https: no subject; e-mail puro derrubava a função
+const assunto = Deno.env.get('VAPID_SUBJECT')!;
+webpush.setVapidDetails(/^(mailto|https?):/.test(assunto) ? assunto : `mailto:${assunto}`,Deno.env.get('VAPID_PUBLIC_KEY')!, Deno.env.get('VAPID_PRIVATE_KEY')!);
 
 interface Envio {
   usuarios: string[];
