@@ -5,7 +5,7 @@
 - Reajuste de conta/entrada fixa: Enter no campo aplica o reajuste (antes salvava o valor antigo); no cartão começa na fatura aberta
 - Contas: versão substituída por reajuste sai da lista (histórico fica no reajuste)
 - Configurações: mês em que começou a usar a carteira; meses anteriores ficam fora da navegação, fechamento e comparações, parcelas seguem valendo
-- Apresentação nova: menu com Funções, Como funciona, Dúvidas e Contato, animações e sempre no tema escuro azul
+- Apresentação nova: menu com Funções, Como funciona, Dúvidas e Contato, animações e sempre no tema escuro azul (login também)
 - Sair da conta volta para a apresentação
 - Gasto no benefício mostra o saldo restante e não deixa passar dele
 
