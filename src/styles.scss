@@ -64,6 +64,11 @@
   }
 }
 
+// apresentação: sempre escura e azul, independente da preferência
+.tema-escuro {
+  @include escuro;
+}
+
 // cor principal escolhida em Configurações (azul é o padrão do :root)
 $cores: (
   vermelho: (#d0353f, #fbe1e3, #ff7a82, #33060a, #4a1a1e),

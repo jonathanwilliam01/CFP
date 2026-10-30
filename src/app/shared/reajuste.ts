@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { inicioMes, mesAtual } from '../core/datas';
+import { hoje, inicioMes, mesAtual, mesFatura } from '../core/datas';
 import { historicoReajustes } from '../core/financas';
 import { BrlPipe, MesPipe, parseValor } from '../core/formato';
 import { Recorrencia } from '../core/models';
@@ -12,8 +12,9 @@ import { Toast } from './toast';
   selector: 'app-reajuste',
   imports: [FormsModule, BrlPipe, MesPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // fica dentro do form da conta: Enter aqui aplicaria o form (valor antigo) em vez do reajuste
   template: `
-    <div class="reaj">
+    <div class="reaj" (keydown.enter)="$event.preventDefault(); aplicar()">
       <h3>Reajuste de valor</h3>
       @if (historico().length > 1) {
         <ol class="hist">
@@ -55,7 +56,7 @@ import { Toast } from './toast';
     .hist li.atual { color: var(--ink); font-weight: 700; }
   `,
 })
-export class Reajuste {
+export class Reajuste implements OnInit {
   private s = inject(Store);
   private toast = inject(Toast);
 
@@ -68,12 +69,19 @@ export class Reajuste {
   protected historico = computed(() => historicoReajustes(this.s.recorrencias(), this.rec().id));
   protected substituida = computed(() => this.historico().at(-1)?.id !== this.rec().id);
   protected atual = computed(() => this.s.medias().get(this.rec().id) ?? this.rec().valor);
+  // no cartão o reajuste é por fatura: começa na fatura aberta
+  ngOnInit() {
+    const c = this.s.cartoes().find((x) => x.id === this.rec().cartao_id);
+    if (c) this.mes.set(mesFatura(hoje(), c.fechamento_dia, c.vencimento_dia).slice(0, 7));
+  }
+
   protected variacao = computed(() => {
     const v = parseValor(this.valor());
     return v && this.atual() ? Math.round((v / this.atual() - 1) * 1000) / 10 : 0;
   });
 
   async aplicar() {
+    if (this.salvando()) return;
     const valor = parseValor(this.valor());
     if (!valor || !this.mes()) return this.toast.erro('Informe o novo valor e o mês');
     const mes = `${this.mes()}-01`;

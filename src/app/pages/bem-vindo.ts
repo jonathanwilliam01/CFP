@@ -67,6 +67,6 @@ export default class BemVindo {
 
   async sair() {
     await this.auth.sair();
-    this.router.navigateByUrl('/login');
+    this.router.navigateByUrl('/apresentacao');
   }
 }

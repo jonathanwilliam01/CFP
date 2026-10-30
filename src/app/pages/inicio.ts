@@ -310,7 +310,7 @@ export default class Inicio {
   });
   protected noMesAtual = computed(() => this.s.mes() === mesAtual());
   protected mesAnterior = computed(() => addMeses(this.s.mes(), -1));
-  protected variacao = computed(() => variacaoGastos(this.s.gastos(), this.s.mes(), hoje()));
+  protected variacao = computed(() => (this.s.antesDoInicio(this.mesAnterior()) ? null : variacaoGastos(this.s.gastos(), this.s.mes(), hoje())));
   protected pctPago = computed(() => pct(this.r().pago, this.r().pago + this.r().aPagar));
   protected avisos = computed(() => this.insights.avisos().filter((a) => a.nivel === 'perigo' || a.nivel === 'alerta').slice(0, 3));
   protected cats = computed(() => porCategoria(this.s.gastosMes(), this.s.catMap()));
@@ -368,7 +368,7 @@ export default class Inicio {
 
   private fechVisto = signal(localStorage.getItem('cfp.fechamento'));
   protected mostrarFechamento = computed(
-    () => this.noMesAtual() && Number(hoje().slice(8)) <= 7 && this.fechVisto() !== this.mesAnterior() && !this.s.carregando(),
+    () => this.noMesAtual() && Number(hoje().slice(8)) <= 7 && this.fechVisto() !== this.mesAnterior() && !this.s.carregando() && !this.s.antesDoInicio(this.mesAnterior()),
   );
 
   dispensarFechamento() {

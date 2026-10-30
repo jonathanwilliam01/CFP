@@ -1,14 +1,23 @@
 # Changelog
 
+## v1.26.10.10 — 2026-10-30
+- Importação Nubank: parcelas que vêm datadas no último dia do mês anterior entram na fatura do arquivo, sem duplicar parcela no mês
+- Reajuste de conta/entrada fixa: Enter no campo aplica o reajuste (antes salvava o valor antigo); no cartão começa na fatura aberta
+- Contas: versão substituída por reajuste sai da lista (histórico fica no reajuste)
+- Configurações: mês em que começou a usar a carteira; meses anteriores ficam fora da navegação, fechamento e comparações, parcelas seguem valendo
+- Apresentação nova: menu com Funções, Como funciona, Dúvidas e Contato, animações e sempre no tema escuro azul
+- Sair da conta volta para a apresentação
+- Gasto no benefício mostra o saldo restante e não deixa passar dele
+
 ## v1.26.10.9 — 2026-10-29
 - Blocos do Início: esconder, arrastar para ordenar e recolher tocando no título; preferências salvas na conta, valem em todo aparelho
 - Conta variável: ao pagar mostra a média e as últimas contas, com alerta quando o valor vem 30% acima da média
 - Compras que se repetem todo mês viram sugestão de conta fixa em Contas e nos avisos
 - Resumo mensal exporta CSV do mês (gastos, entradas, contas) e PDF pela impressão
 - Busca geral (lupa no topo): gastos e entradas de todos os meses por descrição, categoria, #marcador ou valor, mais cadastros
-- Marcadores no parcelado e na importação (migration 024)
-- Aviso de vencimento com o app fechado usa a média da conta variável (migration 025)
-- Chat: editar e apagar as próprias mensagens (migration 026)
+- Marcadores no parcelado e na importação
+- Aviso de vencimento com o app fechado usa a média da conta variável
+- Chat: editar e apagar as próprias mensagens
 
 ## v1.26.10.8 — 2026-10-29
 - Início reorganizado: Por recebimento, Próximas contas e saldos no alto; avisos e saldo dia a dia depois de Quem gastou o quê
@@ -29,22 +38,22 @@
 - Marcadores nos gastos (ex.: #viagem), com filtro em Gastos e bloco em Relatórios (migration 020)
 - Fechamento do mês: saldo, contas em aberto, orçamentos, maiores gastos e cofrinhos; aviso no Início na primeira semana
 - Quem gastou o quê: total de cada membro no mês no Início
-- Comentário no chat sobre um gasto, direto na edição dele (migration 020)
+- Comentário no chat sobre um gasto, direto na edição dele
 - Cofrinhos com contagem até o prazo e aporte do mês em Contas, com botão Guardar
 - Aviso quando uma categoria passa 50% da média dos meses anteriores
 - Fatura projetada: quanto a fatura aberta deve fechar no ritmo atual, em Cartões e no aviso de fechamento
-- Orçamento: limite diferente só para um mês, por alguns meses ou daí em diante, sem mudar os meses anteriores; "Usar o padrão neste mês" (migration 021)
+- Orçamento: limite diferente só para um mês, por alguns meses ou daí em diante, sem mudar os meses anteriores; "Usar o padrão neste mês"
 - Cofrinhos: bandeira com quanto depositar por mês, quinzena ou semana para chegar à meta no prazo
-- Cofrinhos: simulação de depósitos (ex.: 50 por semana) com quantos depósitos e em que data chega ao valor, comparando com o prazo; plano salvo aparece na lista e em Contas (migration 021)
+- Cofrinhos: simulação de depósitos (ex.: 50 por semana) com quantos depósitos e em que data chega ao valor, comparando com o prazo; plano salvo aparece na lista e em Contas
 - Aviso "Nova versão disponível" ao abrir ou voltar para o app: um toque atualiza
 - Contas por recebimento também no Início
-- Orçamento por forma de pagamento (ex.: mercado no cartão X ou no Pix): conta só os gastos nela, no cartão pela fatura do mês (migration 022)
+- Orçamento por forma de pagamento (ex.: mercado no cartão X ou no Pix): conta só os gastos nela, no cartão pela fatura do mês
 - Orçamento que conta como gasto previsto: o que falta do limite entra nas saídas e no saldo do mês e do planejamento
 - Por recebimento considera os orçamentos com reserva: o que falta gastar entra no recebimento do vencimento (cartão) ou dos dias restantes (Pix/débito) e diminui a sobra, com bandeira de orçamento nos cartões, na fatura e na lista de Contas
-- Orçamento: botão "Desconsiderar a sobra" no mês (também arrastando a reserva em Contas) tira do saldo o que não vai ser gasto; dá para voltar a reservar (migration 023)
+- Orçamento: botão "Desconsiderar a sobra" no mês (também arrastando a reserva em Contas) tira do saldo o que não vai ser gasto; dá para voltar a reservar
 
 ## v1.26.10.6 — 2026-10-28
-- Conta variável: valor que chegou no mês pode ser salvo sem pagar e já conta nas saídas; os outros meses seguem pela média (migration 019)
+- Conta variável: valor que chegou no mês pode ser salvo sem pagar e já conta nas saídas; os outros meses seguem pela média
 
 ## v1.26.10.5 — 2026-10-28
 - Logo CFP sai da barra superior; menu lateral com a sigla e o nome completo no topo e o botão Lançamento logo abaixo
@@ -57,7 +66,7 @@
 - Saldo do mês em verde (positivo) ou vermelho (negativo), entradas em verde e saídas em vermelho, em qualquer cor principal
 - Excluir com "Desfazer" por 5 segundos no lugar da confirmação
 - Mensagens novas do chat aparecem nas notificações
-- Reajuste feito numa única operação no banco e com histórico de valores na edição da conta (migration 018)
+- Reajuste feito numa única operação no banco e com histórico de valores na edição da conta
 - "Repete todo mês" com data de hoje ou anterior já marca o primeiro mês como pago ou recebido
 - Lançamento sem internet fica guardado no aparelho e é enviado quando a conexão volta
 - "Lançar de novo hoje" na edição de um gasto ou entrada

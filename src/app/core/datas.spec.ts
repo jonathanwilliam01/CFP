@@ -1,4 +1,4 @@
-import { addMeses, diaNoMes, mesFatura, mesesEntre } from './datas';
+import { addDias, addMeses, diaNoMes, inicioFatura, mesFatura, mesesEntre } from './datas';
 
 describe('datas', () => {
   it('addMeses ajusta o dia em mês curto', () => {
@@ -27,5 +27,14 @@ describe('datas', () => {
       expect(mesFatura('2026-10-05', 25, 5)).toBe('2026-11-01');
       expect(mesFatura('2026-10-26', 25, 5)).toBe('2026-12-01');
     });
+  });
+
+  it('inicioFatura é o primeiro dia que cai na fatura', () => {
+    for (const [fech, venc] of [[1, 7], [10, 20], [25, 5], [30, 7], [31, 7]]) {
+      const ini = inicioFatura('2026-11-01', fech, venc);
+      expect(mesFatura(ini, fech, venc)).toBe('2026-11-01');
+      expect(mesFatura(addDias(ini, -1), fech, venc)).toBe('2026-10-01');
+    }
+    expect(inicioFatura('2026-11-01', 1, 7)).toBe('2026-10-01');
   });
 });

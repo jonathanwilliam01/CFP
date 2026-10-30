@@ -16,10 +16,12 @@ import { Toast } from '../shared/toast';
     <div class="page">
       <div class="page-head"><h1>Fechamento</h1><span class="badge cap">{{ mes() | mes }}</span></div>
 
-      @if (!f()) {
+      @if (antes()) {
+        <div class="card empty"><span class="big">🗓️</span>Antes do início do uso da carteira ({{ s.inicio()! | mes }}).</div>
+      } @else if (!f()) {
         <div class="card empty"><span class="big">⏳</span>Carregando...</div>
       }
-      @if (f(); as f) {
+      @if (!antes() && f(); as f) {
         <section class="card hero">
           <span class="small muted">Saldo de {{ mes() | mes }}</span>
           <b class="saldo num" [class.neg]="f.r.saldo < 0" [class.pos]="f.r.saldo >= 0">{{ f.r.saldo | brl }}</b>
@@ -105,6 +107,7 @@ export default class Fechamento {
 
   protected mes = computed(() => (this.s.mes() < mesAtual() ? this.s.mes() : addMeses(mesAtual(), -1)));
   protected anterior = computed(() => addMeses(this.mes(), -1));
+  protected antes = computed(() => this.s.antesDoInicio(this.mes()));
   private dados = signal<{ gastos: Gasto[]; entradas: Entrada[]; pagamentos: Pagamento[] } | null>(null);
   private req = 0;
 
@@ -120,7 +123,7 @@ export default class Fechamento {
     return {
       r,
       sobra: pct(r.saldo, r.entradas),
-      variacao: ant > 0 ? Math.round((r.consumo / ant - 1) * 100) : null,
+      variacao: ant > 0 && !this.s.antesDoInicio(this.anterior()) ? Math.round((r.consumo / ant - 1) * 100) : null,
       abertas: contas.filter((c) => !c.pago && !c.beneficio_id),
       orcamentos: statusOrcamentos(orcamentosNoMes(this.s.orcamentos(), this.s.orcamentoValores(), mes, this.s.orcamentoFechados()), d.gastos, mes, this.s.catMap(), this.s.cartoes()),
       categorias: porCategoria(doMes, this.s.catMap()).slice(0, 5),

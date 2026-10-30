@@ -8,6 +8,19 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.10.10',
+    data: '2026-10-30',
+    itens: [
+      'Importação Nubank: parcelas que vêm datadas no último dia do mês anterior entram na fatura do arquivo, sem duplicar parcela no mês',
+      'Reajuste de conta/entrada fixa: Enter no campo aplica o reajuste (antes salvava o valor antigo); no cartão começa na fatura aberta',
+      'Contas: versão substituída por reajuste sai da lista (histórico fica no reajuste)',
+      'Configurações: mês em que começou a usar a carteira; meses anteriores ficam fora da navegação, fechamento e comparações, parcelas seguem valendo (migration 027)',
+      'Apresentação nova: menu com Funções, Como funciona, Dúvidas e Contato, animações e sempre no tema escuro azul',
+      'Sair da conta volta para a apresentação',
+      'Gasto no benefício mostra o saldo restante e não deixa passar dele',
+    ],
+  },
+  {
     versao: 'v1.26.10.9',
     data: '2026-10-29',
     itens: [

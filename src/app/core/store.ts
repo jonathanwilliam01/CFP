@@ -38,6 +38,11 @@ export class Store {
   readonly carregando = signal(false);
 
   readonly mes = signal(mesAtual());
+  /** Mês em que começou a usar a carteira: antes dele não se navega nem compara (parcelas antigas seguem valendo) */
+  readonly inicio = computed(() => {
+    const i = this.carteira()?.inicio;
+    return i ? inicioMes(i) : null;
+  });
 
   readonly categorias = signal<Categoria[]>([]);
   readonly cartoes = signal<Cartao[]>([]);
@@ -75,7 +80,10 @@ export class Store {
   readonly membroPorId = computed(() => new Map(this.membros().map((m) => [m.user_id, m])));
 
   readonly gastosMes = computed(() => this.gastos().filter((g) => noMes(g.data, this.mes())));
-  readonly gastosMesAnterior = computed(() => this.gastos().filter((g) => noMes(g.data, addMeses(this.mes(), -1))));
+  readonly gastosMesAnterior = computed(() => {
+    const ant = addMeses(this.mes(), -1);
+    return this.antesDoInicio(ant) ? [] : this.gastos().filter((g) => noMes(g.data, ant));
+  });
   readonly entradasMes = computed(() => this.entradas().filter((e) => noMes(e.data, this.mes())));
 
   readonly medias = computed(() => mediasVariaveis(this.recorrencias(), this.valoresFixas()));
@@ -140,6 +148,15 @@ export class Store {
     effect(() => {
       if (!this.auth.user()) this.limpar();
     });
+    effect(() => {
+      const ini = this.inicio();
+      if (ini && this.mes() < ini) this.mes.set(ini);
+    });
+  }
+
+  antesDoInicio(mes: string) {
+    const ini = this.inicio();
+    return !!ini && inicioMes(mes) < ini;
   }
 
   /** Carrega carteiras do usuário; retorna false se não participa de nenhuma */
@@ -221,6 +238,7 @@ export class Store {
     const mes = this.mes();
     const ini = addMeses(mes, -1);
     const fim = fimMes(mes);
+    const desde = [addMeses(mes, -3), this.inicio() ?? ''].sort()[1];
     const [gastos, entradas, pagamentos, uso, recentes, valores, anteriores] = await Promise.all([
       q<Gasto[]>(
         supabase.from('gastos').select('*').eq('carteira_id', id)
@@ -238,7 +256,7 @@ export class Store {
         supabase.from('pagamentos').select('id, ref_id, mes, valor').eq('carteira_id', id).eq('tipo', 'recorrencia').order('mes', { ascending: false }),
       ),
       q<GastoHist[]>(
-        supabase.from('gastos').select('descricao, valor, data, categoria_id, forma, cartao_id, fatura_mes, parcelamento_id').eq('carteira_id', id).gte('data', addMeses(mes, -3)).lt('data', mes),
+        supabase.from('gastos').select('descricao, valor, data, categoria_id, forma, cartao_id, fatura_mes, parcelamento_id').eq('carteira_id', id).gte('data', desde).lt('data', mes),
       ),
     ]);
     // troca rápida de mês: descarta a resposta que chegou depois da mais nova

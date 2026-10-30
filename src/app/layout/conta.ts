@@ -244,7 +244,7 @@ export class Conta {
     if (!confirm('Sair da conta?')) return;
     await this.fecharAntes();
     await this.auth.sair();
-    this.router.navigateByUrl('/login');
+    this.router.navigateByUrl('/apresentacao');
   }
 
   private limparImagem() {

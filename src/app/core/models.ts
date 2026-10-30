@@ -7,6 +7,8 @@ export interface Carteira {
   nome: string;
   codigo: string;
   criado_por: string;
+  /** mês em que começou a usar: antes dele não se navega nem compara (027) */
+  inicio?: string | null;
 }
 
 export interface Membro {

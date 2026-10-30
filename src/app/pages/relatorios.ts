@@ -133,7 +133,7 @@ export default class Relatorios {
   protected lista = computed(() => {
     const n = this.meses();
     const fim = this.s.mes();
-    return Array.from({ length: n }, (_, i) => addMeses(fim, i - n + 1));
+    return Array.from({ length: n }, (_, i) => addMeses(fim, i - n + 1)).filter((m) => !this.s.antesDoInicio(m));
   });
 
   /** Gastos consumidos (por data) dentro do período */

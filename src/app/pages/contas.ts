@@ -298,9 +298,10 @@ export default class Contas {
       .filter((x) => x.itens.length);
   });
   protected creditoSel = signal<{ cartao: Cartao; itens: Gasto[]; total: number } | null>(null);
-  /** reajuste encerra a anterior: as que já terminaram ficam escondidas */
+  /** reajuste encerra a anterior: as que já terminaram ou foram substituídas ficam escondidas (histórico no reajuste) */
   private todasFixas = computed(() => this.s.recorrencias().filter((r) => r.tipo === 'conta'));
-  protected fixas = computed(() => this.todasFixas().filter((r) => !r.fim || r.fim >= mesAtual()));
+  private substituidas = computed(() => new Set(this.s.recorrencias().map((r) => r.reajuste_de)));
+  protected fixas = computed(() => this.todasFixas().filter((r) => (!r.fim || r.fim >= mesAtual()) && !this.substituidas().has(r.id)));
   protected encerradas = computed(() => this.todasFixas().filter((r) => r.fim && r.fim < mesAtual()));
   protected verEncerradas = signal(false);
   protected dataHoje = hoje();

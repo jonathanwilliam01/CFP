@@ -102,7 +102,10 @@
         @if (fatura(); as fm) {
           <p class="hint">Entra na fatura de <b>{{ fm | mes }}</b></p>
         } @else if (f().pagamento.startsWith('b:')) {
-          <p class="hint">Descontado do benefício, não entra nas contas do mês</p>
+          <p class="hint" [class.neg]="(saldoBenef()?.saldo ?? 0) < parseValor(f().valor)">
+            Descontado do benefício, não entra nas contas do mês
+            @if (saldoBenef(); as sb) { · resta <b>{{ sb.saldo | brl }}</b> }
+          </p>
         }
       </div>
     }

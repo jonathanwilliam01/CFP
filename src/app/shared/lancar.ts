@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { addDias, hoje, mesFatura } from '../core/datas';
-import { inicioFixa } from '../core/financas';
+import { addDias, hoje, inicioMes, mesFatura } from '../core/datas';
+import { inicioFixa, saldoBeneficio } from '../core/financas';
 import { BrlPipe, MesPipe, moeda, parseValor } from '../core/formato';
 import { Entrada, Forma, Gasto } from '../core/models';
 import { Chat } from '../core/chat';
@@ -119,6 +119,20 @@ export class LancarSheet {
   private fixa = computed(() => inicioFixa(this.f().data, this.cartaoFixa()));
   protected inicioFixa = computed(() => this.fixa().inicio);
   protected diaFixa = computed(() => this.fixa().dia);
+
+  /** Saldo do benefício escolhido no mês da data, devolvendo o próprio gasto na edição; meses depois do carregado ficam sem conta */
+  protected saldoBenef = computed(() => {
+    const f = this.f();
+    if (this.l.modo() !== 'gasto' || this.repete() || !f.pagamento.startsWith('b:')) return null;
+    const b = this.s.beneficios().find((x) => x.id === f.pagamento.slice(2));
+    const mes = inicioMes(f.data);
+    if (!b || mes > this.s.mes()) return null;
+    const g = this.l.gasto();
+    const gm = g ? inicioMes(g.data) : '';
+    const proprio = g?.forma === 'beneficio' && g.beneficio_id === b.id && (b.acumula ? gm <= mes : gm === mes) ? g.valor : 0;
+    return { nome: b.nome, saldo: saldoBeneficio(b, this.s.usoBeneficios(), mes, this.s.cobrancasBeneficio()).saldo + proprio };
+  });
+  protected parseValor = parseValor;
 
   /** Fatura em que a compra (ou 1ª parcela) vai cair */
   protected fatura = computed(() => {
@@ -280,6 +294,8 @@ export class LancarSheet {
     const valor = parseValor(f.valor);
     if (!valor || valor <= 0) return this.toast.erro('Informe o valor');
     if (!f.descricao.trim()) return this.toast.erro('Informe a descrição');
+    const sb = this.saldoBenef();
+    if (sb && valor > sb.saldo + 0.005) return this.toast.erro(`Saldo do ${sb.nome} insuficiente: resta ${moeda(Math.max(0, sb.saldo))}`);
     const modo = this.l.modo();
     const item = this.editando() ? null : this.novoItem(f, valor);
     this.salvando.set(true);

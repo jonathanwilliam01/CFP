@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { mesFatura, nomeMes } from '../core/datas';
+import { inicioFatura, mesFatura, nomeMes } from '../core/datas';
 import { ItemExtrato, Origem, lerExtrato, palpiteCategoria } from '../core/extrato';
 import { BrlPipe, DiaPipe, soma } from '../core/formato';
 import { Store } from '../core/store';
@@ -84,7 +84,7 @@ const DEBITO = 'debito';
               <input type="checkbox" [checked]="x.ok" (change)="alterar($index, 'ok', $any($event.target).checked)" [attr.aria-label]="'Importar ' + x.titulo" />
               <div class="grow">
                 <div class="cab">
-                  <span class="s">{{ x.data | dia }} · {{ x.titulo }}</span>
+                  <span class="s">{{ dataDe(x) | dia }} · {{ x.titulo }}</span>
                   <b class="num">{{ x.valor | brl }}</b>
                 </div>
                 @if (x.dup) { <span class="badge alerta">Parece já lançado</span> }
@@ -159,8 +159,28 @@ export default class Importar {
   protected faturas = computed(() => {
     const c = this.cartao();
     if (!c) return '';
-    return [...new Set(this.linhas().map((x) => mesFatura(x.data, c.fechamento_dia, c.vencimento_dia)))].sort().map((m) => nomeMes(m)).join(', ');
+    return [...new Set(this.linhas().map((x) => mesFatura(this.dataDe(x), c.fechamento_dia, c.vencimento_dia)))].sort().map((m) => nomeMes(m)).join(', ');
   });
+  /** Fatura do arquivo: a mais comum entre as compras novas (sem parcela ou 1ª parcela) */
+  private alvo = computed(() => {
+    const c = this.cartao();
+    if (!c) return null;
+    const n = new Map<string, number>();
+    for (const x of this.linhas()) {
+      if ((x.parcela ?? 1) > 1) continue;
+      const m = mesFatura(x.data, c.fechamento_dia, c.vencimento_dia);
+      n.set(m, (n.get(m) ?? 0) + 1);
+    }
+    return [...n].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  });
+
+  /** Nubank data as parcelas seguintes no último dia do mês anterior, que pode cair na fatura passada: vão para o início da fatura do arquivo */
+  protected dataDe(x: ItemExtrato) {
+    const c = this.cartao();
+    const alvo = this.alvo();
+    if (!c || !alvo || (x.parcela ?? 1) === 1 || mesFatura(x.data, c.fechamento_dia, c.vencimento_dia) >= alvo) return x.data;
+    return inicioFatura(alvo, c.fechamento_dia, c.vencimento_dia);
+  }
 
   async abrir(ev: Event) {
     const input = ev.target as HTMLInputElement;
@@ -200,7 +220,7 @@ export default class Importar {
     const c = this.cartao();
     const linhas = this.linhas();
     if (!linhas.length) return;
-    const chave = (x: { data: string }) => (c ? mesFatura(x.data, c.fechamento_dia, c.vencimento_dia) : x.data);
+    const chave = (x: ItemExtrato) => (c ? mesFatura(this.dataDe(x), c.fechamento_dia, c.vencimento_dia) : x.data);
     try {
       const chaves = [...new Set(linhas.map(chave))];
       const existentes = c
@@ -245,7 +265,7 @@ export default class Importar {
           descricao: parcelar || !x.parcela ? desc : `${desc} (${x.parcela}/${x.parcelas})`,
           categoria_id: x.categoria_id,
           valor: x.valor,
-          data: x.data,
+          data: this.dataDe(x),
           forma: c ? 'cartao' : DEBITO,
           cartao_id: c?.id ?? null,
           parcelar,

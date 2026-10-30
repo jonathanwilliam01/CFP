@@ -79,3 +79,9 @@ export function mesFatura(data: string, fech: number, venc: number) {
   if (venc <= fech) m = addMeses(m, 1);
   return m;
 }
+
+/** Primeiro dia de compra que cai na fatura `mes` (inverso de mesFatura) */
+export function inicioFatura(mes: string, fech: number, venc: number) {
+  const m = addMeses(mes, venc <= fech ? -2 : -1);
+  return fech > diasNoMes(m) ? addMeses(m, 1) : diaNoMes(m, fech);
+}

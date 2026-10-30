@@ -39,6 +39,13 @@ import { Visor } from '../shared/visor';
               <button class="btn ghost" type="button" (click)="renomear()" [disabled]="ocupado()">Salvar</button>
             </div>
           </label>
+          <label class="field"><span>Começou a usar em</span>
+            <div class="linha">
+              <input name="inicio" type="month" [(ngModel)]="inicioUso" />
+              <button class="btn ghost" type="button" (click)="salvarInicio()" [disabled]="ocupado()">Salvar</button>
+            </div>
+          </label>
+          <p class="small muted">Meses anteriores ficam fora da navegação, do fechamento e das comparações. Parcelas e contas já lançadas continuam valendo. Vazio mostra tudo.</p>
           <div class="convite">
             <div>
               <span class="small muted">Código de convite</span>
@@ -252,6 +259,7 @@ export default class Config {
 
   nome = this.auth.nome();
   nomeCarteira = this.s.carteira()?.nome ?? '';
+  inicioUso = this.s.inicio()?.slice(0, 7) ?? '';
   novaCarteira = '';
   codigo = '';
   cat = { id: '', nome: '', icone: 'sell', cor: '#64748b', tipo: 'gasto' as 'gasto' | 'entrada', ordem: 50 };
@@ -313,6 +321,20 @@ export default class Config {
     }, 'Carteira renomeada');
   }
 
+  private lerCarteira() {
+    this.nomeCarteira = this.s.carteira()?.nome ?? '';
+    this.inicioUso = this.s.inicio()?.slice(0, 7) ?? '';
+  }
+
+  salvarInicio() {
+    const inicio = this.inicioUso ? `${this.inicioUso}-01` : null;
+    return this.exec(async () => {
+      await q(supabase.from('carteiras').update({ inicio }).eq('id', this.s.carteiraId()!));
+      await this.s.iniciar();
+      await this.s.carregarMes();
+    }, 'Início do uso salvo');
+  }
+
   async compartilhar(codigo: string) {
     const texto = `Entre na nossa carteira no CFP com o código ${codigo}: ${location.origin}`;
     try {
@@ -354,7 +376,7 @@ export default class Config {
   trocar(id: string) {
     if (id === this.s.carteiraId()) return;
     this.s.carteiraId.set(id);
-    this.nomeCarteira = this.s.carteira()?.nome ?? '';
+    this.lerCarteira();
     this.toast.ok(`Carteira: ${this.s.carteira()?.nome}`);
   }
 
@@ -363,7 +385,7 @@ export default class Config {
     if (!nome) return this.toast.erro('Informe o nome');
     if (await this.exec(() => this.s.criarCarteira(nome), 'Carteira criada')) {
       this.novaCarteira = '';
-      this.nomeCarteira = nome;
+      this.lerCarteira();
     }
   }
 
@@ -371,7 +393,7 @@ export default class Config {
     if (!this.codigo.trim()) return this.toast.erro('Informe o código');
     if (await this.exec(() => this.s.entrarCarteira(this.codigo), 'Você entrou na carteira')) {
       this.codigo = '';
-      this.nomeCarteira = this.s.carteira()?.nome ?? '';
+      this.lerCarteira();
     }
   }
 
@@ -398,7 +420,7 @@ export default class Config {
     }, excluir ? 'Carteira excluída' : 'Você saiu da carteira');
     if (!ok) return;
     if (!resta) this.router.navigateByUrl('/bem-vindo');
-    else this.nomeCarteira = this.s.carteira()?.nome ?? '';
+    else this.lerCarteira();
   }
 
   alternarPush() {
@@ -409,6 +431,6 @@ export default class Config {
   async sair() {
     if (!confirm('Sair da conta?')) return;
     await this.auth.sair();
-    this.router.navigateByUrl('/login');
+    this.router.navigateByUrl('/apresentacao');
   }
 }
