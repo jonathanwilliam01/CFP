@@ -3,40 +3,79 @@ import { FormsModule } from '@angular/forms';
 import { aliquotaIR, avistaOuParcelado, taxaMensal } from '../core/financas';
 import { BrlPipe, parseValor } from '../core/formato';
 import { Icon } from '../shared/icon';
+import { Sheet } from '../shared/sheet';
 import { ESTILO, cdi, lembrado, pctCdi, pctTxt } from './calc/comum';
 import { CalcCredito } from './calc/credito';
+import { FonteBcb } from './calc/fonte';
 import { CalcDivida } from './calc/divida';
 import { CalcHoras } from './calc/horas';
 import { CalcRende } from './calc/rende';
 import { CalcReserva } from './calc/reserva';
 import { CalcSalario } from './calc/salario';
 
-const ABAS = [
-  { k: 'parcelado', nome: 'À vista x parcelado', icone: 'event_repeat' },
-  { k: 'credito', nome: 'Empréstimo x Pix x cheque', icone: 'account_balance' },
-  { k: 'divida', nome: 'Rotativo e cheque', icone: 'credit_card_off' },
-  { k: 'horas', nome: 'Horas de trabalho', icone: 'schedule' },
-  { k: 'salario', nome: 'Salário líquido', icone: 'payments' },
-  { k: 'rende', nome: 'Quanto rende', icone: 'trending_up' },
-  { k: 'reserva', nome: 'Reserva de emergência', icone: 'shield' },
-  { k: 'meta', nome: 'Meta', icone: 'savings' },
-  { k: 'dividir', nome: 'Dividir conta', icone: 'group' },
+const GRUPOS = [
+  {
+    nome: 'Compras',
+    itens: [
+      { k: 'parcelado', nome: 'À vista x parcelado', icone: 'event_repeat', desc: 'Desconto do Pix contra parcelar e deixar o dinheiro rendendo' },
+      { k: 'horas', nome: 'Horas de trabalho', icone: 'schedule', desc: 'Quanto tempo de trabalho uma compra custa' },
+      { k: 'dividir', nome: 'Dividir conta', icone: 'group', desc: 'Conta do restaurante com serviço, por pessoa' },
+    ],
+  },
+  {
+    nome: 'Crédito e dívidas',
+    itens: [
+      { k: 'credito', nome: 'Empréstimo x Pix x cheque', icone: 'account_balance', desc: 'Qual crédito sai mais barato no mesmo prazo' },
+      { k: 'divida', nome: 'Rotativo e cheque especial', icone: 'credit_card_off', desc: 'Em quanto tempo quita e quanto paga de juros' },
+    ],
+  },
+  {
+    nome: 'Renda e reserva',
+    itens: [
+      { k: 'salario', nome: 'Salário líquido', icone: 'payments', desc: 'INSS, IR, 13º e férias' },
+      { k: 'reserva', nome: 'Reserva de emergência', icone: 'shield', desc: 'Quanto guardar e quando chega lá' },
+    ],
+  },
+  {
+    nome: 'Investir',
+    itens: [
+      { k: 'rende', nome: 'Quanto rende', icone: 'trending_up', desc: 'CDB, LCI/LCA e poupança lado a lado' },
+      { k: 'meta', nome: 'Meta', icone: 'savings', desc: 'Quanto guardar por mês para juntar um valor' },
+    ],
+  },
 ];
+const ABAS = GRUPOS.flatMap((g) => g.itens);
+
 
 @Component({
-  imports: [FormsModule, BrlPipe, Icon, CalcCredito, CalcDivida, CalcHoras, CalcRende, CalcReserva, CalcSalario],
+  imports: [FormsModule, BrlPipe, Icon, Sheet, FonteBcb, CalcCredito, CalcDivida, CalcHoras, CalcRende, CalcReserva, CalcSalario],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <div class="page-head"><h1>Calculadoras</h1></div>
 
-      <div class="chips wrap">
-        @for (a of abas; track a.k) {
-          <button type="button" class="chip" [class.on]="aba() === a.k" (click)="aba.guardar(a.k)"><app-icon [name]="a.icone" [size]="18" />{{ a.nome }}</button>
-        }
-      </div>
+      <button type="button" class="card escolha" (click)="escolher.set(true)">
+        <span class="ico"><app-icon [name]="atual().icone" [size]="22" /></span>
+        <span class="grow"><b>{{ atual().nome }}</b><span class="small muted">{{ atual().desc }}</span></span>
+        <span class="trocar small">Trocar<app-icon name="expand_more" [size]="18" /></span>
+      </button>
 
-      @switch (aba()) {
+      <app-sheet [(open)]="escolher" titulo="Calculadoras">
+        @for (g of grupos; track g.nome) {
+          <h3 class="grupo">{{ g.nome }}</h3>
+          @for (a of g.itens; track a.k) {
+            <button type="button" class="row opcao" [class.on]="aba() === a.k" (click)="trocar(a.k)">
+              <span class="ico"><app-icon [name]="a.icone" [size]="20" /></span>
+              <span class="grow"><span class="t">{{ a.nome }}</span><span class="s">{{ a.desc }}</span></span>
+              @if (aba() === a.k) {
+                <app-icon name="check" [size]="20" />
+              }
+            </button>
+          }
+        }
+      </app-sheet>
+
+      @switch (atual().k) {
         @case ('parcelado') {
           <section class="card form">
             <div class="campos">
@@ -50,6 +89,7 @@ const ABAS = [
             </div>
             <label class="check"><input type="checkbox" [checked]="ir()" (change)="ir.set(!ir())" />Descontar imposto de renda do rendimento</label>
             <label class="check"><input type="checkbox" [checked]="entrada()" (change)="entrada.set(!entrada())" />Primeira parcela paga hoje (entrada)</label>
+            <app-fonte-bcb />
           </section>
 
           @if (r(); as x) {
@@ -155,10 +195,22 @@ const ABAS = [
       }
     </div>
   `,
-  styles: [ESTILO, ':host app-calc-credito, :host app-calc-divida, :host app-calc-horas, :host app-calc-salario, :host app-calc-rende, :host app-calc-reserva { display: contents; }'],
+  styles: [ESTILO, `
+    .escolha { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; color: var(--ink); cursor: pointer; padding: 12px 14px; }
+    .escolha .ico, .opcao.on .ico { background: var(--primary-soft); color: var(--primary); }
+    .escolha .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .trocar { display: inline-flex; align-items: center; gap: 2px; color: var(--primary); font-weight: 700; }
+    .grupo { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin: 14px 0 2px; }
+    .grupo:first-child { margin-top: 0; }
+    .opcao.on .t { color: var(--primary); }
+    .opcao > app-icon { color: var(--primary); }
+  `,
+    ':host app-calc-credito, :host app-calc-divida, :host app-calc-horas, :host app-calc-salario, :host app-calc-rende, :host app-calc-reserva { display: contents; }'],
 })
 export default class Calculadoras {
-  protected abas = ABAS;
+  protected grupos = GRUPOS;
+  protected escolher = signal(false);
+  protected atual = computed(() => ABAS.find((a) => a.k === this.aba()) ?? ABAS[0]);
   protected aba = lembrado('cfp.calc', 'parcelado');
   protected pct = (v: number) => pctTxt(v);
   protected abs = Math.abs;
@@ -196,6 +248,11 @@ export default class Calculadoras {
     const r2 = (v: number) => Math.round(v * 100) / 100;
     return { mensal: r2(mensal), semJuros: r2(Math.max(fv - pv, 0) / n), depositado: r2(mensal * n), rendimento: r2(Math.max(fv - pv - mensal * n, 0)) };
   });
+
+  trocar(k: string) {
+    this.aba.guardar(k);
+    this.escolher.set(false);
+  }
 
   protected conta = signal('');
   protected pessoas = signal(2);

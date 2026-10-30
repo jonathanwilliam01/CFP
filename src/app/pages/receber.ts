@@ -23,11 +23,9 @@ interface FormReceber {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
-      <app-abas [abas]="abas" />
-      <div class="page-head">
-        <h1>A receber</h1>
+      <app-abas titulo="Entradas" [abas]="abas">
         <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Novo</button>
-      </div>
+      </app-abas>
       <p class="muted small">O que emprestou ou pagou por alguém. Ao receber, pode lançar como entrada.</p>
 
       <div class="stats">

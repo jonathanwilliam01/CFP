@@ -328,6 +328,11 @@ textarea {
   &:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 }
 
+/* data e mês têm largura mínima própria no Chrome e vazavam das colunas */
+input[type='date'],
+input[type='month'] { min-width: 0; }
+.grid2 > * { min-width: 0; }
+
 input[type='checkbox'] {
   width: 20px;
   min-height: 20px;

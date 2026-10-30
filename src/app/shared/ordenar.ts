@@ -21,8 +21,8 @@ export interface ItemOrdem {
         <span class="nm">{{ b.nome }}</span>
         <button type="button" class="mv" (click)="alternar.emit(b.id)" [disabled]="b.fixo" [attr.aria-label]="b.oculto ? 'Mostrar' : 'Esconder'">
           <app-icon [name]="b.oculto ? 'visibility_off' : 'visibility'" [size]="18" /></button>
-        <button type="button" class="mv" (click)="mover.emit([i, i - 1])" [disabled]="i === 0" aria-label="Subir"><app-icon name="arrow_upward" [size]="18" /></button>
-        <button type="button" class="mv" (click)="mover.emit([i, i + 1])" [disabled]="ult" aria-label="Descer"><app-icon name="arrow_downward" [size]="18" /></button>
+        <button type="button" class="mv" (click)="mover.emit([i, i - 1])" [disabled]="i === 0 && !primeiro()" aria-label="Subir"><app-icon name="arrow_upward" [size]="18" /></button>
+        <button type="button" class="mv" (click)="mover.emit([i, i + 1])" [disabled]="ult && !ultimo()" aria-label="Descer"><app-icon name="arrow_downward" [size]="18" /></button>
       </div>
     }
   `,
@@ -40,6 +40,9 @@ export interface ItemOrdem {
 })
 export class Ordenar {
   readonly itens = input.required<ItemOrdem[]>();
+  /** subir o primeiro / descer o último também vale (ex.: passar para outro grupo) */
+  readonly primeiro = input(false);
+  readonly ultimo = input(false);
   readonly mover = output<[number, number]>();
   readonly alternar = output<string>();
   protected arrastando = signal<number | null>(null);

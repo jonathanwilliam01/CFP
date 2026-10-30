@@ -17,14 +17,11 @@ const SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 's�
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
-      <app-abas [abas]="abas" />
-      <div class="page-head">
-        <h1>Retrospectiva {{ ano() }}</h1>
-        <div class="anos">
-          <button class="btn ghost icon sm" type="button" (click)="ano.set(ano() - 1)" aria-label="Ano anterior"><app-icon name="chevron_left" /></button>
-          <button class="btn ghost icon sm" type="button" [disabled]="ano() >= anoAtual" (click)="ano.set(ano() + 1)" aria-label="Próximo ano"><app-icon name="chevron_right" /></button>
-        </div>
-      </div>
+      <app-abas titulo="Relatórios" [abas]="abas">
+        <button class="btn ghost icon sm" type="button" (click)="ano.set(ano() - 1)" aria-label="Ano anterior"><app-icon name="chevron_left" /></button>
+        <b class="ano">{{ ano() }}</b>
+        <button class="btn ghost icon sm" type="button" [disabled]="ano() >= anoAtual" (click)="ano.set(ano() + 1)" aria-label="Próximo ano"><app-icon name="chevron_right" /></button>
+      </app-abas>
 
       @if (!r()) {
         <div class="card empty"><span class="big">⏳</span>Carregando...</div>
@@ -65,7 +62,7 @@ const SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 's�
     </div>
   `,
   styles: `
-    .anos { display: flex; gap: 4px; }
+    .ano { font-variant-numeric: tabular-nums; padding: 0 2px; }
     .hero { background: var(--hero); color: #fff; display: flex; flex-direction: column; gap: 4px; padding: 22px; }
     .hero .small { opacity: 0.85; }
     .grande { font-size: clamp(2rem, 8vw, 2.8rem); letter-spacing: -0.03em; }

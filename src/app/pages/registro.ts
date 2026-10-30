@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, si
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { hoje, inicioMes, parse } from '../core/datas';
-import { BrlPipe, MesPipe, parseValor, soma } from '../core/formato';
+import { BrlPipe, MesPipe, csvTexto, parseValor, soma } from '../core/formato';
 import { RegistroItem } from '../core/models';
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
@@ -209,10 +209,9 @@ export default class Registro {
   }
 
   exportar() {
-    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const linhas = [
       'Data;Descrição;Valor;Observação',
-      ...this.itens().map((i) => [i.data, esc(i.descricao), String(i.valor).replace('.', ','), esc(i.obs ?? '')].join(';')),
+      ...this.itens().map((i) => [i.data, csvTexto(i.descricao), String(i.valor).replace('.', ','), csvTexto(i.obs ?? '')].join(';')),
     ];
     const blob = new Blob(['﻿' + linhas.join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');

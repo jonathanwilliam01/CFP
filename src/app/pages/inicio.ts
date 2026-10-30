@@ -57,10 +57,12 @@ import { Lancar } from '../shared/lancar';
           @for (a of avisos(); track a.id) {
             <a class="aviso" [class]="a.nivel" [routerLink]="a.link ?? '/notificacoes'">
               <app-icon class="i" [name]="a.icone" />
-              <div><div class="t">{{ a.titulo }}</div><div class="s">{{ a.texto }}</div></div>
+              <div class="grow"><div class="t">{{ a.titulo }}</div><div class="s">{{ a.texto }}</div></div>
+              <button type="button" class="dispensar" aria-label="Dispensar até o mês que vem" title="Dispensar até o mês que vem"
+                (click)="$event.preventDefault(); $event.stopPropagation(); insights.dispensar(a.id)"><app-icon name="close" [size]="18" /></button>
             </a>
           }
-          @if (insights.avisos().length > 3) {
+          @if (insights.avisos().length > avisos().length) {
             <a routerLink="/notificacoes" class="small">Ver todos os {{ insights.avisos().length }} avisos →</a>
           }
         </section>
@@ -274,6 +276,13 @@ import { Lancar } from '../shared/lancar';
     .fechado > :not(.card-head) { display: none; }
     .fechado .card-head { margin-bottom: 0; }
     .avisos { display: flex; flex-direction: column; gap: 8px; }
+    /* computador largo: blocos em duas colunas, saldo e avisos na largura toda */
+    @media (min-width: 1200px) {
+      .page { max-width: 1240px; display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+      .saldo, .fech, .avisos, .dica { grid-column: 1 / -1; }
+    }
+    .avisos .grow { flex: 1; min-width: 0; }
+    .dispensar { border: 0; background: none; color: var(--ink-3); padding: 2px; margin: -2px -4px 0 0; cursor: pointer; display: grid; place-items: center; }
     .onde { display: flex; gap: 16px; align-items: center; }
     .top { flex: 1; gap: 10px; min-width: 0; }
     .cat { display: flex; gap: 8px; align-items: center; }
@@ -335,7 +344,10 @@ export default class Inicio {
   protected mesAnterior = computed(() => addMeses(this.s.mes(), -1));
   protected variacao = computed(() => (this.s.antesDoInicio(this.mesAnterior()) ? null : variacaoGastos(this.s.gastos(), this.s.mes(), hoje())));
   protected pctPago = computed(() => pct(this.r().pago, this.r().pago + this.r().aPagar));
-  protected avisos = computed(() => this.insights.avisos().filter((a) => a.nivel === 'perigo' || a.nivel === 'alerta').slice(0, 3));
+  // os 2 mais graves; dispensado some daqui até o aviso mudar (o id leva o mês)
+  protected avisos = computed(() =>
+    this.insights.avisos().filter((a) => (a.nivel === 'perigo' || a.nivel === 'alerta') && !this.insights.dispensados().includes(a.id)).slice(0, 2),
+  );
   protected cats = computed(() => porCategoria(this.s.gastosMes(), this.s.catMap()));
   protected fatias = computed(() => this.cats().map((c) => ({ nome: c.nome, valor: c.total, cor: c.cor })));
   protected proximas = computed(() => this.s.contasMes().filter((c) => !c.pago).slice(0, 5));

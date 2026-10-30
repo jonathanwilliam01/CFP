@@ -5,12 +5,12 @@ const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 
 export const moeda = (v: number | null | undefined) => brl.format(v ?? 0);
 
-/** Aceita "12,50", "1.234,56" ou "12.5" */
+/** Aceita "12,50", "1.234,56", "3.000" (milhar) ou "12.5" */
 export function parseValor(s: string | number | null | undefined): number {
   if (typeof s === 'number') return s;
   if (!s) return 0;
   let t = s.replace(/[^\d,.-]/g, '');
-  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  if (t.includes(',') || /^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '').replace(',', '.');
   const n = Number(t);
   return isFinite(n) ? Math.round(n * 100) / 100 : 0;
 }
@@ -26,7 +26,8 @@ export function baixarCsv(nome: string, cabecalho: string, linhas: string[]) {
   URL.revokeObjectURL(a.href);
 }
 
-export const csvTexto = (v: string) => `"${v.replace(/"/g, '""')}"`;
+/** Texto entre aspas; = + - @ no início viram texto, não fórmula, no Excel */
+export const csvTexto = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? "'" + v : v).replace(/"/g, '""')}"`;
 export const csvValor = (v: number) => v.toFixed(2).replace('.', ',');
 export const csvData = (d: string) => d.split('-').reverse().join('/');
 

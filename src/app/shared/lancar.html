@@ -13,8 +13,8 @@
         <app-icon name="bolt" [size]="18" />
         <input name="rapido" autocomplete="off" enterkeyhint="done" aria-label="Escrever o lançamento"
           [placeholder]="l.modo() === 'entrada' ? 'Escreva: salário 3500 05/10' : 'Escreva: mercado 120 nubank ontem #casa'"
-          [ngModel]="rapido()" (ngModelChange)="rapido.set($event)" (keydown.enter)="$event.preventDefault(); aplicarTexto()" />
-        @if (rapido().trim()) {
+          [ngModel]="rapido()" (ngModelChange)="digitar($event)" (keydown.enter)="$event.preventDefault(); aplicarTexto()" />
+        @if (rapido().trim() && !soValor(rapido())) {
           <button type="button" class="btn sm" (click)="aplicarTexto()">Preencher</button>
         } @else if (podeFalar) {
           <button type="button" class="btn ghost icon sm" [class.ouvindo]="ouvindo()" [disabled]="ouvindo()" (click)="falar()" aria-label="Falar o lançamento">

@@ -4,6 +4,7 @@ import { emprestimo } from '../../core/financas';
 import { BrlPipe, parseValor } from '../../core/formato';
 import { Icon } from '../../shared/icon';
 import { ESTILO, taxas } from './comum';
+import { FonteBcb } from './fonte';
 
 const OPCOES = [
   { k: 'emprestimo', nome: 'Empréstimo pessoal', icone: 'account_balance' },
@@ -13,7 +14,7 @@ const OPCOES = [
 
 @Component({
   selector: 'app-calc-credito',
-  imports: [FormsModule, BrlPipe, Icon],
+  imports: [FormsModule, BrlPipe, Icon, FonteBcb],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card form">
@@ -32,6 +33,7 @@ const OPCOES = [
         }
       </div>
       <label class="check"><input type="checkbox" [checked]="iof()" (change)="iof.set(!iof())" />Incluir IOF</label>
+      <app-fonte-bcb />
     </section>
 
     @if (lista(); as l) {
@@ -55,7 +57,7 @@ const OPCOES = [
 
     <details class="card como">
       <summary>Como funciona<app-icon name="expand_more" [size]="20" /></summary>
-      <p class="small">Simula as três opções pagas em parcelas iguais (tabela Price), com a taxa ao mês de cada uma. As taxas ficam salvas: troque pelas que o seu banco oferece.</p>
+      <p class="small">Simula as três opções pagas em parcelas iguais (tabela Price), com a taxa ao mês de cada uma. Empréstimo e cheque especial começam na média do Banco Central para pessoa física; Pix no crédito não tem média oficial. Troque pelas que o seu banco oferece.</p>
       <p class="small">O cheque especial não tem parcelas: a simulação supõe que você paga o mesmo valor todo mês até zerar. Muitos bancos oferecem parcelar o saldo do cheque com taxa menor.</p>
       <p class="small muted">IOF de pessoa física: 0,38% mais 0,0082% ao dia (até 1 ano), financiado junto. Não considera seguro nem tarifa de cadastro.</p>
     </details>

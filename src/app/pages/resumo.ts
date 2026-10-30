@@ -15,15 +15,12 @@ import { Abas, RELATORIOS } from '../shared/abas';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
-      <app-abas [abas]="abas" />
-      <div class="page-head">
-        <h1 class="cap">{{ s.mes() | mes }}</h1>
-        <div class="acoes no-print">
-          <button class="btn ghost sm" type="button" (click)="exportar()"><app-icon name="download" [size]="16" /> CSV</button>
-          <button class="btn ghost sm" type="button" (click)="imprimir()"><app-icon name="picture_as_pdf" [size]="16" /> PDF</button>
-          <button class="btn ghost sm" type="button" (click)="compartilhar()"><app-icon name="share" [size]="16" /> Compartilhar</button>
-        </div>
-      </div>
+      <app-abas titulo="Relatórios" [abas]="abas">
+        <button class="btn ghost sm" type="button" (click)="exportar()" aria-label="Baixar CSV" title="Baixar CSV"><app-icon name="download" [size]="16" /><span class="rot">CSV</span></button>
+        <button class="btn ghost sm" type="button" (click)="imprimir()" aria-label="PDF" title="PDF"><app-icon name="picture_as_pdf" [size]="16" /><span class="rot">PDF</span></button>
+        <button class="btn ghost sm" type="button" (click)="compartilhar()" aria-label="Compartilhar" title="Compartilhar"><app-icon name="share" [size]="16" /><span class="rot">Compartilhar</span></button>
+      </app-abas>
+      <h2 class="cap mes">{{ s.mes() | mes }}</h2>
 
       <section class="card hero">
         <span class="muted small">Saldo previsto do mês</span>
@@ -153,7 +150,9 @@ import { Abas, RELATORIOS } from '../shared/abas';
     .grande { font-size: 1.5rem; font-weight: 800; }
     .orc { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; }
     .orc .l { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
-    .acoes { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .mes { margin: 0; font-size: 1.2rem; }
+    .rot { margin-left: 4px; }
+    @media (max-width: 480px) { .rot { display: none; } }
     .dicas { display: flex; flex-direction: column; gap: 8px; }
   `,
 })

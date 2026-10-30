@@ -12,7 +12,8 @@ export type ItemFila =
   | { tipo: 'parcelamento'; params: Dados }
   | { tipo: 'fixa'; dados: Dados; pago: { mes: string; valor: number; pago_em: string } | null };
 
-type Guardado = ItemFila & { carteira_id: string };
+/** user_id: só quem lançou envia (outro login no aparelho não manda os lançamentos dele) */
+type Guardado = ItemFila & { carteira_id: string; user_id?: string };
 
 const CHAVE = 'cfp.fila';
 
@@ -51,7 +52,7 @@ export class Fila {
   }
 
   guardar(item: ItemFila) {
-    this.gravar([...this.itens(), { ...item, carteira_id: this.s.carteiraId()! }]);
+    this.gravar([...this.itens(), { ...item, carteira_id: this.s.carteiraId()!, user_id: this.auth.user()?.id }]);
   }
 
   /** Envia já (com internet) e atualiza a tela */
@@ -78,12 +79,14 @@ export class Fila {
   }
 
   async enviar() {
-    if (this.enviando || !this.itens().length || !navigator.onLine) return;
+    const eu = this.auth.user()?.id;
+    const meu = (i: Guardado) => !!eu && (!i.user_id || i.user_id === eu);
+    if (this.enviando || !this.itens().some(meu) || !navigator.onLine) return;
     this.enviando = true;
     let n = 0;
     try {
-      while (this.itens().length) {
-        const [item, ...resto] = this.itens();
+      let item: Guardado | undefined;
+      while ((item = this.itens().find(meu))) {
         try {
           await this.executar(item, item.carteira_id);
           n++;
@@ -91,7 +94,7 @@ export class Fila {
           if (semRede(e)) break;
           this.toast.erro(`Lançamento guardado não enviado: ${e instanceof Error ? e.message : e}`);
         }
-        this.gravar(resto);
+        this.gravar(this.itens().filter((i) => i !== item));
       }
     } finally {
       this.enviando = false;

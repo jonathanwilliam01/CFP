@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { addMeses, fimMes, hoje, mesAtual, mesFatura, nomeMes } from '../core/datas';
-import { contasDoMes, noMes, orcamentosNoMes, proximosMeses, resumoMes, statusOrcamentos } from '../core/financas';
+import { contasDoMes, faturaDoMes, noMes, orcamentosNoMes, proximosMeses, resumoMes, statusOrcamentos } from '../core/financas';
 import { BrlPipe, MesPipe, parseValor, soma } from '../core/formato';
-import { Entrada, Gasto, Pagamento, Plano } from '../core/models';
+import { Cartao, Entrada, Gasto, Pagamento, Plano } from '../core/models';
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
 import { Barras, Coluna } from '../shared/graficos';
@@ -19,6 +19,9 @@ interface FormPlano {
   mes: string;
   anual: boolean;
 }
+
+/** gasto do dia a dia: débito ou cartão, fora de parcelamento */
+const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && !g.parcelamento_id;
 
 @Component({
   imports: [BrlPipe, MesPipe, FormsModule, Sheet, Icon, Barras],
@@ -61,7 +64,7 @@ interface FormPlano {
 
       <label class="card check">
         <input type="checkbox" [checked]="estimar()" (change)="estimar.set(!estimar())" />
-        <span>Incluir gastos do dia a dia <span class="muted small">(média {{ media() | brl }}/mês dos últimos 3 meses)</span></span>
+        <span>Incluir gastos do dia a dia <span class="muted small">(média {{ media() | brl }}/mês, {{ mediaTxt() }})</span></span>
       </label>
 
       @if (!dados()) {
@@ -70,7 +73,7 @@ interface FormPlano {
         <div class="stats">
           <div class="stat"><div class="l">Acumulado em 12 meses</div><div class="v" [class.neg]="final() < 0" [class.pos]="final() >= 0">{{ final() | brl }}</div></div>
           @if (pior(); as p) {
-            <div class="stat"><div class="l">Pior mês</div><div class="v cap" [class.neg]="p.saldo < 0">{{ p.mes | mes: true }} · {{ p.saldo | brl }}</div></div>
+            <div class="stat"><div class="l">Pior mês · <span class="cap">{{ p.mes | mes: true }}</span></div><div class="v" [class.neg]="p.saldo < 0">{{ p.saldo | brl }}</div></div>
           }
         </div>
 
@@ -173,13 +176,23 @@ export default class Planejamento {
 
   protected meses = computed(() => proximosMeses(this.s.mes(), 12));
 
-  /** Média dos débitos não parcelados dos 3 meses anteriores */
+  /**
+   * Média do dia a dia (débito e cartão, sem parcelas) dos até 3 meses anteriores desde o início da carteira.
+   * Sem mês anterior, usa o que já foi gasto no mês.
+   */
   protected media = computed(() => {
     const d = this.dados();
     if (!d) return 0;
-    const ini = addMeses(this.s.mes(), -3);
-    const fim = fimMes(addMeses(this.s.mes(), -1));
-    return soma(d.gastos.filter((g) => g.forma === 'debito' && !g.parcelamento_id && g.data >= ini && g.data <= fim), (g) => g.valor) / 3;
+    const ini = this.s.inicio();
+    const meses = [1, 2, 3].map((k) => addMeses(this.s.mes(), -k)).filter((m) => !ini || m >= ini);
+    const doDia = d.gastos.filter(diaADia);
+    if (!meses.length) return soma(doDia.filter((g) => noMes(g.data, this.s.mes())), (g) => g.valor);
+    return soma(doDia.filter((g) => meses.some((m) => noMes(g.data, m))), (g) => g.valor) / meses.length;
+  });
+  protected mediaTxt = computed(() => {
+    const ini = this.s.inicio();
+    const n = [1, 2, 3].filter((k) => !ini || addMeses(this.s.mes(), -k) >= ini).length;
+    return n === 0 ? 'gasto deste mês até agora' : n === 1 ? 'do mês anterior' : `dos últimos ${n} meses`;
   });
 
   /** compra simulada (Posso comprar?): parcelas como gastos de mentira na projeção */
@@ -228,6 +241,7 @@ export default class Planejamento {
     const rec = this.s.recorrenciasPrev();
     const estimar = this.estimar();
     const media = this.media();
+    const cartoes = new Map(this.s.cartoes().map((c) => [c.id, c]));
     let acumulado = 0;
     return this.meses().map((mes) => {
       const contas = contasDoMes(mes, rec, this.s.cartoes(), d.gastos, d.pagamentos, this.s.catMap());
@@ -239,10 +253,13 @@ export default class Planejamento {
       const planos = this.planosDoMes(mes);
       const pe = soma(planos.filter((p) => p.tipo === 'entrada'), (p) => p.valor);
       const ps = soma(planos.filter((p) => p.tipo === 'saida'), (p) => p.valor);
-      const lancadosVariaveis = soma(d.gastos.filter((g) => g.forma === 'debito' && !g.parcelamento_id && noMes(g.data, mes)), (g) => g.valor);
-      // reserva no débito já cobre parte do dia a dia estimado
-      const reservaDebito = soma(orc.filter((o) => o.orcamento.forma === 'debito'), (o) => o.reservado);
-      const variavel = estimar ? Math.max(media - lancadosVariaveis - reservaDebito, 0) : 0;
+      // já lançado no mês: débitos do mês e compras do cartão que caem na fatura dele
+      const lancados = soma(
+        d.gastos.filter((g) => diaADia(g) && (g.forma === 'debito' ? noMes(g.data, mes) : g.fatura_mes === faturaDoMes(mes, cartoes.get(g.cartao_id!) ?? ({} as Cartao)))),
+        (g) => g.valor,
+      );
+      // reserva dos orçamentos já cobre parte do dia a dia estimado
+      const variavel = estimar ? Math.max(media - lancados - reservado, 0) : 0;
       const entradas = r.entradas + pe;
       const saidas = r.saidas + ps + variavel;
       const saldo = entradas - saidas;

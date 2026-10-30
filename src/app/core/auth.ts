@@ -84,6 +84,9 @@ export class Auth {
   async sair() {
     // tira o push deste aparelho enquanto ainda tem sessão; sem esperar o service worker para sempre
     await Promise.race([this.push.desativar().catch(() => undefined), new Promise((ok) => setTimeout(ok, 3000))]);
+    // dados da conta guardados no aparelho (preferências de tela ficam)
+    for (const k of Object.keys(localStorage))
+      if (/^cfp\.(nubank|carteira|salario|ganho|chat\.|reserva\.)/.test(k)) localStorage.removeItem(k);
     return supabase.auth.signOut();
   }
 }

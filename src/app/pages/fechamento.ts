@@ -17,7 +17,7 @@ import { Toast } from '../shared/toast';
       <div class="page-head"><h1>Fechamento</h1><span class="badge cap">{{ mes() | mes }}</span></div>
 
       @if (antes()) {
-        <div class="card empty"><span class="big">🗓️</span>Antes do início do uso da carteira ({{ s.inicio()! | mes }}).</div>
+        <div class="card empty"><span class="big">🗓️</span>O primeiro fechamento sai quando {{ s.inicio()! | mes }} terminar.</div>
       } @else if (!f()) {
         <div class="card empty"><span class="big">⏳</span>Carregando...</div>
       }

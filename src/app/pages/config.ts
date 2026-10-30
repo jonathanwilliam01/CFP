@@ -174,15 +174,19 @@ import { Menus } from '../layout/menu';
           <button type="button" class="tit" (click)="alternar('menu')" [attr.aria-expanded]="aberto('menu')"><h2>Menu</h2><app-icon [name]="aberto('menu') ? 'expand_less' : 'expand_more'" /></button>
           <button class="btn ghost sm" type="button" (click)="menus.restaurar()">Padrão</button>
         </div>
-        <p class="small muted">Ordem e itens do menu lateral (computador) e do Mais (celular). Vale em todos os aparelhos.</p>
-        @for (g of menus.grupos(); track g.nome) {
-          <h3 class="grupo">{{ g.nome }}</h3>
-          <app-ordenar [itens]="g.itens" (mover)="menus.mover(g.nome, $event[0], $event[1])" (alternar)="menus.alternarOculto($event)" />
+        <p class="small muted">Ordem dos grupos e dos itens do menu lateral (computador) e do Mais (celular). Subir o primeiro item de um grupo leva para o grupo de cima. Vale em todos os aparelhos.</p>
+        @for (g of menus.grupos(); track g.nome; let i = $index, ult = $last) {
+          <div class="grupo-cab">
+            <h3 class="grupo">{{ g.nome }}</h3>
+            <button type="button" class="mv" (click)="menus.moverGrupo(i, i - 1)" [disabled]="i === 0" [attr.aria-label]="'Subir o grupo ' + g.nome"><app-icon name="arrow_upward" [size]="18" /></button>
+            <button type="button" class="mv" (click)="menus.moverGrupo(i, i + 1)" [disabled]="ult" [attr.aria-label]="'Descer o grupo ' + g.nome"><app-icon name="arrow_downward" [size]="18" /></button>
+          </div>
+          <app-ordenar [itens]="g.itens" [primeiro]="i > 0" [ultimo]="!ult" (mover)="menus.mover(g.nome, $event[0], $event[1])" (alternar)="menus.alternarOculto($event)" />
         }
         <h3 class="grupo">Botões flutuantes</h3>
         <label class="check"><input type="checkbox" [checked]="menus.botao('calc')" (change)="menus.alternarBotao('calc')" />Calculadora rápida</label>
         <label class="check"><input type="checkbox" [checked]="menus.botao('chat')" (change)="menus.alternarBotao('chat')" />Chat <span class="small muted">(só aparece com mais de um membro)</span></label>
-        <p class="small muted">Com o botão escondido, o Chat continua no menu e a tela Calculadoras segue em Análise.</p>
+        <p class="small muted">Com o botão escondido, o Chat e a tela Calculadoras continuam no menu.</p>
       </div>
 
       <div class="card form">
@@ -241,7 +245,7 @@ import { Menus } from '../layout/menu';
     .cores button.on { box-shadow: 0 0 0 2px var(--c); }
     .foto { border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; }
     .foto:disabled { cursor: default; }
-    .linha input { flex: 1; min-width: 0; }
+    .linha input { flex: 2; min-width: 0; }
     .convite { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--primary-soft); border-radius: 14px; padding: 12px; }
     .cod { font-size: 1.5rem; font-weight: 800; letter-spacing: 0.2em; color: var(--primary); }
     .cor { width: 14px; height: 14px; border-radius: 50%; }
@@ -252,6 +256,10 @@ import { Menus } from '../layout/menu';
     .tit { display: flex; align-items: center; gap: 6px; flex: 1; border: 0; background: none; padding: 0; font: inherit; color: var(--ink); cursor: pointer; text-align: left; }
     .fechado > :not(.card-head) { display: none; }
     .fechado .card-head { margin-bottom: 0; }
+    .grupo-cab { display: flex; align-items: center; gap: 4px; margin-top: 6px; border-radius: 10px; background: var(--card-2); padding: 0 4px 0 10px; }
+    .grupo-cab .grupo { flex: 1; margin: 0; }
+    .mv { border: 0; background: none; color: var(--ink-2); cursor: pointer; padding: 6px; border-radius: 8px; display: grid; }
+    .mv:disabled { opacity: 0.3; cursor: default; }
     .grupo { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-top: 6px; }
   `,
 })

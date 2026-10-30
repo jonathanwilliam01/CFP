@@ -21,13 +21,11 @@ interface Grupo {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
-      <app-abas [abas]="abas" />
-      <div class="page-head">
-        <h1>Relatórios</h1>
+      <app-abas titulo="Relatórios" [abas]="abas">
         <button class="btn ghost sm" type="button" (click)="exportar()" [disabled]="!dados()">
           <app-icon name="download" [size]="16" /> CSV
         </button>
-      </div>
+      </app-abas>
 
       <div class="seg">
         @for (n of [3, 6, 12]; track n) {

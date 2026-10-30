@@ -4,10 +4,11 @@ import { emprestimo, quitarDivida } from '../../core/financas';
 import { BrlPipe, parseValor } from '../../core/formato';
 import { Icon } from '../../shared/icon';
 import { ESTILO, pctTxt, taxas } from './comum';
+import { FonteBcb } from './fonte';
 
 @Component({
   selector: 'app-calc-divida',
-  imports: [FormsModule, BrlPipe, Icon],
+  imports: [FormsModule, BrlPipe, Icon, FonteBcb],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="seg">
@@ -20,6 +21,7 @@ import { ESTILO, pctTxt, taxas } from './comum';
         <label class="field"><span>Juros ao mês (%)</span><input inputmode="decimal" [ngModel]="taxa()()" (ngModelChange)="taxa().guardar($event)" /></label>
         <label class="field"><span>Paga por mês</span><input inputmode="decimal" placeholder="300,00" [ngModel]="pagamento()" (ngModelChange)="pagamento.set($event)" /></label>
       </div>
+      <app-fonte-bcb />
     </section>
 
     @if (r(); as x) {
@@ -64,7 +66,7 @@ import { ESTILO, pctTxt, taxas } from './comum';
       } @else {
         <p class="small">O cheque especial cobra juros por dia sobre o saldo negativo, e a taxa é limitada a 8% ao mês. Na simulação o pagamento entra uma vez por mês.</p>
       }
-      <p class="small muted">Não considera IOF nem tarifas. Taxas médias mudam: confira a sua no app do banco.</p>
+      <p class="small muted">Os juros começam na média do Banco Central para pessoa física; a do seu banco pode ser outra. Não considera IOF nem tarifas.</p>
     </details>
   `,
   styles: ESTILO,

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { atualizarTaxas, taxasBcb } from '../core/bcb';
 import { hoje, inicioMes, mesAtual, mesFatura } from '../core/datas';
 import { historicoReajustes } from '../core/financas';
 import { BrlPipe, MesPipe, parseValor } from '../core/formato';
@@ -41,8 +42,11 @@ import { Toast } from './toast';
             <input name="rm" type="month" [ngModel]="mes()" (ngModelChange)="mes.set($event)" [ngModelOptions]="{ standalone: true }" />
           </label>
         </div>
+        @if (ipca(); as i) {
+          <button type="button" class="chip" (click)="pelaInflacao(i)">Corrigir pela inflação (IPCA {{ i.txt }}% em 12 meses): {{ i.valor | brl }}</button>
+        }
         @if (variacao(); as v) {
-          <p class="small" [class.neg]="v > 0" [class.pos]="v < 0">{{ v > 0 ? 'Subiu' : 'Desceu' }} {{ v > 0 ? v : -v }}%</p>
+          <p class="small" [class.neg]="v > 0" [class.pos]="v < 0">{{ v > 0 ? 'Subiu' : 'Desceu' }} {{ (v > 0 ? v : -v).toLocaleString('pt-BR') }}%@if (ipca(); as i) {<span class="muted">, com a inflação em {{ i.txt }}%</span>}</p>
         }
         <button class="btn ghost block" type="button" [disabled]="salvando()" (click)="aplicar()">Aplicar reajuste</button>
       }
@@ -54,6 +58,7 @@ import { Toast } from './toast';
     .hist { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 0.88rem; }
     .hist li { display: flex; justify-content: space-between; gap: 8px; color: var(--ink-2); }
     .hist li.atual { color: var(--ink); font-weight: 700; }
+    .chip { align-self: flex-start; white-space: normal; text-align: left; }
   `,
 })
 export class Reajuste implements OnInit {
@@ -71,8 +76,19 @@ export class Reajuste implements OnInit {
   protected atual = computed(() => this.s.medias().get(this.rec().id) ?? this.rec().valor);
   // no cartão o reajuste é por fatura: começa na fatura aberta
   ngOnInit() {
+    atualizarTaxas();
     const c = this.s.cartoes().find((x) => x.id === this.rec().cartao_id);
     if (c) this.mes.set(mesFatura(hoje(), c.fechamento_dia, c.vencimento_dia).slice(0, 7));
+  }
+
+  protected ipca = computed(() => {
+    const t = taxasBcb();
+    if (!t || !this.atual()) return null;
+    return { txt: t.ipca12.toLocaleString('pt-BR'), valor: Math.round(this.atual() * (1 + t.ipca12 / 100) * 100) / 100 };
+  });
+
+  pelaInflacao(i: { valor: number }) {
+    this.valor.set(i.valor.toFixed(2).replace('.', ','));
   }
 
   protected variacao = computed(() => {

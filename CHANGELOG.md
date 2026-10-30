@@ -1,7 +1,23 @@
 # Changelog
 
+## v1.26.10.14 — 2026-10-30
+- Calculadoras organizadas por assunto (Compras, Crédito e dívidas, Renda e reserva, Investir) num painel de escolha, abrindo na última usada; a reserva de emergência acha o cofrinho pelo nome
+- Valores como 3.000 (ponto de milhar) passam a valer três mil em todos os campos
+- Planejamento: gastos do dia a dia incluem as compras no cartão e usam os meses desde o início da carteira
+- Correções: texto de Parcelamentos que liberam, campo de mês em Configurações e aviso do primeiro Fechamento
+- Taxas do Banco Central atualizadas sozinhas nas calculadoras (CDI, poupança e médias de juros de empréstimo, cheque especial e rotativo), com volta às oficiais quando trocadas à mão
+- Reajuste de conta fixa: corrigir pela inflação (IPCA dos últimos 12 meses) com um toque
+- Início: só os 2 avisos mais graves, cada um pode ser dispensado até o mês seguinte; em telas largas os blocos ficam em duas colunas
+- Lançamento rápido: digitar só o valor já preenche, e o texto escrito entra ao salvar sem precisar de Preencher
+- Entradas e Relatórios com título fixo e abas abaixo, como nas outras telas; Resumo mensal com botões só de ícone no celular
+- Botões do chat e da calculadora ficam à esquerda no celular, longe dos valores, e saem da frente ao rolar para baixo
+- Campos de data e mês não vazam mais da tela nos formulários
+- Configurações > Menu: mudar a ordem dos grupos do menu e do Mais, e levar um item para outro grupo (subir o primeiro ou descer o último)
+- Segurança: convite da carteira só com login e códigos antigos trocados (migration 030); ao sair da conta, apaga do aparelho os dados dela; CSV exportado não vira fórmula no Excel; app não abre dentro de outros sites
+
 ## v1.26.10.13 — 2026-10-30
 - Celular: arrastar para o lado em área vazia da tela troca o mês
+- Calculadoras novas: empréstimo x Pix no crédito x cheque especial, rotativo e cheque especial (quanto tempo e juros até quitar), horas de trabalho, salário líquido (INSS e IR 2026, 13º e férias), quanto rende (CDB, LCI/LCA e poupança) e reserva de emergência
 
 ## v1.26.10.12 — 2026-10-30
 - Calculadoras (nova tela): à vista x parcelado com rendimento do CDI (explica como funciona), quanto guardar por mês para uma meta e dividir conta

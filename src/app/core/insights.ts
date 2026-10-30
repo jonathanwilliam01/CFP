@@ -36,6 +36,8 @@ export class Insights {
   private s = inject(Store);
   private chat = inject(Chat);
   private lidas = signal<string[]>(JSON.parse(localStorage.getItem('cfp.lidas') ?? '[]'));
+  /** avisos tirados do Início */
+  readonly dispensados = signal<string[]>(JSON.parse(localStorage.getItem('cfp.dispensados') ?? '[]'));
 
   /** Mensagens não lidas no chat (vale em qualquer mês) */
   private avisoChat = computed<Aviso[]>(() => {
@@ -177,6 +179,15 @@ export class Insights {
 
   constructor() {
     effect(() => this.notificarSistema(this.naoLidas()));
+  }
+
+  dispensar(id: string) {
+    const l = [...this.dispensados(), id].slice(-200);
+    this.dispensados.set(l);
+    localStorage.setItem('cfp.dispensados', JSON.stringify(l));
+    const lidas = [...new Set([...this.lidas(), id])].slice(-300);
+    this.lidas.set(lidas);
+    localStorage.setItem('cfp.lidas', JSON.stringify(lidas));
   }
 
   marcarLidas() {

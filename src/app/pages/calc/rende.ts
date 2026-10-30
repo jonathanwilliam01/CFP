@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { rendimento, taxaMensal } from '../../core/financas';
 import { BrlPipe, parseValor } from '../../core/formato';
 import { Icon } from '../../shared/icon';
-import { ESTILO, cdi, lembrado, pctCdi } from './comum';
+import { ESTILO, cdi, lembrado, pctCdi, poupanca } from './comum';
+import { FonteBcb } from './fonte';
 
 @Component({
   selector: 'app-calc-rende',
-  imports: [FormsModule, BrlPipe, Icon],
+  imports: [FormsModule, BrlPipe, Icon, FonteBcb],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card form">
@@ -27,6 +28,7 @@ import { ESTILO, cdi, lembrado, pctCdi } from './comum';
         <label class="field"><span>LCI/LCA (% CDI)</span><input inputmode="decimal" [ngModel]="pctLci()" (ngModelChange)="pctLci.guardar($event)" /></label>
         <label class="field"><span>Poupança (% a.m.)</span><input inputmode="decimal" [ngModel]="poup()" (ngModelChange)="poup.guardar($event)" /></label>
       </div>
+      <app-fonte-bcb />
     </section>
 
     @if (lista(); as l) {
@@ -58,7 +60,7 @@ export class CalcRende {
   protected cdi = cdi;
   protected pctCdi = pctCdi;
   protected pctLci = lembrado('cfp.pctlci', '90');
-  protected poup = lembrado('cfp.poupanca', '0,67');
+  protected poup = poupanca;
   protected inicial = signal('');
   protected aporte = signal('');
   protected n = signal(12);

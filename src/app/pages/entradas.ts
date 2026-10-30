@@ -28,11 +28,9 @@ interface FormFixa {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
-      <app-abas [abas]="abas" />
-      <div class="page-head">
-        <h1>Entradas</h1>
+      <app-abas titulo="Entradas" [abas]="abas">
         <button class="btn sm" (click)="lancar.novo('entrada')"><app-icon name="add" [size]="16" />Entrada</button>
-      </div>
+      </app-abas>
 
       <div class="stats">
         <div class="stat"><div class="l">Total do mês</div><div class="v pos">{{ s.resumo().entradas | brl }}</div></div>

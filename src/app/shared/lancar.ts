@@ -270,6 +270,13 @@ export class LancarSheet {
     r.start();
   }
 
+  /** Só o valor no texto rápido vai direto para o campo, sem precisar de Preencher */
+  protected soValor = (t: string) => /^\s*\d[\d.]*(,\d{0,2})?\s*$/.test(t);
+  digitar(t: string) {
+    this.rapido.set(t);
+    if (this.soValor(t)) this.set('valor', t.trim());
+  }
+
   /** Preenche o formulário a partir do texto livre; parcelas (10x) passam para Parcelado */
   aplicarTexto() {
     const t = lerTexto(this.rapido(), { cartoes: this.s.cartoes(), beneficios: this.s.beneficios(), categorias: this.s.categorias(), hoje: hoje() });
@@ -360,6 +367,13 @@ export class LancarSheet {
   }
 
   async salvar(continuar = false) {
+    // texto rápido não aplicado entra antes de salvar; se virou parcelado, mostra o formulário novo
+    if (this.soValor(this.rapido())) this.rapido.set('');
+    else if (this.rapido().trim()) {
+      const modo = this.l.modo();
+      this.aplicarTexto();
+      if (this.l.modo() !== modo) return;
+    }
     const f = this.f();
     const valor = parseValor(f.valor);
     if (!valor || valor <= 0) return this.toast.erro('Informe o valor');

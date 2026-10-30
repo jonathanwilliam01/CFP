@@ -25,7 +25,7 @@ import { Menus, PRINCIPAIS } from './menu';
   selector: 'app-shell',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '[class.recolhido]': 'recolhido()', '(document:keydown)': 'atalho($event)' },
+  host: { '[class.recolhido]': 'recolhido()', '(document:keydown)': 'atalho($event)', '(window:scroll)': 'rolou()' },
   template: `
     <header class="top">
       <div class="marca">
@@ -129,7 +129,7 @@ import { Menus, PRINCIPAIS } from './menu';
     }
 
     @if (url() !== '/chat') {
-      <div class="fabs">
+      <div class="fabs" [class.some]="descendo()">
         @if (menus.botao('calc')) {
           <button type="button" class="calc-fab" [class.on]="calc()" (click)="calc.set(!calc())" aria-label="Calculadora" title="Calculadora">
             <app-icon name="calculate" [size]="22" [fill]="calc()" />
@@ -224,9 +224,12 @@ import { Menus, PRINCIPAIS } from './menu';
     @keyframes fade { from { opacity: 0; } }
     @keyframes sobe { from { opacity: 0; transform: translate(-50%, 10px); } }
     .fabs {
-      position: fixed; z-index: 31; right: 16px; bottom: calc(var(--nav-h) + var(--safe-b) + 16px);
+      /* à esquerda no celular: cobre os ícones das linhas, não os valores */
+      position: fixed; z-index: 31; left: 16px; bottom: calc(var(--nav-h) + var(--safe-b) + 16px);
       display: flex; flex-direction: column; align-items: center; gap: 10px;
     }
+    .fabs { transition: transform 0.2s, opacity 0.2s; }
+    .fabs.some { transform: translateX(-80px); opacity: 0; pointer-events: none; }
     .chat-fab, .calc-fab {
       position: relative; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
       background: var(--primary-soft); color: var(--primary); border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
@@ -248,7 +251,7 @@ import { Menus, PRINCIPAIS } from './menu';
       .nome { display: block; }
       .nav { max-width: 720px; margin: 0 auto 12px; border: 1px solid var(--line); border-radius: 20px; }
       .fab { bottom: 34px; }
-      .fabs { right: 24px; bottom: 100px; }
+      .fabs { left: 24px; bottom: 100px; }
       .pop { left: auto; right: 12px; width: 380px; max-height: min(560px, calc(100dvh - 120px)); }
       .pop.larga { width: 460px; }
     }
@@ -256,7 +259,8 @@ import { Menus, PRINCIPAIS } from './menu';
     @media (min-width: 1024px) {
       :host.recolhido { --side-w: 76px; }
       .nav, .fab, .menu-lanc, .menu-back { display: none; }
-      .fabs { bottom: 24px; right: 24px; }
+      .fabs { bottom: 24px; left: auto; right: 24px; }
+      .fabs.some { transform: translateX(80px); }
       .chat-fab { width: 56px; height: 56px; }
       .top { padding-left: calc(var(--side-w) + 24px); padding-right: 24px; }
       main { display: block; margin-left: var(--side-w); }
@@ -330,6 +334,9 @@ export class Shell {
     { rotulo: 'Entrada', icone: 'payments', modo: 'entrada' },
     { rotulo: 'Conta fixa', icone: 'calendar_month', modo: 'gasto', fixa: true },
   ];
+  /** rolando para baixo: chat e calculadora saem da frente dos valores */
+  protected descendo = signal(false);
+  private y0 = 0;
   private toque0: { x: number; y: number; t: number } | null = null;
   private pressao: ReturnType<typeof setTimeout> | undefined;
   private segurou = false;
@@ -400,6 +407,13 @@ export class Shell {
     if (alvo.closest?.('input, textarea, select, [contenteditable]') || document.querySelector('[role="dialog"]')) return;
     e.preventDefault();
     this.lancar.novo();
+  }
+
+  rolou() {
+    const y = window.scrollY;
+    if (Math.abs(y - this.y0) < 12) return;
+    this.descendo.set(y > this.y0 && y > 80);
+    this.y0 = y;
   }
 
   // arrastar para o lado em área vazia troca o mês

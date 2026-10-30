@@ -108,6 +108,7 @@ import { Toast } from '../shared/toast';
     .libera { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
     .lib { display: flex; gap: 8px; align-items: flex-start; font-size: 0.88rem; color: var(--ink-2); }
     .lib app-icon { color: var(--ok); }
+    .lib .grow b { display: inline; }
     .cap { text-transform: capitalize; }
     .link { background: none; border: 0; color: var(--primary); font: inherit; font-weight: 700; cursor: pointer; padding: 0 0 0 6px; }
     .info { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; flex-wrap: wrap; }

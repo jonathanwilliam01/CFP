@@ -11,7 +11,7 @@ export const PRINCIPAIS = [
   CHAT,
 ];
 
-/** Grupos do menu lateral e do Mais, na ordem em que aparecem */
+/** Grupos do menu lateral e do Mais, na ordem padrão */
 export const GRUPOS = ['Dia a dia', 'Compromissos', 'Metas e controle', 'Análise', 'App'] as const;
 export type Grupo = (typeof GRUPOS)[number];
 
@@ -42,7 +42,11 @@ const ROTAS = ATALHOS.map((a) => a.rota);
 export type Botao = 'calc' | 'chat';
 
 interface Prefs {
+  /** ordem dos grupos */
+  grupos: Grupo[];
   ordem: string[];
+  /** item levado para outro grupo */
+  grupoDe: Record<string, Grupo>;
   ocultos: string[];
   /** botões flutuantes escondidos */
   semBotao: Botao[];
@@ -51,7 +55,12 @@ interface Prefs {
 function normalizar(p: Partial<Prefs> | null | undefined): Prefs {
   const validos = (l: unknown) => (Array.isArray(l) ? l.filter((r) => ROTAS.includes(r)) : []);
   const ordem = validos(p?.ordem);
-  return { ordem: [...ordem, ...ROTAS.filter((r) => !ordem.includes(r))], ocultos: validos(p?.ocultos).filter((r) => r !== FIXA),
+  const grupos = Array.isArray(p?.grupos) ? GRUPOS.filter((g) => p.grupos!.includes(g)).sort((a, b) => p.grupos!.indexOf(a) - p.grupos!.indexOf(b)) : [];
+  return {
+    grupos: [...grupos, ...GRUPOS.filter((g) => !grupos.includes(g))],
+    ordem: [...ordem, ...ROTAS.filter((r) => !ordem.includes(r))],
+    grupoDe: Object.fromEntries(Object.entries(p?.grupoDe ?? {}).filter(([r, g]) => ROTAS.includes(r) && GRUPOS.includes(g))),
+    ocultos: validos(p?.ocultos).filter((r) => r !== FIXA),
     semBotao: Array.isArray(p?.semBotao) ? p.semBotao.filter((b) => b === 'calc' || b === 'chat') : [],
   };
 }
@@ -73,11 +82,11 @@ export class Menus {
     const p = this.prefs();
     return p.ordem.map((r) => {
       const a = ATALHOS.find((x) => x.rota === r)!;
-      return { ...a, id: r, nome: a.rotulo, oculto: p.ocultos.includes(r), fixo: r === FIXA };
+      return { ...a, grupo: p.grupoDe[r] ?? a.grupo, id: r, nome: a.rotulo, oculto: p.ocultos.includes(r), fixo: r === FIXA };
     });
   });
-  /** Itens por grupo, na ordem escolhida dentro de cada um */
-  readonly grupos = computed(() => GRUPOS.map((nome) => ({ nome, itens: this.lista().filter((a) => a.grupo === nome) })));
+  /** Grupos e itens na ordem escolhida */
+  readonly grupos = computed(() => this.prefs().grupos.map((nome) => ({ nome, itens: this.lista().filter((a) => a.grupo === nome) })));
   /** Só os visíveis, sem grupo vazio */
   readonly visiveis = computed(() =>
     this.grupos().map((g) => ({ nome: g.nome, itens: g.itens.filter((a) => !a.oculto) })).filter((g) => g.itens.length),
@@ -94,15 +103,32 @@ export class Menus {
     });
   }
 
-  /** Move dentro do grupo, da posição i para j */
+  /** Move dentro do grupo, da posição i para j; passando da ponta, vai para o fim do grupo de cima ou o começo do de baixo */
   mover(grupo: Grupo, i: number, j: number) {
-    const itens = this.grupos().find((g) => g.nome === grupo)!.itens;
-    if (j < 0 || j >= itens.length || i === j) return;
+    const gs = this.grupos();
+    const g = gs.findIndex((x) => x.nome === grupo);
+    const itens = gs[g].itens;
+    if (i === j) return;
     const ordem = [...this.prefs().ordem];
-    const de = ordem.indexOf(itens[i].rota);
-    const para = ordem.indexOf(itens[j].rota);
-    ordem.splice(para, 0, ...ordem.splice(de, 1));
-    this.gravar({ ...this.prefs(), ordem });
+    const rota = itens[i].rota;
+    if (j >= 0 && j < itens.length) {
+      ordem.splice(ordem.indexOf(itens[j].rota), 0, ...ordem.splice(ordem.indexOf(rota), 1));
+      return this.gravar({ ...this.prefs(), ordem });
+    }
+    const destino = gs[j < 0 ? g - 1 : g + 1];
+    if (!destino) return;
+    ordem.splice(ordem.indexOf(rota), 1);
+    const viz = j < 0 ? destino.itens.at(-1) : destino.itens[0];
+    ordem.splice(viz ? ordem.indexOf(viz.rota) + (j < 0 ? 1 : 0) : ordem.length, 0, rota);
+    this.gravar({ ...this.prefs(), ordem, grupoDe: { ...this.prefs().grupoDe, [rota]: destino.nome } });
+  }
+
+  /** Move o grupo inteiro da posição i para j */
+  moverGrupo(i: number, j: number) {
+    const grupos = [...this.prefs().grupos];
+    if (j < 0 || j >= grupos.length || i === j) return;
+    grupos.splice(j, 0, ...grupos.splice(i, 1));
+    this.gravar({ ...this.prefs(), grupos });
   }
 
   alternarOculto(r: string) {
@@ -111,7 +137,7 @@ export class Menus {
     this.gravar({ ...this.prefs(), ocultos: l.includes(r) ? l.filter((x) => x !== r) : [...l, r] });
   }
 
-  /** Volta a ordem e os itens do menu; botões flutuantes ficam como estão */
+  /** Volta a ordem, os grupos e os itens do menu; botões flutuantes ficam como estão */
   restaurar() {
     this.gravar({ ...normalizar(null), semBotao: this.prefs().semBotao });
   }

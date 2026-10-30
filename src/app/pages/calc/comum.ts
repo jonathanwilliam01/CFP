@@ -1,4 +1,5 @@
-import { signal } from '@angular/core';
+import { computed, signal } from '@angular/core';
+import { Taxas, taxasBcb } from '../../core/bcb';
 
 /** Valor de campo lembrado entre visitas */
 export function lembrado(chave: string, padrao: string) {
@@ -11,16 +12,43 @@ export function lembrado(chave: string, padrao: string) {
   });
 }
 
+const num = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+/** Taxa que segue o Banco Central até o usuário digitar outra; `legado` = padrão antigo gravado sem o usuário mexer */
+function doBanco(chave: string, padrao: string, campo: keyof Omit<Taxas, 'data' | 'buscado'>, legado?: string) {
+  if (legado && localStorage.getItem(chave) === legado) localStorage.removeItem(chave);
+  const manual = signal(localStorage.getItem(chave));
+  const valor = computed(() => {
+    const t = taxasBcb();
+    return manual() ?? (t ? num(t[campo]) : padrao);
+  });
+  return Object.assign(valor, {
+    manual,
+    guardar: (v: string) => {
+      manual.set(v);
+      localStorage.setItem(chave, v);
+    },
+    voltar: () => {
+      manual.set(null);
+      localStorage.removeItem(chave);
+    },
+  });
+}
+
 // compartilhados entre as calculadoras
-export const cdi = lembrado('cfp.cdi', '14,9');
+export const cdi = doBanco('cfp.cdi', '14,9', 'cdi', '14,9');
 export const pctCdi = lembrado('cfp.pctcdi', '100');
+export const poupanca = doBanco('cfp.poupanca', '0,67', 'poupanca');
 export const ganho = lembrado('cfp.ganho', '');
 export const taxas = {
-  emprestimo: lembrado('cfp.tx.emprestimo', '5,5'),
+  emprestimo: doBanco('cfp.tx.emprestimo', '5,5', 'emprestimo'),
   pix: lembrado('cfp.tx.pix', '6,5'),
-  cheque: lembrado('cfp.tx.cheque', '8'),
-  rotativo: lembrado('cfp.tx.rotativo', '15'),
+  cheque: doBanco('cfp.tx.cheque', '8', 'cheque'),
+  rotativo: doBanco('cfp.tx.rotativo', '15', 'rotativo'),
 };
+/** taxas do Banco Central que o usuário trocou à mão */
+export const doBancoTrocadas = computed(() => [cdi, poupanca, taxas.emprestimo, taxas.cheque, taxas.rotativo].filter((t) => t.manual() !== null));
+export const voltarAoBanco = () => [cdi, poupanca, taxas.emprestimo, taxas.cheque, taxas.rotativo].forEach((t) => t.voltar());
 
 export const pctTxt = (v: number, casas = 2) => (v * 100).toLocaleString('pt-BR', { maximumFractionDigits: casas }) + '%';
 

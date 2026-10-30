@@ -5,6 +5,7 @@ import { addMeses, mesAtual, nomeMes } from '../../core/datas';
 import { taxaMensal } from '../../core/financas';
 import { BrlPipe, parseValor } from '../../core/formato';
 import { Store } from '../../core/store';
+import { normalizar } from '../../core/texto';
 import { Icon } from '../../shared/icon';
 import { ESTILO, cdi, lembrado, pctCdi } from './comum';
 
@@ -75,7 +76,13 @@ export class CalcReserva {
   protected tenho = signal('');
 
   protected sugestao = computed(() => Math.round(this.s.resumo().saidas));
-  protected guardado = computed(() => this.s.reserva()?.guardado ?? 0);
+  /** cofrinhos marcados como reserva, ou o que tem "emergência" no nome */
+  protected guardado = computed(() => {
+    const r = this.s.reserva();
+    if (r) return r.guardado;
+    const c = this.s.cofrinhos().find((c) => normalizar(c.nome).includes('emergencia'));
+    return c ? (this.s.guardadoPorCofrinho().get(c.id) ?? 0) : 0;
+  });
   protected mesTxt = computed(() => nomeMes(this.s.mes()));
 
   protected r = computed(() => {

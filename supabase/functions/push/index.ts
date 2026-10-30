@@ -17,7 +17,8 @@ interface Envio {
 }
 
 Deno.serve(async (req) => {
-  if (req.headers.get('Authorization') !== `Bearer ${Deno.env.get('PUSH_SEGREDO')}`) return new Response('não autorizado', { status: 401 });
+  const segredo = Deno.env.get('PUSH_SEGREDO');
+  if (!segredo || req.headers.get('Authorization') !== `Bearer ${segredo}`) return new Response('não autorizado', { status: 401 });
   const ev = await req.json();
   const envios = ev.tipo === 'chat' ? await chat(ev) : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : [];
   let n = 0;
