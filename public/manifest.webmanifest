@@ -57,5 +57,52 @@
   "theme_color": "#1d5bd8",
   "background_color": "#f2f5f9",
   "lang": "pt-BR",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "shortcuts": [
+    {
+      "name": "Novo gasto",
+      "short_name": "Gasto",
+      "url": "./?lancar=gasto",
+      "icons": [
+        {
+          "src": "icons/icon-96x96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Compra parcelada",
+      "short_name": "Parcelado",
+      "url": "./?lancar=parcelado",
+      "icons": [
+        {
+          "src": "icons/icon-96x96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Nova entrada",
+      "short_name": "Entrada",
+      "url": "./?lancar=entrada",
+      "icons": [
+        {
+          "src": "icons/icon-96x96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {
+      "title": "titulo",
+      "text": "texto",
+      "url": "link"
+    }
+  }
 }

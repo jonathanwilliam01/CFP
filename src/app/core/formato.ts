@@ -1,4 +1,4 @@
-import { Pipe, PipeTransform } from '@angular/core';
+import { Pipe, PipeTransform, signal } from '@angular/core';
 import { nomeMes, rotuloDia } from './datas';
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -32,10 +32,19 @@ export const csvData = (d: string) => d.split('-').reverse().join('/');
 
 export const pct = (v: number, total: number) => (total > 0 ? Math.round((v / total) * 100) : 0);
 
-@Pipe({ name: 'brl' })
+/** Valores escondidos na tela (R$ •••), escolha do aparelho */
+export const privado = signal(globalThis.localStorage?.getItem('cfp.privado') === '1');
+
+export function alternarPrivado() {
+  privado.update((v) => !v);
+  localStorage.setItem('cfp.privado', privado() ? '1' : '0');
+}
+
+// impuro: troca na hora quando esconde/mostra os valores
+@Pipe({ name: 'brl', pure: false })
 export class BrlPipe implements PipeTransform {
   transform(v: number | null | undefined) {
-    return moeda(v);
+    return privado() ? 'R$ •••' : moeda(v);
   }
 }
 

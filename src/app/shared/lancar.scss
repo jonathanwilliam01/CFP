@@ -69,7 +69,10 @@
 
   &:focus-within { border-color: var(--primary); border-style: solid; }
   input { border: 0; background: none; box-shadow: none; padding: 10px 0; min-height: 44px; }
+  .ouvindo { color: var(--danger); animation: pulsa 1s ease-in-out infinite; }
 }
+
+@keyframes pulsa { 50% { opacity: 0.4; } }
 
 .coment {
   display: flex;

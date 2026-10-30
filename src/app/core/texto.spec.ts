@@ -1,4 +1,4 @@
-import { lerTags, lerTexto } from './texto';
+import { lerComprovante, lerTags, lerTexto } from './texto';
 import { Beneficio, Cartao, Categoria } from './models';
 
 const cartoes = [
@@ -39,5 +39,18 @@ describe('lerTexto', () => {
 describe('lerTags', () => {
   it('normaliza e remove repetidos', () => {
     expect(lerTags('#Viagem, praia viagem;Reforma')).toEqual(['viagem', 'praia', 'reforma']);
+  });
+});
+
+describe('lerComprovante', () => {
+  it('Pix com rótulo e nome na linha seguinte', () => {
+    const t = 'Comprovante de transferência\n23 OUT 2026 - 14:32:10\nValor\nR$ 1.250,00\nTipo de transferência\nPix\nDestino\nNome\nMaria da Silva\nCPF ***.123.456-**';
+    expect(lerComprovante(t)).toBe('1.250,00 23/10/2026 pix Maria da Silva');
+  });
+  it('rótulo e nome na mesma linha', () => {
+    expect(lerComprovante('Pagamento efetuado\nData: 05/11/2026\nValor: R$ 89,90\nPara: Padaria Central')).toBe('89,90 05/11/2026 Padaria Central');
+  });
+  it('sem valor devolve null', () => {
+    expect(lerComprovante('mercado 120 nubank')).toBeNull();
   });
 });

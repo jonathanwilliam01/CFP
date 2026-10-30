@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { addMeses, fimMes, mesAtual } from '../core/datas';
+import { addMeses, fimMes, hoje, mesAtual, nomeMes } from '../core/datas';
 import { contasDoMes, noMes, orcamentosNoMes, porCategoria, resumoMes, statusOrcamentos } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, pct, soma } from '../core/formato';
 import { Entrada, Gasto, Pagamento } from '../core/models';
@@ -86,11 +86,25 @@ import { Toast } from '../shared/toast';
           } @else {
             <p class="muted small">Nada foi guardado em {{ mes() | mes: true }}.</p>
           }
+          @if (f.r.saldo > 0 && s.cofrinhos().length && !sobraGuardada()) {
+            <div class="sobra">
+              <span class="small">Sobrou <b class="pos">{{ f.r.saldo | brl }}</b>. Guardar no cofrinho:</span>
+              <div class="linha">
+                <select [value]="cofrinho()" (change)="cofrinho.set($any($event.target).value)" aria-label="Cofrinho">
+                  @for (c of s.cofrinhos(); track c.id) { <option [value]="c.id">{{ c.nome }}</option> }
+                </select>
+                <button class="btn sm" type="button" [disabled]="salvando()" (click)="guardarSobra(f.r.saldo)">Guardar</button>
+              </div>
+            </div>
+          }
         </section>
       }
     </div>
   `,
   styles: `
+    .sobra { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .sobra .linha { display: flex; gap: 8px; }
+    .sobra select { flex: 1; }
     .cap { text-transform: capitalize; }
     .hero { display: flex; flex-direction: column; gap: 6px; }
     .saldo { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
@@ -132,6 +146,25 @@ export default class Fechamento {
   });
 
   private movs = computed(() => this.s.cofrinhoMovs().filter((m) => noMes(m.data, this.mes())));
+  protected cofrinho = signal('');
+  protected salvando = signal(false);
+  private descSobra = computed(() => `Sobra de ${nomeMes(this.mes())}`);
+  protected sobraGuardada = computed(() => this.s.cofrinhoMovs().some((m) => m.descricao === this.descSobra()));
+
+  async guardarSobra(valor: number) {
+    const id = this.cofrinho() || this.s.cofrinhos()[0]?.id;
+    if (!id) return;
+    this.salvando.set(true);
+    try {
+      await this.s.salvar('cofrinho_movs', { cofrinho_id: id, valor: Math.round(valor * 100) / 100, data: hoje(), descricao: this.descSobra() });
+      this.toast.ok('Sobra guardada');
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.salvando.set(false);
+    }
+  }
+
   protected guardado = computed(() => soma(this.movs().filter((m) => m.valor > 0), (m) => m.valor));
   protected retirado = computed(() => -soma(this.movs().filter((m) => m.valor < 0), (m) => m.valor));
 

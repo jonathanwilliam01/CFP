@@ -1,4 +1,4 @@
-// Envia Web Push: mensagem nova do chat (trigger em mensagens) e contas vencendo (pg_cron).
+// Envia Web Push: mensagem nova do chat (trigger em mensagens), contas vencendo e lembrete da noite (pg_cron).
 // Chamada só pelo banco via push_enviar, com o segredo de push_config.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
@@ -17,7 +17,7 @@ interface Envio {
 Deno.serve(async (req) => {
   if (req.headers.get('Authorization') !== `Bearer ${Deno.env.get('PUSH_SEGREDO')}`) return new Response('não autorizado', { status: 401 });
   const ev = await req.json();
-  const envios = ev.tipo === 'chat' ? await chat(ev) : ev.tipo === 'vencimentos' ? await vencimentos() : [];
+  const envios = ev.tipo === 'chat' ? await chat(ev) : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : [];
   let n = 0;
   for (const e of envios) n += await enviar(e);
   return Response.json({ enviados: n });
@@ -50,6 +50,13 @@ async function vencimentos(): Promise<Envio[]> {
     envios.push({ usuarios: l.map((m) => m.user_id), titulo: a.titulo, texto: a.texto, tag: `push-venc-${a.ref_id}`, url: '/contas' });
   }
   return envios;
+}
+
+async function lembrete(): Promise<Envio[]> {
+  const { data, error } = await db.rpc('lembretes_lancamento');
+  if (error) throw error;
+  const usuarios = (data as { user_id: string }[]).map((x) => x.user_id);
+  return [{ usuarios, titulo: 'Lançou os gastos de hoje?', texto: 'Nenhum gasto lançado hoje. Toque para lançar.', tag: 'lembrete', url: '/?lancar=gasto' }];
 }
 
 async function enviar(e: Envio) {

@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { Auth } from '../core/auth';
 import { Chat } from '../core/chat';
 import { Fila } from '../core/fila';
@@ -7,6 +7,7 @@ import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Tema } from '../core/tema';
 import { VERSAO } from '../core/versao';
+import { alternarPrivado, privado } from '../core/formato';
 import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
 import { Lancar, LancarSheet, Modo } from '../shared/lancar';
@@ -36,6 +37,9 @@ import { ATALHOS, PRINCIPAIS } from './menu';
           </button>
         }
         <a routerLink="/busca" class="bell" aria-label="Buscar"><app-icon name="search" [size]="20" /></a>
+        <button type="button" class="bell" (click)="alternarPrivado()" [attr.aria-label]="privado() ? 'Mostrar valores' : 'Esconder valores'">
+          <app-icon [name]="privado() ? 'visibility_off' : 'visibility'" [size]="20" />
+        </button>
         <button type="button" class="bell" (click)="tema.alternar()" [attr.aria-label]="tema.escuro() ? 'Tema claro' : 'Tema escuro'">
           <app-icon [name]="tema.escuro() ? 'light_mode' : 'dark_mode'" [size]="20" />
         </button>
@@ -257,6 +261,8 @@ export class Shell {
   protected tema = inject(Tema);
   protected fila = inject(Fila);
 
+  protected privado = privado;
+  protected alternarPrivado = alternarPrivado;
   protected principais = PRINCIPAIS;
   protected atalhos = ATALHOS;
   protected versao = VERSAO;
@@ -272,6 +278,20 @@ export class Shell {
   ];
   private pressao: ReturnType<typeof setTimeout> | undefined;
   private segurou = false;
+  private router = inject(Router);
+
+  // atalho do ícone (?lancar=gasto), lembrete da noite e texto compartilhado com o app (share_target: titulo/texto/link)
+  constructor() {
+    const sub = inject(ActivatedRoute).queryParamMap.subscribe((p) => {
+      const modo = p.get('lancar');
+      const texto = ['titulo', 'texto', 'link'].map((k) => p.get(k)).filter(Boolean).join('\n');
+      if (!modo && !texto) return;
+      if (texto) this.lancar.deTexto(texto);
+      else if (modo === 'gasto' || modo === 'parcelado' || modo === 'entrada') this.lancar.novo(modo);
+      this.router.navigate([], { queryParams: {}, replaceUrl: true });
+    });
+    inject(DestroyRef).onDestroy(() => sub.unsubscribe());
+  }
 
   badge(rota: string) {
     return rota === '/notificacoes' ? this.insights.naoLidas().length : rota === '/chat' ? this.chat.naoLidas() : 0;

@@ -9,6 +9,8 @@ export interface Carteira {
   criado_por: string;
   /** mês em que começou a usar: antes dele não se navega nem compara (027) */
   inicio?: string | null;
+  /** acerto entre os membros ligado (028) */
+  divisao?: boolean;
 }
 
 export interface Membro {
@@ -18,6 +20,8 @@ export interface Membro {
   papel: 'dono' | 'membro';
   /** cópia de user_metadata.foto (trigger 017) */
   foto: Foto | null;
+  /** push às 21h sem gasto no dia (028) */
+  lembrete?: boolean;
 }
 
 export interface Categoria {
@@ -67,6 +71,9 @@ export interface Gasto {
   criado_por: string | null;
   /** marcadores livres (migration 020) */
   tags?: string[];
+  /** acerto (028): quem pagou (null = quem lançou) e se entra na divisão */
+  pago_por?: string | null;
+  dividido?: boolean;
 }
 
 export interface Parcelamento {
@@ -128,6 +135,8 @@ export interface Cofrinho {
   /** plano de depósitos (migration 021) */
   deposito?: number | null;
   frequencia?: Frequencia | null;
+  /** reserva de emergência (028) */
+  emergencia?: boolean;
 }
 
 export type Frequencia = 'semana' | 'quinzena' | 'mes';
@@ -177,6 +186,8 @@ export interface Plano {
   descricao: string;
   valor: number;
   mes: string;
+  /** repete todo ano no mesmo mês (028) */
+  anual?: boolean;
 }
 
 export interface Registro {
@@ -193,6 +204,46 @@ export interface RegistroItem {
   valor: number;
   data: string;
   obs: string | null;
+}
+
+export interface Acerto {
+  id: string;
+  mes: string;
+  de: string;
+  para: string;
+  valor: number;
+}
+
+export interface Receber {
+  id: string;
+  descricao: string;
+  pessoa: string | null;
+  valor: number;
+  data: string;
+  recebido_em: string | null;
+}
+
+export interface Divida {
+  id: string;
+  descricao: string;
+  credor: string | null;
+  valor_parcela: number;
+  num_parcelas: number;
+  /** contagem manual quando não está ligada a conta fixa */
+  pagas: number;
+  inicio: string;
+  recorrencia_id: string | null;
+}
+
+export interface Desafio {
+  id: string;
+  descricao: string;
+  categoria_id: string | null;
+  /** parte da descrição do gasto (ex.: ifood) */
+  termo: string | null;
+  limite: number;
+  inicio: string;
+  fim: string;
 }
 
 /** Item da aba Contas: conta fixa ou fatura de cartão no mês */
@@ -251,6 +302,10 @@ export interface Tabelas {
   planos: Plano;
   registros: Registro;
   registro_itens: RegistroItem;
+  acertos: Acerto;
+  receber: Receber;
+  dividas: Divida;
+  desafios: Desafio;
 }
 
 export type Tabela = keyof Tabelas;

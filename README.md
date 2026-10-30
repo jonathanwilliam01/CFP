@@ -34,7 +34,7 @@ Opcional; sem isso o app só avisa com ele aberto ou em segundo plano.
 5. SQL Editor: `insert into push_config (url, segredo) values ('https://<ref>.supabase.co/functions/v1/push', '<mesmo PUSH_SEGREDO>');`
 6. No app: Configurações → Notificações → *Avisos com o app fechado*.
 
-Envia mensagem nova do chat (trigger em `mensagens`) e contas fixas/faturas não pagas que vencem hoje ou amanhã, todo dia às 8h (pg_cron `cfp-vencimentos`).
+Envia mensagem nova do chat (trigger em `mensagens`) e contas fixas/faturas não pagas que vencem hoje ou amanhã, todo dia às 8h (pg_cron `cfp-vencimentos`). Às 21h lembra quem não lançou gasto no dia (pg_cron `cfp-lembrete`, desligável em Configurações).
 
 ## Testes
 

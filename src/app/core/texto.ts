@@ -86,3 +86,26 @@ export function lerTexto(texto: string, ctx: { cartoes: Cartao[]; beneficios: Be
 
 /** "viagem, #praia reforma" → ['viagem', 'praia', 'reforma'] */
 export const lerTags = (s: string) => [...new Set(s.split(/[\s,;]+/).map((t) => normalizar(t.replace(/^#+/, ''))).filter(Boolean))];
+
+const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const ROTULOS = /^(?:para|destino|destinat[aá]rio|favorecido|recebedor|estabelecimento|nome|quem recebeu)\b\s*:?\s*(.*)$/i;
+
+/**
+ * Comprovante compartilhado (Pix, transferência, compra): vira texto do lançamento rápido, valor e data primeiro.
+ * Sem "R$ valor" no texto devolve null (usa o texto como veio).
+ */
+export function lerComprovante(texto: string) {
+  const valor = texto.match(/R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/i)?.[1];
+  if (!valor) return null;
+  let data = texto.match(/\b(\d{2}\/\d{2}\/\d{4})\b/)?.[1] ?? '';
+  const m = !data && normalizar(texto).match(/\b(\d{1,2})\s*(?:de\s+)?(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*\.?\s*(?:de\s+)?(\d{4})\b/);
+  if (m) data = `${m[1].padStart(2, '0')}/${String(MESES_ABREV.indexOf(m[2]) + 1).padStart(2, '0')}/${m[3]}`;
+  const linhas = texto.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  let desc = '';
+  for (let i = 0; i < linhas.length && !desc; i++) {
+    const r = linhas[i].match(ROTULOS);
+    if (r) desc = r[1] || (linhas[i + 1] && !ROTULOS.test(linhas[i + 1]) ? linhas[i + 1] : '');
+  }
+  desc = desc.replace(/R\$.*$/, '').replace(/[*#]/g, ' ').replace(/\s+/g, ' ').trim();
+  return [valor, data, /\bpix\b/i.test(texto) ? 'pix' : '', desc].filter(Boolean).join(' ');
+}

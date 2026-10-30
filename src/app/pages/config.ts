@@ -54,6 +54,11 @@ import { Visor } from '../shared/visor';
             <button class="btn" type="button" (click)="compartilhar(c.codigo)"><app-icon name="share" [size]="18" />Convidar</button>
           </div>
           <p class="small muted">Quem entrar com este código lança e vê tudo desta carteira.</p>
+          <label class="check">
+            <input type="checkbox" [checked]="s.divisao()" (change)="alternarDivisao()" [disabled]="ocupado()" />
+            Dividir gastos entre os membros
+          </label>
+          <p class="small muted">Opcional. No lançamento escolhe quem pagou e se o gasto é dividido; o Início mostra quem deve quanto no mês.</p>
           @if (s.souDono()) {
             <button class="btn ghost" type="button" (click)="novoCodigo()" [disabled]="ocupado()"><app-icon name="autorenew" [size]="18" />Gerar novo código</button>
           }
@@ -185,6 +190,12 @@ import { Visor } from '../shared/visor';
             <input type="checkbox" [checked]="push.ativo()" (change)="alternarPush()" [disabled]="ocupado()" />
             Avisos com o app fechado (chat e contas vencendo)
           </label>
+          @if (push.ativo()) {
+            <label class="check">
+              <input type="checkbox" [checked]="lembrete()" (change)="alternarLembrete()" [disabled]="ocupado()" />
+              Lembrete às 21h quando ninguém lançou gasto no dia
+            </label>
+          }
         }
       </div>
 
@@ -319,6 +330,24 @@ export default class Config {
       await q(supabase.from('carteiras').update({ nome }).eq('id', this.s.carteiraId()!));
       await this.s.iniciar();
     }, 'Carteira renomeada');
+  }
+
+  protected lembrete = computed(() => this.s.membros().find((m) => m.user_id === this.auth.user()?.id)?.lembrete !== false);
+
+  alternarDivisao() {
+    const divisao = !this.s.divisao();
+    return this.exec(async () => {
+      await q(supabase.from('carteiras').update({ divisao }).eq('id', this.s.carteiraId()!));
+      await this.s.iniciar();
+    }, divisao ? 'Divisão ligada' : 'Divisão desligada');
+  }
+
+  alternarLembrete() {
+    const lembrete = !this.lembrete();
+    return this.exec(async () => {
+      await q(supabase.from('carteira_membros').update({ lembrete }).eq('carteira_id', this.s.carteiraId()!).eq('user_id', this.auth.user()!.id));
+      await this.s.carregarTudo();
+    }, lembrete ? 'Lembrete ligado' : 'Lembrete desligado');
   }
 
   private lerCarteira() {

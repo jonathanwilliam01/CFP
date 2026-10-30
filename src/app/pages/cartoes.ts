@@ -49,7 +49,7 @@ interface FormCartao {
           <div class="topo" [style.background]="c.cartao.cor">
             <div>
               <b>{{ c.cartao.nome }}</b>
-              <small>Fecha dia {{ c.cartao.fechamento_dia }} · vence dia {{ c.cartao.vencimento_dia }}</small>
+              <small>Fecha dia {{ c.cartao.fechamento_dia }} · vence dia {{ c.cartao.vencimento_dia }} · melhor dia de compra {{ c.cartao.fechamento_dia }}</small>
             </div>
             <div class="acts">
               <button type="button" class="star" [class.on]="c.cartao.padrao" (click)="padrao(c.cartao)"

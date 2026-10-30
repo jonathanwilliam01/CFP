@@ -25,6 +25,14 @@ import { Toast } from '../shared/toast';
           <div class="l">Total guardado</div>
           <div class="v pos">{{ total() | brl }}</div>
         </div>
+        @if (s.reserva(); as r) {
+          <div class="card reserva">
+            <app-icon name="health_and_safety" />
+            <span>Reserva de emergência: <b class="num">{{ r.guardado | brl }}</b>
+              @if (r.meses !== null) { cobre <b [class.neg]="r.meses < 3" [class.pos]="r.meses >= 6">{{ r.meses }} {{ r.meses === 1 ? 'mês' : 'meses' }}</b> de despesas (o ideal é 6). }
+            </span>
+          </div>
+        }
         <div class="grid">
           @for (c of lista(); track c.id) {
             <a class="card cof" [routerLink]="['/cofrinhos', c.id]">
@@ -68,11 +76,14 @@ import { Toast } from '../shared/toast';
         </div>
         <label class="field"><span>Cor</span><input name="cor" type="color" [(ngModel)]="f.cor" /></label>
         <div class="field"><span>Ícone</span><app-icone-picker [(valor)]="f.icone" [cor]="f.cor" /></div>
+        <label class="check"><input name="emerg" type="checkbox" [(ngModel)]="f.emergencia" />É a reserva de emergência</label>
         <button class="btn block" [disabled]="salvando()">Salvar</button>
       </form>
     </app-sheet>
   `,
   styles: `
+    .reserva { display: flex; gap: 10px; align-items: center; font-size: 0.9rem; }
+    .reserva app-icon { color: var(--primary); }
     .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .cof { display: flex; flex-direction: column; gap: 6px; color: inherit; }
     .top { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -87,7 +98,7 @@ export default class Cofrinhos {
   private toast = inject(Toast);
   protected aberto = signal(false);
   protected salvando = signal(false);
-  f = { nome: '', meta: '', prazo: '', icone: 'savings', cor: '#10b981' };
+  f = { nome: '', meta: '', prazo: '', icone: 'savings', cor: '#10b981', emergencia: false };
 
   protected lista = computed(() =>
     this.s.cofrinhos().map((c) => {
@@ -107,7 +118,7 @@ export default class Cofrinhos {
   protected total = computed(() => soma(this.lista(), (c) => c.guardado));
 
   novo() {
-    this.f = { nome: '', meta: '', prazo: '', icone: 'savings', cor: '#10b981' };
+    this.f = { nome: '', meta: '', prazo: '', icone: 'savings', cor: '#10b981', emergencia: false };
     this.aberto.set(true);
   }
 
@@ -121,6 +132,7 @@ export default class Cofrinhos {
         prazo: this.f.prazo || null,
         icone: this.f.icone || 'savings',
         cor: this.f.cor,
+        emergencia: this.f.emergencia,
       });
       this.toast.ok('Cofrinho criado');
       this.aberto.set(false);

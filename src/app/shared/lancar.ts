@@ -6,7 +6,8 @@ import { BrlPipe, MesPipe, moeda, parseValor } from '../core/formato';
 import { Entrada, Forma, Gasto } from '../core/models';
 import { Chat } from '../core/chat';
 import { Recente, Store } from '../core/store';
-import { lerTags, lerTexto } from '../core/texto';
+import { lerComprovante, lerTags, lerTexto } from '../core/texto';
+import { Auth } from '../core/auth';
 import { Fila, ItemFila, semRede } from '../core/fila';
 import { Icon } from './icon';
 import { Sheet } from './sheet';
@@ -23,6 +24,14 @@ export class Lancar {
   readonly entrada = signal<Entrada | null>(null);
   /** abre com "Repete todo mês" marcado */
   readonly fixa = signal(false);
+  /** texto que já abre aplicado no lançamento rápido (compartilhado com o app ou atalho) */
+  readonly texto = signal('');
+
+  /** Texto compartilhado: comprovante vira "valor data pix nome", senão vai como veio */
+  deTexto(t: string) {
+    this.novo('gasto');
+    this.texto.set(lerComprovante(t) ?? t.replace(/\s+/g, ' ').trim());
+  }
 
   /** Sem modo abre no último tipo lançado */
   novo(modo?: Modo, fixa = false) {
@@ -50,6 +59,16 @@ export class Lancar {
   }
 }
 
+/** Web Speech API (sem tipos no lib.dom) */
+interface Reconhecimento {
+  lang: string;
+  interimResults: boolean;
+  onresult: (e: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => void;
+  onerror: (e: { error: string }) => void;
+  onend: () => void;
+  start(): void;
+}
+
 interface FormLanc {
   valor: string;
   descricao: string;
@@ -67,6 +86,9 @@ interface FormLanc {
   jaPago: boolean;
   /** marcadores separados por espaço ou vírgula */
   tags: string;
+  /** acerto entre membros (carteira com divisão) */
+  pagoPor: string;
+  dividido: boolean;
 }
 
 @Component({
@@ -82,6 +104,7 @@ export class LancarSheet {
   private toast = inject(Toast);
   private fila = inject(Fila);
   private chat = inject(Chat);
+  private auth = inject(Auth);
   /** formulário do próximo abrir (lançar de novo) */
   private proxima: FormLanc | null = null;
 
@@ -141,7 +164,25 @@ export class LancarSheet {
     return c ? mesFatura(f.data, c.fechamento_dia, c.vencimento_dia) : null;
   });
 
+  /** limite livre do cartão escolhido (só cartão com limite) e se a compra cai logo após o fechamento */
+  protected livre = signal<number | null>(null);
+  private pagamentoSel = computed(() => this.f().pagamento);
+  protected melhorDia = computed(() => {
+    const c = this.s.cartoes().find((x) => x.id === this.f().pagamento);
+    if (!c) return false;
+    const dia = Number(this.f().data.slice(8, 10));
+    return dia >= c.fechamento_dia && dia <= c.fechamento_dia + 2;
+  });
+
   constructor() {
+    effect(() => {
+      const c = this.l.aberto() && this.l.modo() !== 'entrada' ? this.s.cartoes().find((x) => x.id === this.pagamentoSel()) : undefined;
+      this.livre.set(null);
+      if (!c?.limite) return;
+      const g = untracked(() => this.l.gasto());
+      const proprio = g?.cartao_id === c.id ? g.valor : 0;
+      this.s.limiteUsado(c.id).then((u) => untracked(this.pagamentoSel) === c.id && this.livre.set(c.limite! - u + proprio), () => undefined);
+    });
     effect(() => {
       if (!this.l.aberto()) return;
       const g = this.l.gasto();
@@ -150,6 +191,12 @@ export class LancarSheet {
       untracked(() => {
         this.f.set(g ? this.deGasto(g) : e ? this.deEntrada(e) : (this.proxima ?? this.vazio()));
         this.proxima = null;
+        const t = this.l.texto();
+        if (t) {
+          this.l.texto.set('');
+          this.rapido.set(t);
+          this.aplicarTexto();
+        }
       });
     });
   }
@@ -162,12 +209,14 @@ export class LancarSheet {
     return {
       valor: '', descricao: '', categoria_id: null, data: hoje(), pagamento: this.pagamentoPadrao(), parcelas: 2, valorEhTotal: true,
       repete: this.l.fixa(), variavel: false, anterior: false, fim: '', jaPago: true, tags: '',
+      pagoPor: this.auth.user()?.id ?? '', dividido: true,
     };
   }
 
   private deGasto(g: Gasto): FormLanc {
     const pagamento = g.forma === 'cartao' ? g.cartao_id! : g.forma === 'beneficio' ? `b:${g.beneficio_id}` : 'debito';
-    return { ...this.vazio(), valor: String(g.valor).replace('.', ','), descricao: g.descricao, categoria_id: g.categoria_id, data: g.data, pagamento, tags: (g.tags ?? []).join(' ') };
+    return { ...this.vazio(), valor: String(g.valor).replace('.', ','), descricao: g.descricao, categoria_id: g.categoria_id, data: g.data, pagamento, tags: (g.tags ?? []).join(' '),
+      pagoPor: g.pago_por ?? g.criado_por ?? '', dividido: g.dividido ?? true };
   }
 
   private deEntrada(e: Entrada): FormLanc {
@@ -199,6 +248,26 @@ export class LancarSheet {
     if (r.categoria_id) this.set('categoria_id', r.categoria_id);
     const pg = this.editando() ? null : this.pagamentoDe(r);
     if (pg) this.set('pagamento', pg);
+  }
+
+  protected podeFalar = !!(globalThis as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).SpeechRecognition
+    || !!(globalThis as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
+  protected ouvindo = signal(false);
+
+  /** Fala "mercado 120 no nubank" e aplica como o texto rápido */
+  falar() {
+    const g = globalThis as unknown as Record<string, new () => Reconhecimento>;
+    const r = new (g['SpeechRecognition'] ?? g['webkitSpeechRecognition'])();
+    r.lang = 'pt-BR';
+    r.interimResults = false;
+    r.onresult = (e) => {
+      this.rapido.set(e.results[0][0].transcript);
+      this.aplicarTexto();
+    };
+    r.onerror = (e) => e.error !== 'no-speech' && e.error !== 'aborted' && this.toast.erro('Não consegui ouvir: ' + e.error);
+    r.onend = () => this.ouvindo.set(false);
+    this.ouvindo.set(true);
+    r.start();
   }
 
   /** Preenche o formulário a partir do texto livre; parcelas (10x) passam para Parcelado */
@@ -286,6 +355,7 @@ export class LancarSheet {
       beneficio_id: forma === 'beneficio' ? f.pagamento.slice(2) : null,
       // só manda a coluna quando há marcador: banco sem a migration 020 segue aceitando o lançamento
       ...(tags.length || this.l.gasto()?.tags?.length ? { tags } : {}),
+      ...(this.s.divisao() ? { pago_por: f.pagoPor || null, dividido: f.dividido } : {}),
     };
   }
 

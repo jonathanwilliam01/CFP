@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { addMeses, diffDias, hoje, mesAtual } from '../core/datas';
-import { Recebimento, creditoBeneficios, noMes, parcelasDoMes, porCategoria, porRecebimento, ritmoMes, saldoBeneficio, saldoDiario, variacaoGastos } from '../core/financas';
-import { BrlPipe, DiaPipe, MesPipe, pct, soma } from '../core/formato';
+import { Recebimento, Transferencia, creditoBeneficios, noMes, parcelasDoMes, porCategoria, porRecebimento, ritmoMes, saldoBeneficio, saldoDiario, variacaoGastos } from '../core/financas';
+import { BrlPipe, DiaPipe, MesPipe, moeda, pct, soma } from '../core/formato';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Avatar } from '../shared/avatar';
@@ -121,6 +121,19 @@ import { Lancar } from '../shared/lancar';
             </div>
           }
           @if (diferenca(); as d) { <p class="small muted">{{ d.nome }} gastou {{ d.valor | brl }} a mais no mês.</p> }
+          @if (s.acerto(); as a) {
+            <div class="acerto">
+              <span class="small muted">Divididos {{ a.total | brl }} · {{ a.parte | brl }} para cada</span>
+              @for (t of a.transferencias; track t.de + t.para) {
+                <div class="l">
+                  <span><b>{{ nomeDe(t.de) }}</b> deve {{ t.valor | brl }} para <b>{{ nomeDe(t.para) }}</b></span>
+                  <button class="btn ghost sm" type="button" (click)="acertar(t)">Acertar</button>
+                </div>
+              } @empty {
+                @if (a.total > 0) { <span class="small pos">Tudo acertado no mês.</span> }
+              }
+            </div>
+          }
         </section>
       }
 
@@ -185,6 +198,14 @@ import { Lancar } from '../shared/lancar';
               <div class="l"><span class="li"><app-icon name="restaurant" [size]="16" />{{ b.nome }}</span></div>
               <div class="v" [class.neg]="b.saldo < 0">{{ b.saldo | brl }}</div>
             </a>
+          }
+          @if (s.reserva(); as r) {
+            @if (r.meses !== null) {
+              <a class="stat" routerLink="/cofrinhos">
+                <div class="l"><span class="li"><app-icon name="health_and_safety" [size]="16" />Reserva cobre</span></div>
+                <div class="v" [class.neg]="r.meses < 3">{{ r.meses }} {{ r.meses === 1 ? 'mês' : 'meses' }}</div>
+              </a>
+            }
           }
           @for (c of cofrinhos(); track c.id) {
             <a class="stat" [routerLink]="['/cofrinhos', c.id]">
@@ -283,6 +304,8 @@ import { Lancar } from '../shared/lancar';
     .orcn { font-size: 0.7rem; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sobra { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 2px; }
     .pes { display: flex; gap: 10px; align-items: center; padding: 6px 0; }
+    .acerto { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .acerto .l { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.9rem; }
     .pes .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
     .pes .bar { height: 6px; }
     .dica { display: flex; gap: 12px; color: var(--ink); align-items: flex-start; }
@@ -361,6 +384,11 @@ export default class Inicio {
     const max = Math.max(1, ...l.map((x) => x.total));
     return l.map((x) => ({ ...x, pct: pct(x.total, max) })).sort((a, b) => b.total - a.total);
   });
+  protected nomeDe = (id: string) => this.s.membroMap().get(id) ?? '?';
+  async acertar(t: Transferencia) {
+    if (!confirm(`Registrar que ${this.nomeDe(t.de)} pagou ${moeda(t.valor)} para ${this.nomeDe(t.para)}?`)) return;
+    await this.s.acertar(t);
+  }
   protected diferenca = computed(() => {
     const [a, b] = this.pessoas();
     return a && b && a.total - b.total >= 1 ? { nome: a.nome, valor: a.total - b.total } : null;

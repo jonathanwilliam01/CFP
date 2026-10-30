@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.26.10.11 — 2026-10-30
+- Acerto entre os membros (opcional, em Configurações): quem pagou cada gasto, se é dividido e quem deve quanto no Início
+- Planejamento: Posso comprar? simula a compra (à vista ou parcelada) e mostra os meses que ficam negativos; eventos que repetem todo ano (13º, férias, IR)
+- Parcelamentos: antecipar ou quitar parcelas com desconto
+- Cartão: melhor dia de compra, aviso quando a fatura fecha e limite livre no lançamento
+- Compartilhar texto ou comprovante com o app abre o lançamento preenchido; atalhos no ícone (gasto, parcelado, entrada)
+- Lançar por voz no texto rápido
+- Lembrete às 21h quando ninguém lançou gasto no dia (desligável em Configurações)
+- Assinaturas: total por mês e por ano e mudança de preço; importação avisa quando a assinatura mudou de valor e não duplica conta fixa do cartão
+- Importação de extrato marca como pagas as contas fixas que batem com o pagamento
+- A receber, Dívidas e Desafios (novas telas) e Retrospectiva do ano
+- Fechamento: guardar a sobra do mês num cofrinho; cofrinho de reserva de emergência mostra quantos meses de despesas cobre
+- Botão do olho no topo esconde os valores
+- Build de produção: limite de CSS por componente maior (deploy da 1.26.10.10 falhava)
+
 ## v1.26.10.10 — 2026-10-30
 - Importação Nubank: parcelas que vêm datadas no último dia do mês anterior entram na fatura do arquivo, sem duplicar parcela no mês
 - Reajuste de conta/entrada fixa: Enter no campo aplica o reajuste (antes salvava o valor antigo); no cartão começa na fatura aberta

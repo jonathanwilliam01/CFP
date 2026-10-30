@@ -620,3 +620,44 @@ export function comprasRecorrentes(gastos: GastoHist[], recorrencias: Recorrenci
   }
   return l.sort((a, b) => b.valor - a.valor);
 }
+
+export interface Transferencia {
+  de: string;
+  para: string;
+  valor: number;
+}
+
+/**
+ * Acerto do mês entre os membros: gastos divididos com data no mês (sem benefício) rateados por igual.
+ * Saldo positivo = tem a receber. Acertos já feitos no mês entram no saldo; transferências quitam do maior devedor ao maior credor.
+ */
+export function acertoMes(
+  gastos: Pick<Gasto, 'valor' | 'data' | 'forma' | 'criado_por' | 'pago_por' | 'dividido'>[],
+  membros: string[],
+  acertos: { mes: string; de: string; para: string; valor: number }[],
+  mes: string,
+) {
+  const div = gastos.filter((g) => g.dividido !== false && g.forma !== 'beneficio' && noMes(g.data, mes));
+  const total = soma(div, (g) => g.valor);
+  const parte = membros.length ? total / membros.length : 0;
+  const saldo = new Map(membros.map((m) => [m, -parte]));
+  const somar = (id: string, v: number) => saldo.has(id) && saldo.set(id, saldo.get(id)! + v);
+  for (const g of div) somar(g.pago_por ?? g.criado_por ?? '', g.valor);
+  for (const a of acertos.filter((a) => a.mes === mes)) {
+    somar(a.de, a.valor);
+    somar(a.para, -a.valor);
+  }
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  const deve = [...saldo].filter(([, v]) => v < -0.004).map(([id, v]) => ({ id, v: -v })).sort((a, b) => b.v - a.v);
+  const recebe = [...saldo].filter(([, v]) => v > 0.004).map(([id, v]) => ({ id, v })).sort((a, b) => b.v - a.v);
+  const transferencias: Transferencia[] = [];
+  for (const d of deve)
+    for (const c of recebe) {
+      const v = Math.min(d.v, c.v);
+      if (v < 0.005) continue;
+      transferencias.push({ de: d.id, para: c.id, valor: r2(v) });
+      d.v -= v;
+      c.v -= v;
+    }
+  return { total: r2(total), parte: r2(parte), saldos: new Map([...saldo].map(([k, v]) => [k, r2(v)])), transferencias };
+}

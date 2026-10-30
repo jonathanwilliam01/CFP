@@ -3,16 +3,19 @@ import { Router } from '@angular/router';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Auth } from './auth';
 import { addMeses, fimMes, hoje, inicioMes, mesAtual } from './datas';
-import { GastoHist, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
+import { GastoHist, Transferencia, acertoMes, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
 import {
-  Beneficio, Carteira, Cartao, Categoria, Cofrinho, CofrinhoMov, Dados, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado, OrcamentoValor,
-  Pagamento, Recorrencia, Registro, Tabela, UsoBeneficio,
+  Acerto, Beneficio, Carteira, Cartao, Categoria, Cofrinho, CofrinhoMov, Dados, Desafio, Divida, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado,
+  OrcamentoValor, Pagamento, Receber, Recorrencia, Registro, Tabela, UsoBeneficio,
 } from './models';
 import { Toast } from '../shared/toast';
 import { q, supabase } from './supabase';
 
-const CADASTROS = ['categorias', 'cartoes', 'beneficios', 'recorrencias', 'orcamentos', 'orcamento_valores', 'orcamento_fechados', 'cofrinhos', 'cofrinho_movs', 'registros'] as const;
+const CADASTROS = [
+  'categorias', 'cartoes', 'beneficios', 'recorrencias', 'orcamentos', 'orcamento_valores', 'orcamento_fechados', 'cofrinhos', 'cofrinho_movs', 'registros',
+  'acertos', 'receber', 'dividas', 'desafios',
+] as const;
 type Cadastro = (typeof CADASTROS)[number];
 const eCadastro = (t: string): t is Cadastro => (CADASTROS as readonly string[]).includes(t);
 
@@ -54,6 +57,10 @@ export class Store {
   readonly cofrinhos = signal<Cofrinho[]>([]);
   readonly cofrinhoMovs = signal<CofrinhoMov[]>([]);
   readonly registros = signal<Registro[]>([]);
+  readonly acertos = signal<Acerto[]>([]);
+  readonly receber = signal<Receber[]>([]);
+  readonly dividas = signal<Divida[]>([]);
+  readonly desafios = signal<Desafio[]>([]);
 
   /** Gastos com data no mês anterior/atual ou na fatura do mês */
   readonly gastos = signal<Gasto[]>([]);
@@ -79,6 +86,20 @@ export class Store {
   readonly membroMap = computed(() => new Map(this.membros().map((m) => [m.user_id, m.nome])));
   readonly membroPorId = computed(() => new Map(this.membros().map((m) => [m.user_id, m])));
 
+  /** Reserva de emergência: guardado nos cofrinhos marcados e quantos meses de saídas do mês ela cobre */
+  readonly reserva = computed(() => {
+    const ids = this.cofrinhos().filter((c) => c.emergencia).map((c) => c.id);
+    if (!ids.length) return null;
+    const guardado = soma(ids, (id) => this.guardadoPorCofrinho().get(id) ?? 0);
+    const saidas = this.resumo().saidas;
+    return { guardado, meses: saidas > 0 ? Math.floor((guardado / saidas) * 10) / 10 : null };
+  });
+
+  /** acerto entre os membros ligado na carteira */
+  readonly divisao = computed(() => !!this.carteira()?.divisao);
+  readonly acerto = computed(() =>
+    this.divisao() ? acertoMes(this.gastos(), this.membros().map((m) => m.user_id), this.acertos(), this.mes()) : null,
+  );
   readonly gastosMes = computed(() => this.gastos().filter((g) => noMes(g.data, this.mes())));
   readonly gastosMesAnterior = computed(() => {
     const ant = addMeses(this.mes(), -1);
@@ -199,7 +220,7 @@ export class Store {
   private limpar() {
     this.carteiras.set([]);
     this.membros.set([]);
-    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.orcamentoFechados, this.cofrinhos, this.cofrinhoMovs, this.registros, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
+    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.orcamentoFechados, this.cofrinhos, this.cofrinhoMovs, this.registros, this.acertos, this.receber, this.dividas, this.desafios, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
     for (const s of listas) s.set([]);
   }
 
@@ -223,11 +244,12 @@ export class Store {
   async recarregar(t: Cadastro) {
     const ordem: Record<Cadastro, string> = {
       categorias: 'ordem', cartoes: 'nome', beneficios: 'nome', recorrencias: 'dia', orcamentos: 'valor', orcamento_valores: 'mes', orcamento_fechados: 'mes',
-      cofrinhos: 'criado_em', cofrinho_movs: 'data', registros: 'criado_em',
+      cofrinhos: 'criado_em', cofrinho_movs: 'data', registros: 'criado_em', acertos: 'criado_em', receber: 'data', dividas: 'criado_em', desafios: 'inicio',
     };
     const alvo: Record<Cadastro, WritableSignal<any[]>> = {
       categorias: this.categorias, cartoes: this.cartoes, beneficios: this.beneficios, recorrencias: this.recorrencias,
       orcamentos: this.orcamentos, orcamento_valores: this.orcamentoValores, orcamento_fechados: this.orcamentoFechados, cofrinhos: this.cofrinhos, cofrinho_movs: this.cofrinhoMovs, registros: this.registros,
+      acertos: this.acertos, receber: this.receber, dividas: this.dividas, desafios: this.desafios,
     };
     alvo[t].set(await this.sel(t, ordem[t]));
   }
@@ -294,7 +316,7 @@ export class Store {
     const locais: Partial<Record<Tabela, WritableSignal<{ id: string }[]>>> = {
       gastos: this.gastos, entradas: this.entradas, pagamentos: this.pagamentos, categorias: this.categorias, cartoes: this.cartoes,
       beneficios: this.beneficios, recorrencias: this.recorrencias, orcamentos: this.orcamentos, cofrinhos: this.cofrinhos,
-      cofrinho_movs: this.cofrinhoMovs, registros: this.registros,
+      cofrinho_movs: this.cofrinhoMovs, registros: this.registros, receber: this.receber, dividas: this.dividas, desafios: this.desafios,
     };
     locais[tabela]?.update((l) => l.filter((x) => x.id !== id));
     if (tabela === 'parcelamentos') this.gastos.update((l) => l.filter((g) => g.parcelamento_id !== id));
@@ -314,6 +336,22 @@ export class Store {
   async depois(tabela: string) {
     if (eCadastro(tabela)) await this.recarregar(tabela);
     if (DO_MES.includes(tabela)) await this.carregarMes();
+  }
+
+  /** Limite comprometido no cartão: gastos das faturas do mês atual em diante ainda não pagas */
+  async limiteUsado(cartaoId: string) {
+    const atual = mesAtual();
+    const [g, p] = await Promise.all([
+      q<{ valor: number; fatura_mes: string }[]>(supabase.from('gastos').select('valor, fatura_mes').eq('cartao_id', cartaoId).gte('fatura_mes', atual)),
+      q<{ mes: string }[]>(supabase.from('pagamentos').select('mes').eq('tipo', 'fatura').eq('ref_id', cartaoId).gte('mes', atual)),
+    ]);
+    const pagas = new Set(p.map((x) => x.mes));
+    return soma(g.filter((x) => !pagas.has(x.fatura_mes)), (x) => x.valor);
+  }
+
+  /** Registra que "de" pagou "para" no mês selecionado */
+  acertar(t: Transferencia) {
+    return this.salvar('acertos', { mes: this.mes(), de: t.de, para: t.para, valor: t.valor });
   }
 
   async definirPadrao(cartaoId: string) {

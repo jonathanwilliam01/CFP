@@ -16,6 +16,10 @@
           [ngModel]="rapido()" (ngModelChange)="rapido.set($event)" (keydown.enter)="$event.preventDefault(); aplicarTexto()" />
         @if (rapido().trim()) {
           <button type="button" class="btn sm" (click)="aplicarTexto()">Preencher</button>
+        } @else if (podeFalar) {
+          <button type="button" class="btn ghost icon sm" [class.ouvindo]="ouvindo()" [disabled]="ouvindo()" (click)="falar()" aria-label="Falar o lançamento">
+            <app-icon name="mic" [size]="18" />
+          </button>
         }
       </div>
     }
@@ -100,13 +104,29 @@
           }
         </div>
         @if (fatura(); as fm) {
-          <p class="hint">Entra na fatura de <b>{{ fm | mes }}</b></p>
+          <p class="hint">
+            Entra na fatura de <b>{{ fm | mes }}</b>
+            @if (melhorDia()) { · <span class="pos">fatura acabou de fechar, ótimo dia</span> }
+            @if (livre() !== null) { · limite livre <b [class.neg]="livre()! < parseValor(f().valor)">{{ livre() | brl }}</b> }
+          </p>
         } @else if (f().pagamento.startsWith('b:')) {
           <p class="hint" [class.neg]="(saldoBenef()?.saldo ?? 0) < parseValor(f().valor)">
             Descontado do benefício, não entra nas contas do mês
             @if (saldoBenef(); as sb) { · resta <b>{{ sb.saldo | brl }}</b> }
           </p>
         }
+      </div>
+    }
+
+    @if (s.divisao() && l.modo() === 'gasto' && !repete() && s.membros().length > 1) {
+      <div class="field">
+        <span>Quem pagou</span>
+        <div class="chips wrap">
+          @for (m of s.membros(); track m.user_id) {
+            <button type="button" class="chip" [class.on]="f().pagoPor === m.user_id" (click)="set('pagoPor', m.user_id)">{{ m.nome }}</button>
+          }
+        </div>
+        <label class="check"><input name="div" type="checkbox" [ngModel]="f().dividido" (ngModelChange)="set('dividido', $event)" />Dividir entre todos no acerto do mês</label>
       </div>
     }
 

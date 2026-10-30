@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { inicioFatura, mesFatura, nomeMes } from '../core/datas';
+import { addMeses, diaNoMes, diffDias, inicioFatura, inicioMes, mesFatura, nomeMes } from '../core/datas';
+import { ativaNoMes } from '../core/financas';
 import { ItemExtrato, Origem, lerExtrato, palpiteCategoria } from '../core/extrato';
-import { BrlPipe, DiaPipe, soma } from '../core/formato';
+import { BrlPipe, DiaPipe, MesPipe, soma } from '../core/formato';
+import { Recorrencia } from '../core/models';
 import { Store } from '../core/store';
-import { lerTags } from '../core/texto';
+import { lerTags, normalizar } from '../core/texto';
 import { q, supabase } from '../core/supabase';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
@@ -17,6 +19,8 @@ interface Linha extends ItemExtrato {
   dup: boolean;
   /** parcela: lançar também as próximas */
   proximas: boolean;
+  /** é uma conta fixa: no cartão já entra na fatura (acao = reajustar se o preço mudou); no débito acao = marcar como paga */
+  fixa: { r: Recorrencia; mes: string; diferente: boolean; acao: boolean } | null;
 }
 
 type Memoria = Record<string, { descricao: string; categoria_id: string | null }>;
@@ -24,7 +28,7 @@ const MEMORIA = 'cfp.nubank';
 const DEBITO = 'debito';
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, Icon],
+  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -88,6 +92,20 @@ const DEBITO = 'debito';
                   <b class="num">{{ x.valor | brl }}</b>
                 </div>
                 @if (x.dup) { <span class="badge alerta">Parece já lançado</span> }
+                @if (x.fixa; as fx) {
+                  @if (noCartao() && !fx.diferente) {
+                    <span class="badge info">Conta fixa {{ fx.r.descricao }}: já entra na fatura</span>
+                  } @else {
+                    <label class="check small">
+                      <input type="checkbox" [checked]="fx.acao" (change)="alterarFixa($index, $any($event.target).checked)" />
+                      @if (noCartao()) {
+                        Conta fixa {{ fx.r.descricao }} mudou de {{ fx.r.valor | brl }} para {{ x.valor | brl }}: atualizar a partir desta fatura
+                      } @else {
+                        Marcar a conta {{ fx.r.descricao }} de {{ fx.mes | mes: true }} como paga
+                      }
+                    </label>
+                  }
+                }
                 <div class="campos">
                   <input [ngModel]="x.descricao" (ngModelChange)="alterar($index, 'descricao', $event)" aria-label="Descrição" />
                   <select [ngModel]="x.categoria_id" (ngModelChange)="alterar($index, 'categoria_id', $event)" aria-label="Categoria">
@@ -106,8 +124,8 @@ const DEBITO = 'debito';
           }
         </section>
 
-        <button class="btn block" type="button" [disabled]="salvando() || !marcadas().length || !destino()" (click)="importar()">
-          Importar {{ marcadas().length }} gasto(s)
+        <button class="btn block" type="button" [disabled]="salvando() || (!marcadas().length && !acoes().length) || !destino()" (click)="importar()">
+          Importar {{ marcadas().length }} gasto(s)@if (acoes().length) { e atualizar {{ acoes().length }} conta(s) fixa(s) }
         </button>
       }
     </div>
@@ -154,6 +172,7 @@ export default class Importar {
   protected noCartao = computed(() => !!this.cartao());
 
   protected marcadas = computed(() => this.linhas().filter((x) => x.ok));
+  protected acoes = computed(() => this.linhas().filter((x) => x.fixa?.acao));
   protected total = computed(() => soma(this.marcadas(), (x) => x.valor));
   /** Mês(es) de fatura em que os gastos caem pelo fechamento do cartão escolhido */
   protected faturas = computed(() => {
@@ -197,7 +216,7 @@ export default class Importar {
           const m = mem[x.chave];
           const descricao = m?.descricao ?? x.descricao;
           const categoria_id = m ? m.categoria_id : (historico.get(descricao.toLowerCase()) ?? palpiteCategoria(x.descricao, this.s.catGasto()) ?? palpiteCategoria(x.titulo, this.s.catGasto()));
-          return { ...x, descricao, categoria_id, ok: true, dup: false, proximas: true };
+          return { ...x, descricao, categoria_id, ok: true, dup: false, proximas: true, fixa: null };
         }),
       );
       this.ignorados.set(ignorados);
@@ -237,9 +256,62 @@ export default class Importar {
           return { ...x, dup: i >= 0, ok: i < 0 };
         }),
       );
+      await this.casarFixas();
     } catch (e) {
       this.toast.erro(e);
     }
+  }
+
+  /** Cartão: compra que é conta fixa da fatura sai da importação (preço diferente oferece reajuste). Débito: pagamento de conta fixa vira baixa dela. */
+  private async casarFixas() {
+    const c = this.cartao();
+    const linhas = this.linhas();
+    const nome = (t: string) => normalizar(t).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    const parecido = (a: string, b: string) => {
+      const x = nome(a);
+      const y = nome(b);
+      return x.length >= 4 && y.length >= 4 && (x.includes(y) || y.includes(x));
+    };
+    const fixas = this.s.recorrencias().filter((r) => r.tipo === 'conta' && !r.beneficio_id && (c ? r.cartao_id === c.id : !r.cartao_id));
+    const mesesDe = (x: Linha) => [inicioMes(x.data), addMeses(inicioMes(x.data), 1)];
+    let pagas = new Set<string>();
+    if (!c && fixas.length) {
+      const meses = [...new Set(linhas.flatMap(mesesDe))];
+      const l = await q<{ ref_id: string; mes: string }[]>(
+        supabase.from('pagamentos').select('ref_id, mes').eq('carteira_id', this.s.carteiraId()!).eq('tipo', 'recorrencia').not('pago_em', 'is', null).in('mes', meses),
+      );
+      pagas = new Set(l.map((p) => `${p.ref_id}|${p.mes}`));
+    }
+    const usadas = new Set<string>();
+    this.linhas.update((l) =>
+      l.map((x) => {
+        if (x.parcela) return { ...x, fixa: null };
+        const casa = (r: Recorrencia) => parecido(r.descricao, x.descricao) || parecido(r.descricao, x.chave);
+        if (c) {
+          const mes = mesFatura(this.dataDe(x), c.fechamento_dia, c.vencimento_dia);
+          const r = fixas.find((r) => ativaNoMes(r, mes) && casa(r));
+          if (!r) return { ...x, fixa: null };
+          const diferente = !r.variavel && Math.abs(r.valor - x.valor) >= 0.01;
+          return { ...x, ok: false, fixa: { r, mes, diferente, acao: diferente } };
+        }
+        for (const mes of mesesDe(x)) {
+          const k = (r: Recorrencia) => `${r.id}|${mes}`;
+          const r = fixas.find(
+            (r) => ativaNoMes(r, mes) && !pagas.has(k(r)) && !usadas.has(k(r))
+              && (casa(r) || (!r.variavel && Math.abs(r.valor - x.valor) < 0.01 && Math.abs(diffDias(diaNoMes(mes, r.dia), x.data)) <= 5)),
+          );
+          if (r) {
+            usadas.add(k(r));
+            return { ...x, ok: false, fixa: { r, mes, diferente: false, acao: true } };
+          }
+        }
+        return { ...x, fixa: null };
+      }),
+    );
+  }
+
+  alterarFixa(i: number, acao: boolean) {
+    this.linhas.update((l) => l.map((x, j) => (j === i && x.fixa ? { ...x, fixa: { ...x.fixa, acao } } : x)));
   }
 
   alterar<K extends keyof Linha>(i: number, k: K, v: Linha[K]) {
@@ -254,7 +326,8 @@ export default class Importar {
   async importar() {
     const c = this.cartao();
     const sel = this.marcadas();
-    if (!sel.length) return;
+    const acoes = this.acoes();
+    if (!sel.length && !acoes.length) return;
     this.salvando.set(true);
     const tags = lerTags(this.tags);
     try {
@@ -274,10 +347,15 @@ export default class Importar {
           tags,
         };
       });
-      await q(supabase.rpc('importar_gastos', { p_carteira: this.s.carteiraId(), p_itens: itens }));
+      if (itens.length) await q(supabase.rpc('importar_gastos', { p_carteira: this.s.carteiraId(), p_itens: itens }));
+      for (const x of acoes) {
+        const fx = x.fixa!;
+        if (c) await this.s.reajustar(fx.r, x.valor, fx.mes);
+        else await this.s.pagar('recorrencia', fx.r.id, x.valor, x.data, fx.mes);
+      }
       this.lembrar(sel);
       await this.s.depois('gastos');
-      this.toast.ok(`${sel.length} gasto(s) importado(s)`);
+      this.toast.ok(`${sel.length} gasto(s) importado(s)${acoes.length ? `, ${acoes.length} conta(s) fixa(s) atualizada(s)` : ''}`);
       this.linhas.set([]);
       this.arquivo.set('');
     } catch (e) {

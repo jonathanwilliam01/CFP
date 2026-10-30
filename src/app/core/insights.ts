@@ -1,5 +1,5 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
-import { addDias, diaNoMes, diffDias, hoje, mesAtual, mesFatura } from './datas';
+import { addDias, diaNoMes, diffDias, hoje, mesAtual, mesFatura, nomeMes } from './datas';
 import { aporteMensal, ativaNoMes, categoriasAcima, faturaProjetada, fixasNaFatura, porCategoria, saldoBeneficio, variaveisAcima } from './financas';
 import { moeda, pct, soma } from './formato';
 import { Chat } from './chat';
@@ -78,6 +78,9 @@ export class Insights {
         const proj = d > 0 ? faturaProjetada(c, s.gastos(), s.recorrenciasPrev(), h) : null;
         const ritmo = proj && proj.mes === fm && proj.projetada > total + 1 ? ` No ritmo atual, fecha em ${moeda(proj.projetada)}.` : '';
         l.push({ id: `fech-${c.id}-${mes}`, nivel: 'info', icone: 'credit_card', titulo: `Fatura ${c.nome} fecha ${d === 0 ? 'hoje' : `em ${d} dia(s)`}`, texto: total ? `Parcial: ${moeda(total)}.${ritmo}` : 'Compras após o fechamento vão para a próxima fatura.', link: '/cartoes' });
+      } else if (d >= -2 && d < 0) {
+        const prox = nomeMes(mesFatura(h, c.fechamento_dia, c.vencimento_dia));
+        l.push({ id: `melhor-${c.id}-${mes}`, nivel: 'info', icone: 'event_available', titulo: `${c.nome}: melhor época de compra`, texto: `A fatura fechou; compras agora só entram na fatura de ${prox}.`, link: '/cartoes' });
       }
     }
 

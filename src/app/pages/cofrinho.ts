@@ -144,6 +144,7 @@ import { Toast } from '../shared/toast';
         </div>
         <label class="field"><span>Cor</span><input name="cor" type="color" [(ngModel)]="f.cor" /></label>
         <div class="field"><span>Ícone</span><app-icone-picker [(valor)]="f.icone" [cor]="f.cor" /></div>
+        <label class="check"><input name="emerg" type="checkbox" [(ngModel)]="f.emergencia" />É a reserva de emergência</label>
         <button class="btn block" [disabled]="salvando()">Salvar</button>
         <button class="btn danger block" type="button" (click)="excluir()">Excluir cofrinho</button>
       </form>
@@ -181,7 +182,7 @@ export default class Cofrinho {
   protected salvando = signal(false);
   protected sinal = signal(1);
   m = { valor: '', data: hoje(), descricao: '' };
-  f = { nome: '', meta: '', prazo: '', icone: '', cor: '' };
+  f = { nome: '', meta: '', prazo: '', icone: '', cor: '', emergencia: false };
 
   protected c = computed(() => this.s.cofrinhos().find((x) => x.id === this.id()) ?? null);
   protected movs = computed(() =>
@@ -281,7 +282,7 @@ export default class Cofrinho {
 
   editar() {
     const c = this.c()!;
-    this.f = { nome: c.nome, meta: String(c.meta).replace('.', ','), prazo: c.prazo ?? '', icone: c.icone, cor: c.cor };
+    this.f = { nome: c.nome, meta: String(c.meta).replace('.', ','), prazo: c.prazo ?? '', icone: c.icone, cor: c.cor, emergencia: !!c.emergencia };
     this.editAberto.set(true);
   }
 
@@ -296,6 +297,7 @@ export default class Cofrinho {
         prazo: this.f.prazo || null,
         icone: this.f.icone || 'savings',
         cor: this.f.cor,
+        emergencia: this.f.emergencia,
       });
       this.toast.ok('Salvo');
       this.editAberto.set(false);

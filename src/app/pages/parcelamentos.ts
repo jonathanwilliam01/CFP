@@ -1,18 +1,20 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { addMeses, inicioMes, mesAtual, mesFatura, nomeMes } from '../core/datas';
-import { BrlPipe, MesPipe, pct, soma } from '../core/formato';
+import { FormsModule } from '@angular/forms';
+import { addMeses, hoje, inicioMes, mesAtual, mesFatura, nomeMes } from '../core/datas';
+import { BrlPipe, MesPipe, moeda, parseValor, pct, soma } from '../core/formato';
 import { Gasto, Parcelamento } from '../core/models';
 
-type Parcela = Pick<Gasto, 'parcelamento_id' | 'valor' | 'data' | 'fatura_mes'>;
+type Parcela = Pick<Gasto, 'id' | 'parcelamento_id' | 'parcela' | 'valor' | 'data' | 'fatura_mes'>;
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
 import { Empilhadas, Pilha } from '../shared/graficos';
 import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
+import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 
 @Component({
-  imports: [BrlPipe, MesPipe, Icon, Empilhadas],
+  imports: [BrlPipe, MesPipe, Icon, Empilhadas, FormsModule, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -63,6 +65,9 @@ import { Toast } from '../shared/toast';
             <span>
               @if (p.pagas < p.p.num_parcelas) {
                 Falta <b class="num">{{ p.restante | brl }}</b> · termina em {{ p.fim | mes }}
+                @if (p.antecipaveis.length) {
+                  <button class="link" type="button" (click)="abrirAntecipar(p)">Antecipar</button>
+                }
               } @else {
                 Total {{ p.p.valor_parcela * p.p.num_parcelas | brl }}
               }
@@ -79,6 +84,20 @@ import { Toast } from '../shared/toast';
         </div>
       }
 
+      <app-sheet [(open)]="antecipando" titulo="Antecipar parcelas">
+        @if (ant(); as a) {
+          <form class="form" (ngSubmit)="antecipar()">
+            <p class="small muted">{{ a.p.descricao }}: as últimas parcelas viram um pagamento só {{ a.cartao ? 'na fatura aberta' : 'hoje' }}.</p>
+            <label class="field"><span>Quantas parcelas (até {{ a.antecipaveis.length }})</span>
+              <input name="n" type="number" min="1" [max]="a.antecipaveis.length" [ngModel]="antN()" (ngModelChange)="trocarN(+$event)" />
+            </label>
+            <label class="field"><span>Valor pago (com desconto)</span><input name="v" inputmode="decimal" [ngModel]="antValor()" (ngModelChange)="antValor.set($event)" /></label>
+            <p class="hint">Sem desconto: {{ semDesconto() | brl }}@if (desconto() > 0) { · economia <b class="pos">{{ desconto() | brl }}</b> }</p>
+            <button class="btn block" type="submit" [disabled]="salvando()">{{ antN() === a.antecipaveis.length ? 'Quitar' : 'Antecipar' }}</button>
+          </form>
+        }
+      </app-sheet>
+
       <p class="small muted">As parcelas entram automaticamente nos gastos de cada mês e, no cartão, na fatura correspondente.</p>
     </div>
   `,
@@ -90,6 +109,7 @@ import { Toast } from '../shared/toast';
     .lib { display: flex; gap: 8px; align-items: flex-start; font-size: 0.88rem; color: var(--ink-2); }
     .lib app-icon { color: var(--ok); }
     .cap { text-transform: capitalize; }
+    .link { background: none; border: 0; color: var(--primary); font: inherit; font-weight: 700; cursor: pointer; padding: 0 0 0 6px; }
     .info { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
   `,
 })
@@ -113,7 +133,9 @@ export default class Parcelamentos {
         return c ? mesFatura(d, c.fechamento_dia, c.vencimento_dia) : inicioMes(d);
       };
       // parcela de mês passado conta como paga; importada a partir da parcela N não tem as anteriores como gasto
-      const futuras = this.parcelas().filter((g) => g.parcelamento_id === p.id && (g.fatura_mes ?? inicioMes(g.data)) >= atual);
+      // antecipação (parcela null) não é parcela: as que ela substituiu contam como pagas
+      const futuras = this.parcelas().filter((g) => g.parcelamento_id === p.id && g.parcela != null && (g.fatura_mes ?? inicioMes(g.data)) >= atual);
+      const alvo = c ? mesFatura(hoje(), c.fechamento_dia, c.vencimento_dia) : atual;
       const pagas = p.num_parcelas - futuras.length;
       const cat = p.categoria_id ? this.s.catMap().get(p.categoria_id) : undefined;
       return {
@@ -125,6 +147,9 @@ export default class Parcelamentos {
         icone: cat?.icone ?? 'receipt_long',
         cor: cat?.cor ?? '#64748b',
         pagamento: c ? `Cartão ${c.nome}` : 'Boleto/Débito',
+        cartao: !!c,
+        /** depois da fatura aberta (ou do mês), da última para a primeira */
+        antecipaveis: futuras.filter((g) => (g.fatura_mes ?? inicioMes(g.data)) > alvo).sort((a, b) => (b.parcela ?? 0) - (a.parcela ?? 0)),
       };
     });
   });
@@ -158,6 +183,44 @@ export default class Parcelamentos {
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([mes, a]) => ({ mes, valor: a.valor, nomes: a.nomes.join(', ') }));
   });
 
+  protected antecipando = signal(false);
+  protected ant = signal<ReturnType<typeof this.lista>[number] | null>(null);
+  protected antN = signal(1);
+  protected salvando = signal(false);
+  protected antValor = signal('');
+  protected semDesconto = computed(() => soma(this.ant()?.antecipaveis.slice(0, this.antN()) ?? [], (g) => g.valor));
+  protected desconto = computed(() => Math.round((this.semDesconto() - parseValor(this.antValor())) * 100) / 100);
+
+  abrirAntecipar(p: ReturnType<typeof this.lista>[number]) {
+    this.ant.set(p);
+    this.trocarN(p.antecipaveis.length);
+    this.antecipando.set(true);
+  }
+
+  trocarN(n: number) {
+    const max = this.ant()?.antecipaveis.length ?? 1;
+    this.antN.set(Math.max(1, Math.min(max, Math.round(n) || 1)));
+    this.antValor.set(this.semDesconto().toFixed(2).replace('.', ','));
+  }
+
+  async antecipar() {
+    const a = this.ant();
+    const valor = parseValor(this.antValor());
+    if (!a || !valor) return this.toast.erro('Informe o valor pago');
+    const ids = a.antecipaveis.slice(0, this.antN()).map((g) => g.id);
+    this.salvando.set(true);
+    try {
+      await q(supabase.rpc('antecipar_parcelas', { p_parcelamento: a.p.id, p_ids: ids, p_valor: valor, p_data: hoje() }));
+      await Promise.all([this.carregar(), this.s.carregarMes()]);
+      this.antecipando.set(false);
+      this.toast.ok(this.desconto() > 0 ? `Antecipado, economia de ${moeda(this.desconto())}` : 'Parcelas antecipadas');
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.salvando.set(false);
+    }
+  }
+
   constructor() {
     effect(() => {
       this.s.mudou();
@@ -172,7 +235,7 @@ export default class Parcelamentos {
       const id = this.s.carteiraId()!;
       const [dados, parcelas] = await Promise.all([
         q<Parcelamento[]>(supabase.from('parcelamentos').select('*').eq('carteira_id', id).order('criado_em', { ascending: false })),
-        q<Parcela[]>(supabase.from('gastos').select('parcelamento_id, valor, data, fatura_mes').eq('carteira_id', id).not('parcelamento_id', 'is', null)),
+        q<Parcela[]>(supabase.from('gastos').select('id, parcelamento_id, parcela, valor, data, fatura_mes').eq('carteira_id', id).not('parcelamento_id', 'is', null)),
       ]);
       this.dados.set(dados);
       this.parcelas.set(parcelas);
