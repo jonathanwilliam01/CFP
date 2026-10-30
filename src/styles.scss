@@ -75,6 +75,11 @@ $cores: (
   verde: (#15803d, #dcf3e3, #4ade80, #052e16, #143a24),
   laranja: (#d9620b, #fde8d6, #ffa24d, #3a1a02, #3f2814),
   roxo: (#7c3aed, #ece3fd, #b28cff, #1d0b45, #2c1f4d),
+  'indigo': (#4338ca, #e3e2fb, #8b8cff, #120f45, #24224f),
+  rosa: (#db2777, #fce1ee, #f472b6, #3b0420, #4a1a33),
+  vinho: (#9f1239, #f8dfe5, #fb7192, #3a0414, #45162a),
+  ciano: (#0e7490, #d5f1f7, #22d3ee, #032a33, #123b44),
+  grafite: (#475569, #e5e9ef, #a5b4c8, #0f172a, #262f3d),
 );
 
 @mixin cor-escura($c) {
@@ -436,7 +441,7 @@ input[type='color'] {
   padding: 3px;
   gap: 3px;
 
-  button {
+  button, a {
     flex: 1;
     border: 0;
     background: none;

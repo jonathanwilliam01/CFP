@@ -661,3 +661,70 @@ export function acertoMes(
     }
   return { total: r2(total), parte: r2(parte), saldos: new Map([...saldo].map(([k, v]) => [k, r2(v)])), transferencias };
 }
+
+/** Alíquota do IR na renda fixa pelo prazo em meses (tabela regressiva) */
+export const aliquotaIR = (meses: number) => (meses <= 6 ? 0.225 : meses <= 12 ? 0.2 : meses <= 24 ? 0.175 : 0.15);
+
+/** Taxa mensal líquida de IR de uma aplicação a `pctCdi`% de um CDI anual (em %), pelo prazo em meses */
+export function taxaMensal(cdiAno: number, pctCdi: number, meses: number, comIR = true) {
+  const bruta = Math.pow(1 + (cdiAno / 100) * (pctCdi / 100), 1 / 12) - 1;
+  return comIR ? bruta * (1 - aliquotaIR(meses)) : bruta;
+}
+
+/**
+ * À vista x parcelado: o dinheiro do à vista fica aplicado a `taxa` ao mês e paga uma parcela por mês
+ * (a primeira daqui a 1 mês, ou hoje com `entrada`). `custoHoje` é quanto precisa ter aplicado hoje
+ * para pagar todas; `sobra` é o que resta aplicado no fim; `juros` é a taxa mensal embutida no parcelado.
+ */
+export function avistaOuParcelado(avista: number, parcela: number, n: number, taxa: number, entrada = false) {
+  if (avista <= 0 || parcela <= 0 || n < 1) return null;
+  const desc = (i: number) => Array.from({ length: n }, (_, k) => parcela / Math.pow(1 + i, k + (entrada ? 0 : 1))).reduce((a, b) => a + b, 0);
+  const custoHoje = desc(taxa);
+  let saldo = avista;
+  const meses: { mes: number; saldo: number }[] = [];
+  for (let k = entrada ? 0 : 1; k <= n - (entrada ? 1 : 0); k++) {
+    if (k > 0) saldo *= 1 + taxa;
+    saldo -= parcela;
+    meses.push({ mes: k, saldo: Math.round(saldo * 100) / 100 });
+  }
+  // juros embutidos: taxa que iguala o valor presente das parcelas ao preço à vista
+  let juros: number | null = null;
+  if (parcela * n > avista) {
+    let lo = 0;
+    let hi = 1;
+    for (let i = 0; i < 60; i++) {
+      const m = (lo + hi) / 2;
+      if (desc(m) > avista) lo = m;
+      else hi = m;
+    }
+    juros = (lo + hi) / 2;
+  }
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  return { total: r2(parcela * n), custoHoje: r2(custoHoje), economia: r2(avista - custoHoje), sobra: r2(saldo), meses, juros, compensa: custoHoje < avista ? ('parcelado' as const) : ('avista' as const) };
+}
+
+type GastoDup = Pick<Gasto, 'id' | 'descricao' | 'valor' | 'data' | 'parcelamento_id' | 'nao_duplicado'>;
+
+/**
+ * Pares de gastos com mesmo valor, mesma descrição e até 1 dia de diferença.
+ * Par em que os dois foram confirmados (nao_duplicado) não volta; parcelas do mesmo parcelamento não contam.
+ */
+export function duplicados<T extends GastoDup>(gastos: T[]): [T, T][] {
+  const grupos = new Map<string, T[]>();
+  for (const g of gastos) {
+    const k = `${g.valor.toFixed(2)}|${normalizar(g.descricao)}`;
+    grupos.set(k, [...(grupos.get(k) ?? []), g]);
+  }
+  const pares: [T, T][] = [];
+  for (const l of grupos.values()) {
+    if (l.length < 2) continue;
+    l.sort((a, b) => a.data.localeCompare(b.data));
+    for (let i = 0; i < l.length; i++)
+      for (let j = i + 1; j < l.length && diffDias(l[i].data, l[j].data) <= 1; j++) {
+        const [a, b] = [l[i], l[j]];
+        if ((a.nao_duplicado && b.nao_duplicado) || (a.parcelamento_id && a.parcelamento_id === b.parcelamento_id)) continue;
+        pares.push([a, b]);
+      }
+  }
+  return pares;
+}

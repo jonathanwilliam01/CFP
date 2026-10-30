@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, effect, inject, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { BrlPipe, DiaPipe, parseValor, soma } from '../core/formato';
@@ -6,31 +6,31 @@ import { Entrada, Gasto } from '../core/models';
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
 import { normalizar } from '../core/texto';
-import { Icon } from '../shared/icon';
-import { Lancar } from '../shared/lancar';
+import { Icon } from './icon';
+import { Lancar } from './lancar';
 
 const LIMITE = 100;
 
 /** Busca em todos os meses: gastos, entradas, contas/entradas fixas, cofrinhos e registros */
+/** Busca em todos os meses, aberta no topo sem trocar de tela */
 @Component({
+  selector: 'app-buscador',
   imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="page">
-      <div class="page-head"><h1>Buscar</h1></div>
       <label class="busca">
         <app-icon name="search" [size]="20" />
-        <input type="search" autofocus placeholder="Descrição, categoria, #marcador ou valor" [ngModel]="termo()" (ngModelChange)="termo.set($event)" />
+        <input type="search" autofocus (keydown.escape)="fechar.emit()" placeholder="Descrição, categoria, #marcador ou valor" [ngModel]="termo()" (ngModelChange)="termo.set($event)" />
       </label>
 
       @if (termo().trim().length < 2) {
-        <p class="small muted">Digite ao menos 2 letras. Valor (ex.: 49,90) acha o gasto exato; #viagem busca pelo marcador.</p>
+        <p class="small muted dica">Digite ao menos 2 letras. Valor (ex.: 49,90) acha o gasto exato; #viagem busca pelo marcador.</p>
       } @else {
         @if (gastos().length) {
           <div class="card-head"><h2>Gastos</h2><span class="small muted">{{ gastos().length }}{{ gastos().length === limite ? '+' : '' }} · <b class="num">{{ totalGastos() | brl }}</b></span></div>
-          <section class="card list">
+          <section class="list">
             @for (g of gastos(); track g.id) {
-              <button class="row" (click)="lancar.editarGasto(g)">
+              <button class="row" (click)="lancar.editarGasto(g); fechar.emit()">
                 <span class="ico"><app-icon [name]="s.catMap().get(g.categoria_id ?? '')?.icone ?? 'help'" /></span>
                 <div class="grow"><div class="t">{{ g.descricao }}@for (t of g.tags ?? []; track t) {<span class="tag">#{{ t }}</span>}</div>
                   <div class="s">{{ g.data | dia }} · {{ s.catMap().get(g.categoria_id ?? '')?.nome ?? 'Sem categoria' }}</div></div>
@@ -41,9 +41,9 @@ const LIMITE = 100;
         }
         @if (entradas().length) {
           <div class="card-head"><h2>Entradas</h2></div>
-          <section class="card list">
+          <section class="list">
             @for (e of entradas(); track e.id) {
-              <button class="row" (click)="lancar.editarEntrada(e)">
+              <button class="row" (click)="lancar.editarEntrada(e); fechar.emit()">
                 <span class="ico"><app-icon name="payments" /></span>
                 <div class="grow"><div class="t">{{ e.descricao }}</div><div class="s">{{ e.data | dia }}</div></div>
                 <span class="v pos">{{ e.valor | brl }}</span>
@@ -53,9 +53,9 @@ const LIMITE = 100;
         }
         @if (outros().length) {
           <div class="card-head"><h2>Cadastros</h2></div>
-          <section class="card list">
+          <section class="list">
             @for (o of outros(); track o.id) {
-              <a class="row" [routerLink]="o.link">
+              <a class="row" [routerLink]="o.link" (click)="fechar.emit()">
                 <span class="ico"><app-icon [name]="o.icone" /></span>
                 <div class="grow"><div class="t">{{ o.nome }}</div><div class="s">{{ o.tipo }}</div></div>
                 @if (o.valor != null) { <span class="v">{{ o.valor | brl }}</span> }
@@ -67,9 +67,11 @@ const LIMITE = 100;
           <div class="empty"><app-icon class="big" name="search_off" [size]="40" />Nada encontrado.</div>
         }
       }
-    </div>
   `,
   styles: `
+    :host { display: flex; flex-direction: column; gap: 6px; }
+    .dica { padding: 4px 4px 8px; }
+    h2 { font-size: 0.9rem; }
     .busca {
       display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 14px;
       background: var(--card); border: 1px solid var(--line); color: var(--ink-2);
@@ -78,7 +80,8 @@ const LIMITE = 100;
     .tag { margin-left: 6px; font-size: 0.72rem; color: var(--primary); font-weight: 600; }
   `,
 })
-export default class Busca {
+export class Buscador {
+  readonly fechar = output();
   protected s = inject(Store);
   protected lancar = inject(Lancar);
   protected limite = LIMITE;
@@ -108,6 +111,8 @@ export default class Busca {
   });
 
   constructor() {
+    const el = inject(ElementRef<HTMLElement>);
+    afterNextRender(() => el.nativeElement.querySelector('input')?.focus());
     effect(() => {
       const t = this.termo().trim();
       this.s.mudou();

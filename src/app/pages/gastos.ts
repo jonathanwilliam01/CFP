@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { hoje } from '../core/datas';
+import { duplicados } from '../core/financas';
+import { q, supabase } from '../core/supabase';
 import { BrlPipe, DiaPipe, soma } from '../core/formato';
 import { Gasto } from '../core/models';
 import { Store } from '../core/store';
@@ -35,6 +37,14 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
           <button class="chip" [class.on]="filtro() === o.k" (click)="filtro.set(o.k)">@if (o.i) {<app-icon [name]="o.i" [size]="18" />}{{ o.r }}</button>
         }
       </div>
+      @if (filtro() === 'cartao' && s.cartoes().length > 1) {
+        <div class="chips">
+          <button class="chip" [class.on]="!cartao()" (click)="cartao.set(null)">Todos os cartões</button>
+          @for (c of s.cartoes(); track c.id) {
+            <button class="chip" [class.on]="cartao() === c.id" (click)="cartao.set(c.id)">{{ c.nome }}</button>
+          }
+        </div>
+      }
       @if (tags().length) {
         <div class="chips">
           @for (t of tags(); track t) {
@@ -46,6 +56,25 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
         <option [ngValue]="null">Todas as categorias</option>
         @for (c of s.catGasto(); track c.id) { <option [ngValue]="c.id">{{ c.nome }}</option> }
       </select>
+
+      @if (dups().length) {
+        <section class="card dups">
+          <div class="card-head"><h2><app-icon name="content_copy" [size]="18" />Possíveis duplicados</h2><span class="badge">{{ dups().length }}</span></div>
+          <p class="small muted">Mesmo valor e descrição com até 1 dia de diferença. Exclua o repetido ou confirme que são dois gastos.</p>
+          @for (p of dups(); track p[0].id + p[1].id) {
+            <div class="dup">
+              <div class="grow">
+                <div class="t">{{ p[0].descricao }} · <span class="num">{{ p[0].valor | brl }}</span></div>
+                <div class="s">{{ p[0].data | dia }} ({{ forma(p[0]) }}{{ quem(p[0]) }}) e {{ p[1].data | dia }} ({{ forma(p[1]) }}{{ quem(p[1]) }})</div>
+              </div>
+              <div class="bts">
+                <button class="btn ghost sm" type="button" (click)="excluir(p[1])">Excluir um</button>
+                <button class="btn sm" type="button" (click)="manter(p)" [disabled]="ocupado()">Manter os dois</button>
+              </div>
+            </div>
+          }
+        </section>
+      }
 
       <div class="total card">
         <span class="muted">{{ lista().length }} gasto(s)</span>
@@ -85,6 +114,12 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
     .list { padding-top: 4px; padding-bottom: 4px; }
     .benef { color: var(--ink-3); }
     .dica { text-align: center; }
+    .dups { border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
+    .dups h2 { display: flex; align-items: center; gap: 6px; color: var(--warn); }
+    .dup { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+    .dup .t { font-weight: 700; }
+    .dup .s { font-size: 0.82rem; color: var(--ink-2); }
+    .dup .bts { display: flex; gap: 6px; margin-left: auto; }
   `,
 })
 export default class Gastos {
@@ -102,6 +137,9 @@ export default class Gastos {
   ];
   protected filtro = signal<Filtro>('todos');
   protected cat = signal<string | null>(null);
+  protected cartao = signal<string | null>(null);
+  protected ocupado = signal(false);
+  protected dups = computed(() => duplicados(this.s.gastosMes()));
   protected busca = signal('');
   protected tag = signal<string | null>(null);
   protected tags = computed(() => [...new Set(this.s.gastosMes().flatMap((g) => g.tags ?? []))].sort());
@@ -111,6 +149,7 @@ export default class Gastos {
     return this.s.gastosMes().filter(
       (g) =>
         (this.filtro() === 'todos' || g.forma === this.filtro()) &&
+        (this.filtro() !== 'cartao' || !this.cartao() || g.cartao_id === this.cartao()) &&
         (!this.cat() || g.categoria_id === this.cat()) &&
         (!this.tag() || !!g.tags?.includes(this.tag()!)) &&
         (!b || g.descricao.toLowerCase().includes(b)),
@@ -127,6 +166,20 @@ export default class Gastos {
 
   excluir(g: Gasto) {
     this.s.excluirAdiado('gastos', g.id, 'Gasto excluído');
+  }
+
+  /** Confirma que o par não é duplicado: marca os dois para não avisar de novo */
+  async manter(p: [Gasto, Gasto]) {
+    this.ocupado.set(true);
+    try {
+      await q(supabase.from('gastos').update({ nao_duplicado: true }).in('id', p.map((g) => g.id)));
+      await this.s.depois('gastos');
+      this.toast.ok('Mantidos os dois gastos');
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.ocupado.set(false);
+    }
   }
 
   async repetir(g: Gasto) {

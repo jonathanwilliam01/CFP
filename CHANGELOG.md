@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.26.10.12 — 2026-10-30
+- Calculadoras (nova tela): à vista x parcelado com rendimento do CDI (explica como funciona), quanto guardar por mês para uma meta e dividir conta
+- Calculadora rápida no botão flutuante, junto do chat, com lançar o resultado; os dois botões podem ser escondidos em Configurações
+- Menu lateral e Mais agrupados por assunto (Dia a dia, Compromissos, Metas e controle, Análise, App); Configurações: ordem e itens escondidos de cada grupo; Categorias, Blocos do Início e Menu recolhíveis
+- Relatórios com abas para Resumo mensal e Retrospectiva; Entradas com aba A receber
+- Busca e notificações abrem no próprio topo, sem trocar de tela
+- Troca de tema saiu do topo: fica no menu lateral (computador) e em Configurações
+- Mais cores de tema: índigo, rosa, vinho, ciano e grafite
+- Gastos: filtro por cartão e aviso de gastos duplicados com opção de manter os dois
+- Botão do chat com mais destaque
+
 ## v1.26.10.11 — 2026-10-30
 - Acerto entre os membros (opcional, em Configurações): quem pagou cada gasto, se é dividido e quem deve quanto no Início
 - Planejamento: Posso comprar? simula a compra (à vista ou parcelada) e mostra os meses que ficam negativos; eventos que repetem todo ano (13º, férias, IR)

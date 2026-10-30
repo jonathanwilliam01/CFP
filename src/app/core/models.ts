@@ -74,6 +74,8 @@ export interface Gasto {
   /** acerto (028): quem pagou (null = quem lançou) e se entra na divisão */
   pago_por?: string | null;
   dividido?: boolean;
+  /** confirmado como não duplicado (029) */
+  nao_duplicado?: boolean;
 }
 
 export interface Parcelamento {

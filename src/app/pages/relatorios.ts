@@ -7,6 +7,7 @@ import { Store } from '../core/store';
 import { Barras, Calor, Coluna, Donut, Empilhadas, Pilha } from '../shared/graficos';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
+import { Abas, RELATORIOS } from '../shared/abas';
 
 interface Grupo {
   nome: string;
@@ -16,10 +17,11 @@ interface Grupo {
 }
 
 @Component({
-  imports: [BrlPipe, MesPipe, Donut, Barras, Empilhadas, Calor, Icon],
+  imports: [Abas, BrlPipe, MesPipe, Donut, Barras, Empilhadas, Calor, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
+      <app-abas [abas]="abas" />
       <div class="page-head">
         <h1>Relatórios</h1>
         <button class="btn ghost sm" type="button" (click)="exportar()" [disabled]="!dados()">
@@ -123,6 +125,7 @@ interface Grupo {
   `,
 })
 export default class Relatorios {
+  protected abas = RELATORIOS;
   protected s = inject(Store);
   private toast = inject(Toast);
 

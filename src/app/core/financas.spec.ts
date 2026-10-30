@@ -1,4 +1,4 @@
-import { ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
+import { avistaOuParcelado, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -381,5 +381,41 @@ describe('comprasRecorrentes', () => {
     expect(comprasRecorrentes([...base.slice(0, 2), mensal('2026-09-15', 80)], [], '2026-10-01')).toEqual([]);
     expect(comprasRecorrentes(base.map((g) => ({ ...g, parcelamento_id: 'p' })), [], '2026-10-01')).toEqual([]);
     expect(comprasRecorrentes(base, [conta({ descricao: 'NETFLIX' })], '2026-10-01')).toEqual([]);
+  });
+});
+
+describe('avistaOuParcelado', () => {
+  it('parcelado sem juros compensa quando o dinheiro rende', () => {
+    const r = avistaOuParcelado(1000, 100, 10, 0.01)!;
+    expect(r.compensa).toBe('parcelado');
+    expect(r.custoHoje).toBeCloseTo(947.13, 2);
+    expect(r.juros).toBeNull();
+    expect(r.meses).toHaveLength(10);
+  });
+
+  it('desconto grande no pix ganha do parcelado e mostra os juros embutidos', () => {
+    const r = avistaOuParcelado(900, 100, 10, 0.008)!;
+    expect(r.compensa).toBe('avista');
+    expect(r.sobra).toBeLessThan(0);
+    expect(r.juros!).toBeCloseTo(0.0196, 3);
+  });
+
+  it('IR regressivo pelo prazo', () => {
+    expect(taxaMensal(12, 100, 6)).toBeCloseTo((Math.pow(1.12, 1 / 12) - 1) * 0.775, 8);
+    expect(taxaMensal(12, 100, 30, false)).toBeCloseTo(Math.pow(1.12, 1 / 12) - 1, 8);
+  });
+});
+
+describe('duplicados', () => {
+  const g = (id: string, data: string, extra = {}) => ({ id, descricao: 'Mercado X', valor: 50, data, parcelamento_id: null, ...extra });
+
+  it('aponta mesmo valor e descrição com até 1 dia', () => {
+    expect(duplicados([g('a', '2026-10-01'), g('b', '2026-10-02'), g('c', '2026-10-05')]).map((p) => p.map((x) => x.id))).toEqual([['a', 'b']]);
+  });
+
+  it('ignora par confirmado e parcelas do mesmo parcelamento', () => {
+    expect(duplicados([g('a', '2026-10-01', { nao_duplicado: true }), g('b', '2026-10-01', { nao_duplicado: true })])).toEqual([]);
+    expect(duplicados([g('a', '2026-10-01', { parcelamento_id: 'p' }), g('b', '2026-10-01', { parcelamento_id: 'p' })])).toEqual([]);
+    expect(duplicados([g('a', '2026-10-01', { nao_duplicado: true }), g('b', '2026-10-01')])).toHaveLength(1);
   });
 });

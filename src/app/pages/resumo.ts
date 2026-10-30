@@ -8,12 +8,14 @@ import { Gasto } from '../core/models';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
+import { Abas, RELATORIOS } from '../shared/abas';
 
 @Component({
-  imports: [BrlPipe, DiaPipe, MesPipe, Icon, RouterLink],
+  imports: [Abas, BrlPipe, DiaPipe, MesPipe, Icon, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
+      <app-abas [abas]="abas" />
       <div class="page-head">
         <h1 class="cap">{{ s.mes() | mes }}</h1>
         <div class="acoes no-print">
@@ -156,6 +158,7 @@ import { Toast } from '../shared/toast';
   `,
 })
 export default class Resumo {
+  protected abas = RELATORIOS;
   protected s = inject(Store);
   protected insights = inject(Insights);
   private toast = inject(Toast);

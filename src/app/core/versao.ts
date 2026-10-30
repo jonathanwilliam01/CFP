@@ -8,6 +8,21 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.10.12',
+    data: '2026-10-30',
+    itens: [
+      'Calculadoras (nova tela): à vista x parcelado com rendimento do CDI (explica como funciona), quanto guardar por mês para uma meta e dividir conta',
+      'Calculadora rápida no botão flutuante, junto do chat, com lançar o resultado; os dois botões podem ser escondidos em Configurações',
+      'Menu lateral e Mais agrupados por assunto (Dia a dia, Compromissos, Metas e controle, Análise, App); Configurações: ordem e itens escondidos de cada grupo; Categorias, Blocos do Início e Menu recolhíveis',
+      'Relatórios com abas para Resumo mensal e Retrospectiva; Entradas com aba A receber',
+      'Busca e notificações abrem no próprio topo, sem trocar de tela',
+      'Troca de tema saiu do topo: fica no menu lateral (computador) e em Configurações',
+      'Mais cores de tema: índigo, rosa, vinho, ciano e grafite',
+      'Gastos: filtro por cartão e aviso de gastos duplicados com opção de manter os dois (migration 029)',
+      'Botão do chat com mais destaque',
+    ],
+  },
+  {
     versao: 'v1.26.10.11',
     data: '2026-10-30',
     itens: [

@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { addDias, diaNoMes, diffDias, hoje, mesAtual, mesFatura, nomeMes } from './datas';
-import { aporteMensal, ativaNoMes, categoriasAcima, faturaProjetada, fixasNaFatura, porCategoria, saldoBeneficio, variaveisAcima } from './financas';
+import { aporteMensal, ativaNoMes, categoriasAcima, duplicados, faturaProjetada, fixasNaFatura, porCategoria, saldoBeneficio, variaveisAcima } from './financas';
 import { moeda, pct, soma } from './formato';
 import { Chat } from './chat';
 import { Store } from './store';
@@ -120,6 +120,10 @@ export class Insights {
       if (d > 2 && !s.pagamentos().some((p) => p.ref_id === e.id && p.mes === mes))
         l.push({ id: `entr-${e.id}-${mes}`, nivel: 'info', icone: 'payments', titulo: `${e.descricao} não confirmada`, texto: `Previsto para dia ${e.dia}. Marque como recebida.`, link: '/entradas' });
     }
+
+    const dups = duplicados(s.gastosMes());
+    if (dups.length)
+      l.push({ id: `dup-${dups.map((p) => p[1].id).join()}`, nivel: 'alerta', icone: 'content_copy', titulo: dups.length > 1 ? `${dups.length} gastos possivelmente duplicados` : `${dups[0][0].descricao} lançado duas vezes?`, texto: 'Mesmo valor e descrição com até 1 dia de diferença. Confira em Gastos.', link: '/gastos' });
 
     const ordem: Record<NivelAviso, number> = { perigo: 0, alerta: 1, info: 2, sucesso: 3 };
     return l.sort((a, b) => ordem[a.nivel] - ordem[b.nivel]);

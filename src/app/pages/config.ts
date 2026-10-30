@@ -15,9 +15,11 @@ import { IconePicker } from '../shared/icone-picker';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 import { Visor } from '../shared/visor';
+import { Ordenar } from '../shared/ordenar';
+import { Menus } from '../layout/menu';
 
 @Component({
-  imports: [FormsModule, Avatar, Icon, IconePicker, Sheet, Visor],
+  imports: [FormsModule, Avatar, Icon, IconePicker, Sheet, Visor, Ordenar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -91,9 +93,9 @@ import { Visor } from '../shared/visor';
         </div>
       }
 
-      <div class="card">
+      <div class="card" [class.fechado]="!aberto('cat')">
         <div class="card-head">
-          <h2>Categorias</h2>
+          <button type="button" class="tit" (click)="alternar('cat')" [attr.aria-expanded]="aberto('cat')"><h2>Categorias</h2><app-icon [name]="aberto('cat') ? 'expand_less' : 'expand_more'" /></button>
           <button class="btn sm" type="button" (click)="novaCategoria()"><app-icon name="add" [size]="16" />Nova</button>
         </div>
         <div class="seg">
@@ -158,21 +160,29 @@ import { Visor } from '../shared/visor';
         </div>
       </div>
 
-      <div class="card form">
-        <div class="card-head"><h2>Blocos do Início</h2><button class="btn ghost sm" type="button" (click)="painel.restaurar()">Padrão</button></div>
-        <p class="small muted">Arraste para mudar a ordem; o olho mostra ou esconde. Toque no título de um bloco no Início para recolher. Vale em todos os aparelhos.</p>
-        <div class="blocos">
-          @for (b of painel.lista(); track b.id; let i = $index, ult = $last) {
-            <div class="bl" [attr.data-i]="i" [class.arr]="arrastando() === i" [class.off]="b.oculto">
-              <span class="alca" (pointerdown)="arrastar($event, i)"><app-icon name="drag_indicator" [size]="20" /></span>
-              <span class="nm">{{ b.nome }}</span>
-              <button type="button" class="mv" (click)="painel.alternarOculto(b.id)" [attr.aria-label]="b.oculto ? 'Mostrar' : 'Esconder'">
-                <app-icon [name]="b.oculto ? 'visibility_off' : 'visibility'" [size]="18" /></button>
-              <button type="button" class="mv" (click)="painel.mover(i, i - 1)" [disabled]="i === 0" aria-label="Subir"><app-icon name="arrow_upward" [size]="18" /></button>
-              <button type="button" class="mv" (click)="painel.mover(i, i + 1)" [disabled]="ult" aria-label="Descer"><app-icon name="arrow_downward" [size]="18" /></button>
-            </div>
-          }
+      <div class="card form" [class.fechado]="!aberto('blocos')">
+        <div class="card-head">
+          <button type="button" class="tit" (click)="alternar('blocos')" [attr.aria-expanded]="aberto('blocos')"><h2>Blocos do Início</h2><app-icon [name]="aberto('blocos') ? 'expand_less' : 'expand_more'" /></button>
+          <button class="btn ghost sm" type="button" (click)="painel.restaurar()">Padrão</button>
         </div>
+        <p class="small muted">Arraste para mudar a ordem; o olho mostra ou esconde. Toque no título de um bloco no Início para recolher. Vale em todos os aparelhos.</p>
+        <app-ordenar [itens]="painel.lista()" (mover)="painel.mover($event[0], $event[1])" (alternar)="painel.alternarOculto($any($event))" />
+      </div>
+
+      <div class="card form" [class.fechado]="!aberto('menu')">
+        <div class="card-head">
+          <button type="button" class="tit" (click)="alternar('menu')" [attr.aria-expanded]="aberto('menu')"><h2>Menu</h2><app-icon [name]="aberto('menu') ? 'expand_less' : 'expand_more'" /></button>
+          <button class="btn ghost sm" type="button" (click)="menus.restaurar()">Padrão</button>
+        </div>
+        <p class="small muted">Ordem e itens do menu lateral (computador) e do Mais (celular). Vale em todos os aparelhos.</p>
+        @for (g of menus.grupos(); track g.nome) {
+          <h3 class="grupo">{{ g.nome }}</h3>
+          <app-ordenar [itens]="g.itens" (mover)="menus.mover(g.nome, $event[0], $event[1])" (alternar)="menus.alternarOculto($event)" />
+        }
+        <h3 class="grupo">Botões flutuantes</h3>
+        <label class="check"><input type="checkbox" [checked]="menus.botao('calc')" (change)="menus.alternarBotao('calc')" />Calculadora rápida</label>
+        <label class="check"><input type="checkbox" [checked]="menus.botao('chat')" (change)="menus.alternarBotao('chat')" />Chat <span class="small muted">(só aparece com mais de um membro)</span></label>
+        <p class="small muted">Com o botão escondido, o Chat continua no menu e a tela Calculadoras segue em Análise.</p>
       </div>
 
       <div class="card form">
@@ -239,15 +249,10 @@ import { Visor } from '../shared/visor';
     .seg { margin-bottom: 6px; }
     .linha .btn { flex: 1; }
     .danger-ink { color: var(--danger); }
-    .blocos { display: flex; flex-direction: column; }
-    .bl { display: flex; align-items: center; gap: 4px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
-    .bl:last-child { border-bottom: 0; }
-    .bl .nm { flex: 1; min-width: 0; }
-    .bl.off .nm { color: var(--ink-3); text-decoration: line-through; }
-    .bl.arr { background: var(--primary-soft); border-radius: 10px; }
-    .alca { touch-action: none; cursor: grab; color: var(--ink-3); display: grid; padding: 6px 2px; }
-    .mv { border: 0; background: none; color: var(--ink-2); cursor: pointer; padding: 6px; border-radius: 8px; display: grid; }
-    .mv:disabled { opacity: 0.3; cursor: default; }
+    .tit { display: flex; align-items: center; gap: 6px; flex: 1; border: 0; background: none; padding: 0; font: inherit; color: var(--ink); cursor: pointer; text-align: left; }
+    .fechado > :not(.card-head) { display: none; }
+    .fechado .card-head { margin-bottom: 0; }
+    .grupo { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-top: 6px; }
   `,
 })
 export default class Config {
@@ -256,8 +261,9 @@ export default class Config {
   protected insights = inject(Insights);
   protected tema = inject(Tema);
   protected painel = inject(Painel);
-  protected arrastando = signal<number | null>(null);
-  protected cores = (Object.keys(CORES) as Cor[]).map((id) => ({ id, hex: CORES[id], nome: id[0].toUpperCase() + id.slice(1) }));
+  protected menus = inject(Menus);
+  protected abertos = signal<string[]>([]);
+  protected cores = (Object.keys(CORES) as Cor[]).map((id) => ({ id, hex: CORES[id].hex, nome: CORES[id].nome }));
   protected push = inject(Push);
   private toast = inject(Toast);
   private router = inject(Router);
@@ -275,27 +281,13 @@ export default class Config {
   codigo = '';
   cat = { id: '', nome: '', icone: 'sell', cor: '#64748b', tipo: 'gasto' as 'gasto' | 'entrada', ordem: 50 };
 
-  /** Arrastar pela alça (mouse ou toque): troca de lugar ao passar sobre outra linha */
-  arrastar(e: PointerEvent, i: number) {
-    e.preventDefault();
-    this.arrastando.set(i);
-    const mover = (ev: PointerEvent) => {
-      const alvo = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>('.bl[data-i]');
-      const j = alvo ? Number(alvo.dataset['i']) : null;
-      const de = this.arrastando();
-      if (j === null || de === null || j === de) return;
-      this.painel.mover(de, j);
-      this.arrastando.set(j);
-    };
-    const soltar = () => {
-      this.arrastando.set(null);
-      removeEventListener('pointermove', mover);
-      removeEventListener('pointerup', soltar);
-      removeEventListener('pointercancel', soltar);
-    };
-    addEventListener('pointermove', mover);
-    addEventListener('pointerup', soltar);
-    addEventListener('pointercancel', soltar);
+  /** Cards retráteis (começam fechados) */
+  aberto(id: string) {
+    return this.abertos().includes(id);
+  }
+
+  alternar(id: string) {
+    this.abertos.update((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
   }
 
   private async exec(f: () => Promise<unknown>, ok: string) {

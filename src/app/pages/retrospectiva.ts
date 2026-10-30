@@ -7,15 +7,17 @@ import { Store } from '../core/store';
 import { normalizar } from '../core/texto';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
+import { Abas, RELATORIOS } from '../shared/abas';
 
 const SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
 
 /** Resumo do ano: quanto gastou, onde, quando e quanto guardou */
 @Component({
-  imports: [BrlPipe, DiaPipe, MesPipe, Icon],
+  imports: [Abas, BrlPipe, DiaPipe, MesPipe, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
+      <app-abas [abas]="abas" />
       <div class="page-head">
         <h1>Retrospectiva {{ ano() }}</h1>
         <div class="anos">
@@ -79,6 +81,7 @@ const SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 's�
   `,
 })
 export default class Retrospectiva {
+  protected abas = RELATORIOS;
   protected s = inject(Store);
   private toast = inject(Toast);
 

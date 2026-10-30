@@ -10,6 +10,7 @@ import { Lancar } from '../shared/lancar';
 import { Reajuste } from '../shared/reajuste';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Abas, ENTRADAS } from '../shared/abas';
 
 interface FormFixa {
   id?: string;
@@ -23,10 +24,11 @@ interface FormFixa {
 }
 
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Reajuste],
+  imports: [Abas, FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Reajuste],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
+      <app-abas [abas]="abas" />
       <div class="page-head">
         <h1>Entradas</h1>
         <button class="btn sm" (click)="lancar.novo('entrada')"><app-icon name="add" [size]="16" />Entrada</button>
@@ -114,6 +116,7 @@ interface FormFixa {
   `,
 })
 export default class Entradas {
+  protected abas = ENTRADAS;
   protected s = inject(Store);
   protected lancar = inject(Lancar);
   private toast = inject(Toast);

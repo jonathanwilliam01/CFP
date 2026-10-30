@@ -7,6 +7,7 @@ import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Abas, ENTRADAS } from '../shared/abas';
 
 interface FormReceber {
   id?: string;
@@ -18,10 +19,11 @@ interface FormReceber {
 
 /** Valores que alguém vai devolver (empréstimo, conta dividida com amigo) */
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
+  imports: [Abas, FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
+      <app-abas [abas]="abas" />
       <div class="page-head">
         <h1>A receber</h1>
         <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Novo</button>
@@ -96,6 +98,7 @@ interface FormReceber {
   `,
 })
 export default class Receber {
+  protected abas = ENTRADAS;
   protected s = inject(Store);
   private toast = inject(Toast);
 
