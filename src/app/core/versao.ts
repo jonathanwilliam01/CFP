@@ -8,6 +8,11 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.10.13',
+    data: '2026-10-30',
+    itens: ['Celular: arrastar para o lado em área vazia da tela troca o mês'],
+  },
+  {
     versao: 'v1.26.10.12',
     data: '2026-10-30',
     itens: [

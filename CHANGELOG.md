@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.26.10.13 — 2026-10-30
+- Celular: arrastar para o lado em área vazia da tela troca o mês
+
 ## v1.26.10.12 — 2026-10-30
 - Calculadoras (nova tela): à vista x parcelado com rendimento do CDI (explica como funciona), quanto guardar por mês para uma meta e dividir conta
 - Calculadora rápida no botão flutuante, junto do chat, com lançar o resultado; os dois botões podem ser escondidos em Configurações

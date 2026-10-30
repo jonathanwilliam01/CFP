@@ -9,6 +9,7 @@ import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Tema } from '../core/tema';
 import { VERSAO } from '../core/versao';
+import { addMeses } from '../core/datas';
 import { alternarPrivado, privado } from '../core/formato';
 import { Avatar } from '../shared/avatar';
 import { Buscador } from '../shared/buscador';
@@ -111,7 +112,7 @@ import { Menus, PRINCIPAIS } from './menu';
       <span class="tip" [style.top.px]="t.y">{{ t.texto }}</span>
     }
 
-    <main><router-outlet /></main>
+    <main (touchstart)="toque($event)" (touchend)="arrastou($event)"><router-outlet /></main>
 
     <button class="fab" type="button" aria-label="Lançar (segure para escolher o tipo)" (click)="tocarFab()"
       (pointerdown)="pressionar()" (pointerup)="soltar()" (pointerleave)="soltar()" (pointercancel)="soltar()" (contextmenu)="$event.preventDefault()">
@@ -329,6 +330,7 @@ export class Shell {
     { rotulo: 'Entrada', icone: 'payments', modo: 'entrada' },
     { rotulo: 'Conta fixa', icone: 'calendar_month', modo: 'gasto', fixa: true },
   ];
+  private toque0: { x: number; y: number; t: number } | null = null;
   private pressao: ReturnType<typeof setTimeout> | undefined;
   private segurou = false;
   private router = inject(Router);
@@ -398,6 +400,36 @@ export class Shell {
     if (alvo.closest?.('input, textarea, select, [contenteditable]') || document.querySelector('[role="dialog"]')) return;
     e.preventDefault();
     this.lancar.novo();
+  }
+
+  // arrastar para o lado em área vazia troca o mês
+  toque(e: TouchEvent) {
+    this.toque0 = null;
+    if (e.touches.length !== 1 || this.url() === '/chat' || this.rolaDeLado(e.target as HTMLElement)) return;
+    const t = e.touches[0];
+    this.toque0 = { x: t.clientX, y: t.clientY, t: e.timeStamp };
+  }
+
+  arrastou(e: TouchEvent) {
+    const i = this.toque0;
+    this.toque0 = null;
+    if (!i || e.timeStamp - i.t > 600) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - i.x;
+    const dy = t.clientY - i.y;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    const n = dx < 0 ? 1 : -1;
+    if (n < 0 && this.s.mes() === this.s.inicio()) return;
+    this.s.mes.update((m) => addMeses(m, n));
+  }
+
+  /** toque em controle, linha deslizável, painel ou algo que rola na horizontal */
+  private rolaDeLado(el: HTMLElement | null) {
+    if (el?.closest('a, button, input, textarea, select, label, [contenteditable], app-deslizar, [role="dialog"], canvas, svg')) return true;
+    for (; el && el.tagName !== 'MAIN'; el = el.parentElement) {
+      if (el.scrollWidth > el.clientWidth && /auto|scroll/.test(getComputedStyle(el).overflowX)) return true;
+    }
+    return false;
   }
 
   alternarMenu() {

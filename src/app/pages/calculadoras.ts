@@ -1,24 +1,39 @@
-import { ChangeDetectionStrategy, Component, computed, effect, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { aliquotaIR, avistaOuParcelado, taxaMensal } from '../core/financas';
 import { BrlPipe, parseValor } from '../core/formato';
 import { Icon } from '../shared/icon';
+import { ESTILO, cdi, lembrado, pctCdi, pctTxt } from './calc/comum';
+import { CalcCredito } from './calc/credito';
+import { CalcDivida } from './calc/divida';
+import { CalcHoras } from './calc/horas';
+import { CalcRende } from './calc/rende';
+import { CalcReserva } from './calc/reserva';
+import { CalcSalario } from './calc/salario';
 
-type Aba = 'parcelado' | 'meta' | 'dividir';
-
-const pctTxt = (v: number, casas = 2) => (v * 100).toLocaleString('pt-BR', { maximumFractionDigits: casas }) + '%';
+const ABAS = [
+  { k: 'parcelado', nome: 'À vista x parcelado', icone: 'event_repeat' },
+  { k: 'credito', nome: 'Empréstimo x Pix x cheque', icone: 'account_balance' },
+  { k: 'divida', nome: 'Rotativo e cheque', icone: 'credit_card_off' },
+  { k: 'horas', nome: 'Horas de trabalho', icone: 'schedule' },
+  { k: 'salario', nome: 'Salário líquido', icone: 'payments' },
+  { k: 'rende', nome: 'Quanto rende', icone: 'trending_up' },
+  { k: 'reserva', nome: 'Reserva de emergência', icone: 'shield' },
+  { k: 'meta', nome: 'Meta', icone: 'savings' },
+  { k: 'dividir', nome: 'Dividir conta', icone: 'group' },
+];
 
 @Component({
-  imports: [FormsModule, BrlPipe, Icon],
+  imports: [FormsModule, BrlPipe, Icon, CalcCredito, CalcDivida, CalcHoras, CalcRende, CalcReserva, CalcSalario],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <div class="page-head"><h1>Calculadoras</h1></div>
 
-      <div class="seg">
-        <button type="button" [class.on]="aba() === 'parcelado'" (click)="aba.set('parcelado')">À vista x parcelado</button>
-        <button type="button" [class.on]="aba() === 'meta'" (click)="aba.set('meta')">Meta</button>
-        <button type="button" [class.on]="aba() === 'dividir'" (click)="aba.set('dividir')">Dividir conta</button>
+      <div class="chips wrap">
+        @for (a of abas; track a.k) {
+          <button type="button" class="chip" [class.on]="aba() === a.k" (click)="aba.guardar(a.k)"><app-icon [name]="a.icone" [size]="18" />{{ a.nome }}</button>
+        }
       </div>
 
       @switch (aba()) {
@@ -30,8 +45,8 @@ const pctTxt = (v: number, casas = 2) => (v * 100).toLocaleString('pt-BR', { max
               <label class="field"><span>Parcelas</span><input type="number" min="1" max="120" [ngModel]="n()" (ngModelChange)="n.set(+$event)" /></label>
             </div>
             <div class="campos">
-              <label class="field"><span>CDI ao ano (%)</span><input inputmode="decimal" [ngModel]="cdi()" (ngModelChange)="cdi.set($event)" /></label>
-              <label class="field"><span>Rende (% do CDI)</span><input inputmode="decimal" [ngModel]="pctCdi()" (ngModelChange)="pctCdi.set($event)" /></label>
+              <label class="field"><span>CDI ao ano (%)</span><input inputmode="decimal" [ngModel]="cdi()" (ngModelChange)="cdi.guardar($event)" /></label>
+              <label class="field"><span>Rende (% do CDI)</span><input inputmode="decimal" [ngModel]="pctCdi()" (ngModelChange)="pctCdi.guardar($event)" /></label>
             </div>
             <label class="check"><input type="checkbox" [checked]="ir()" (change)="ir.set(!ir())" />Descontar imposto de renda do rendimento</label>
             <label class="check"><input type="checkbox" [checked]="entrada()" (change)="entrada.set(!entrada())" />Primeira parcela paga hoje (entrada)</label>
@@ -83,6 +98,24 @@ const pctTxt = (v: number, casas = 2) => (v * 100).toLocaleString('pt-BR', { max
           </details>
         }
 
+        @case ('credito') {
+          <app-calc-credito />
+        }
+        @case ('divida') {
+          <app-calc-divida />
+        }
+        @case ('horas') {
+          <app-calc-horas />
+        }
+        @case ('salario') {
+          <app-calc-salario />
+        }
+        @case ('rende') {
+          <app-calc-rende />
+        }
+        @case ('reserva') {
+          <app-calc-reserva />
+        }
         @case ('meta') {
           <section class="card form">
             <div class="campos">
@@ -122,33 +155,19 @@ const pctTxt = (v: number, casas = 2) => (v * 100).toLocaleString('pt-BR', { max
       }
     </div>
   `,
-  styles: `
-    .seg button { white-space: nowrap; }
-    .campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-    .veredito { display: flex; align-items: center; gap: 14px; background: var(--card-2); color: var(--ink); }
-    .veredito.pos { background: var(--primary-soft); }
-    .veredito app-icon { color: var(--primary); }
-    .veredito div { display: flex; flex-direction: column; gap: 2px; }
-    .veredito b { font-size: 1.1rem; }
-    .tab { display: flex; flex-direction: column; margin-top: 10px; max-height: 320px; overflow-y: auto; }
-    .lin { display: grid; grid-template-columns: 56px 1fr 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 0.88rem; }
-    .lin span:not(:first-child) { text-align: right; }
-    .cab { font-weight: 700; color: var(--ink-3); font-size: 0.78rem; position: sticky; top: 0; background: var(--card); }
-    .como summary { display: flex; justify-content: space-between; align-items: center; font-weight: 700; cursor: pointer; list-style: none; }
-    .como p { margin-top: 10px; }
-    .como[open] summary app-icon { transform: rotate(180deg); }
-  `,
+  styles: [ESTILO, ':host app-calc-credito, :host app-calc-divida, :host app-calc-horas, :host app-calc-salario, :host app-calc-rende, :host app-calc-reserva { display: contents; }'],
 })
 export default class Calculadoras {
-  protected aba = signal<Aba>('parcelado');
+  protected abas = ABAS;
+  protected aba = lembrado('cfp.calc', 'parcelado');
   protected pct = (v: number) => pctTxt(v);
   protected abs = Math.abs;
 
   protected avista = signal('');
   protected total = signal('');
   protected n = signal(10);
-  protected cdi = signal(localStorage.getItem('cfp.cdi') ?? '14,9');
-  protected pctCdi = signal(localStorage.getItem('cfp.pctcdi') ?? '100');
+  protected cdi = cdi;
+  protected pctCdi = pctCdi;
   protected ir = signal(true);
   protected entrada = signal(false);
 
@@ -187,11 +206,4 @@ export default class Calculadoras {
     const total = Math.round(t * (1 + parseValor(this.servico()) / 100) * 100) / 100;
     return { total, cada: Math.ceil((total / this.pessoas()) * 100) / 100 };
   });
-
-  constructor() {
-    effect(() => {
-      localStorage.setItem('cfp.cdi', this.cdi());
-      localStorage.setItem('cfp.pctcdi', this.pctCdi());
-    });
-  }
 }

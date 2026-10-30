@@ -703,6 +703,109 @@ export function avistaOuParcelado(avista: number, parcela: number, n: number, ta
   return { total: r2(parcela * n), custoHoje: r2(custoHoje), economia: r2(avista - custoHoje), sobra: r2(saldo), meses, juros, compensa: custoHoje < avista ? ('parcelado' as const) : ('avista' as const) };
 }
 
+const r2 = (v: number) => Math.round(v * 100) / 100;
+
+/** Parcela fixa (tabela Price) de `pv` a `i` ao mês em `n` meses */
+export const parcelaPrice = (pv: number, i: number, n: number) => (i > 0 ? (pv * i) / (1 - Math.pow(1 + i, -n)) : pv / n);
+
+/**
+ * Empréstimo de `valor` em `n` parcelas fixas a `taxa` ao mês. Com `iof`, financia junto o IOF de pessoa física
+ * (0,38% + 0,0082% ao dia sobre cada amortização, até 365 dias). `custo` = tudo que paga além do valor.
+ */
+export function emprestimo(valor: number, taxa: number, n: number, iof = false) {
+  if (valor <= 0 || n < 1) return null;
+  const imposto = (pv: number) => {
+    const p = parcelaPrice(pv, taxa, n);
+    let saldo = pv;
+    let t = pv * 0.0038;
+    for (let k = 1; k <= n; k++) {
+      const amort = p - saldo * taxa;
+      saldo -= amort;
+      t += amort * 0.000082 * Math.min(k * 30, 365);
+    }
+    return t;
+  };
+  let pv = valor;
+  if (iof) for (let k = 0; k < 4; k++) pv = valor + imposto(pv);
+  const parcela = r2(parcelaPrice(pv, taxa, n));
+  return { parcela, total: r2(parcela * n), custo: r2(parcela * n - valor), iof: r2(pv - valor) };
+}
+
+/**
+ * Dívida que rola a `taxa` ao mês pagando `pagamento` por mês. `teto` limita a soma dos juros
+ * (rotativo do cartão: no máximo 100% da dívida, Lei 14.690/2023). `meses` null = o pagamento não cobre os juros.
+ */
+export function quitarDivida(divida: number, taxa: number, pagamento: number, teto = Infinity) {
+  if (divida <= 0 || pagamento <= 0) return null;
+  const jurosMes = r2(divida * taxa);
+  if (teto === Infinity && pagamento <= divida * taxa) return { meses: null, juros: 0, total: 0, jurosMes, tabela: [] };
+  let saldo = divida;
+  let juros = 0;
+  const tabela: { mes: number; juros: number; pago: number; saldo: number }[] = [];
+  for (let k = 1; saldo > 0.005 && k <= 600; k++) {
+    const j = Math.min(saldo * taxa, Math.max(teto - juros, 0));
+    juros += j;
+    saldo += j;
+    const pago = Math.min(pagamento, saldo);
+    saldo -= pago;
+    tabela.push({ mes: k, juros: r2(j), pago: r2(pago), saldo: r2(saldo) });
+  }
+  return { meses: saldo <= 0.005 ? tabela.length : null, juros: r2(juros), total: r2(divida + juros), jurosMes, tabela };
+}
+
+/** INSS 2026 (progressivo por faixa, teto R$ 8.475,55) */
+const INSS: [number, number][] = [[1621, 0.075], [2902.84, 0.09], [4354.27, 0.12], [8475.55, 0.14]];
+/** IR mensal: limite da faixa, alíquota e parcela a deduzir */
+const IR: [number, number, number][] = [[2428.8, 0, 0], [2826.65, 0.075, 182.16], [3751.05, 0.15, 394.16], [4664.68, 0.225, 675.49], [Infinity, 0.275, 908.73]];
+
+export function inss(bruto: number) {
+  let t = 0;
+  let ant = 0;
+  for (const [lim, a] of INSS) {
+    if (bruto <= ant) break;
+    t += (Math.min(bruto, lim) - ant) * a;
+    ant = lim;
+  }
+  return r2(t);
+}
+
+/**
+ * IR na fonte de 2026: usa o desconto simplificado (R$ 607,20) quando ele é maior que INSS + dependentes,
+ * e aplica a redução da Lei 15.270/2025 (zera até R$ 5.000 de rendimento e diminui até R$ 7.350).
+ */
+export function irFonte(bruto: number, inssPago: number, dependentes = 0) {
+  const base = bruto - Math.max(inssPago + dependentes * 189.59, 607.2);
+  const [, a, d] = IR.find(([lim]) => base <= lim)!;
+  const ir = Math.max(base * a - d, 0);
+  const reducao = bruto <= 5000 ? ir : bruto <= 7350 ? 978.62 - 0.133145 * bruto : 0;
+  return r2(Math.max(ir - reducao, 0));
+}
+
+export function salarioLiquido(bruto: number, dependentes = 0, outros = 0) {
+  if (bruto <= 0) return null;
+  const i = inss(bruto);
+  const ir = irFonte(bruto, i, dependentes);
+  return { inss: i, ir, outros: r2(outros), liquido: r2(bruto - i - ir - outros), fgts: r2(bruto * 0.08) };
+}
+
+/**
+ * `inicial` hoje e `aporte` no começo de cada mês, por `n` meses a `taxa` bruta ao mês.
+ * Com `ir`, cada depósito paga no resgate o IR pelo tempo que ficou aplicado (tabela regressiva).
+ */
+export function rendimento(inicial: number, aporte: number, n: number, taxa: number, ir = true) {
+  if (n < 1 || (inicial <= 0 && aporte <= 0)) return null;
+  let bruto = 0;
+  let imposto = 0;
+  for (let k = 0; k < n; k++) {
+    const v = aporte + (k === 0 ? inicial : 0);
+    const ganho = v * (Math.pow(1 + taxa, n - k) - 1);
+    bruto += v + ganho;
+    if (ir) imposto += ganho * aliquotaIR(n - k);
+  }
+  const depositado = inicial + aporte * n;
+  return { depositado: r2(depositado), final: r2(bruto - imposto), imposto: r2(imposto), ganho: r2(bruto - imposto - depositado) };
+}
+
 type GastoDup = Pick<Gasto, 'id' | 'descricao' | 'valor' | 'data' | 'parcelamento_id' | 'nao_duplicado'>;
 
 /**

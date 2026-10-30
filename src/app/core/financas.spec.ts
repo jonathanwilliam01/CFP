@@ -1,4 +1,4 @@
-import { avistaOuParcelado, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
+import { avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -417,5 +417,46 @@ describe('duplicados', () => {
     expect(duplicados([g('a', '2026-10-01', { nao_duplicado: true }), g('b', '2026-10-01', { nao_duplicado: true })])).toEqual([]);
     expect(duplicados([g('a', '2026-10-01', { parcelamento_id: 'p' }), g('b', '2026-10-01', { parcelamento_id: 'p' })])).toEqual([]);
     expect(duplicados([g('a', '2026-10-01', { nao_duplicado: true }), g('b', '2026-10-01')])).toHaveLength(1);
+  });
+});
+
+describe('calculadoras de crédito e salário', () => {
+  it('parcela Price e empréstimo com IOF', () => {
+    expect(parcelaPrice(1000, 0, 10)).toBe(100);
+    expect(parcelaPrice(1000, 0.05, 12)).toBeCloseTo(112.83, 2);
+    const sem = emprestimo(1000, 0.05, 12)!;
+    const com = emprestimo(1000, 0.05, 12, true)!;
+    expect(sem.iof).toBe(0);
+    expect(com.iof).toBeGreaterThan(10);
+    expect(com.iof).toBeLessThan(30);
+    expect(com.parcela).toBeGreaterThan(sem.parcela);
+  });
+
+  it('dívida: quita, nunca quita e teto do rotativo', () => {
+    expect(quitarDivida(1000, 0.1, 100)!.meses).toBeNull();
+    const r = quitarDivida(1000, 0.08, 200)!;
+    expect(r.meses).toBe(7);
+    expect(r.total).toBeCloseTo(1000 + r.juros, 2);
+    const rot = quitarDivida(1000, 0.15, 100, 1000)!;
+    expect(rot.juros).toBe(1000);
+    expect(rot.meses).toBe(20);
+  });
+
+  it('salário líquido 2026', () => {
+    expect(inss(1621)).toBeCloseTo(121.58, 1);
+    expect(inss(20000)).toBe(inss(8475.55));
+    expect(salarioLiquido(5000)!.ir).toBe(0);
+    expect(salarioLiquido(7350)!.ir).toBeGreaterThan(0);
+    const s10 = salarioLiquido(10000)!;
+    expect(s10.inss).toBeCloseTo(988.09, 1);
+    expect(s10.ir).toBeCloseTo((10000 - 988.09) * 0.275 - 908.73, 1);
+  });
+
+  it('rendimento com IR por depósito', () => {
+    const r = rendimento(1000, 0, 12, 0.01, false)!;
+    expect(r.final).toBeCloseTo(1000 * Math.pow(1.01, 12), 2);
+    const ir = rendimento(1000, 0, 12, 0.01)!;
+    expect(ir.imposto).toBeCloseTo((r.final - 1000) * 0.2, 2);
+    expect(rendimento(0, 100, 3, 0, false)!.final).toBe(300);
   });
 });
