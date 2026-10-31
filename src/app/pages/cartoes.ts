@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, u
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { addMeses, fechamentoFatura, hoje, mesAtual, mesFatura } from '../core/datas';
-import { BrlPipe, MesPipe, pct, soma } from '../core/formato';
-import { faturaDoMes, faturaProjetada, fixasNaFatura } from '../core/financas';
-import { Cartao, Recorrencia } from '../core/models';
+import { BrlPipe, DiaPipe, MesPipe, parseValor, pct, soma } from '../core/formato';
+import { duplicados, faturaDoMes, faturaProjetada, fixasNaFatura } from '../core/financas';
+import { Cartao, Gasto, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
 import { Icon } from '../shared/icon';
@@ -33,7 +33,7 @@ interface FormCartao {
 }
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, MesPipe, Icon, Sheet],
+  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -95,6 +95,7 @@ interface FormCartao {
                 </div>
               }
             </div>
+            <button class="btn ghost sm" type="button" (click)="conferir(c.cartao)"><app-icon name="fact_check" [size]="16" />Conferir com o banco</button>
           </div>
         </article>
       } @empty {
@@ -107,6 +108,52 @@ interface FormCartao {
 
       <p class="small muted">A estrela marca o cartão padrão, já selecionado ao lançar um gasto. Compras no dia do fechamento ou depois vão para a fatura seguinte. Nubank, C6, Inter e Itaú fecham um número fixo de dias antes do vencimento, então o dia muda conforme o mês.</p>
     </div>
+
+    <app-sheet [open]="!!conf()" (openChange)="conf.set(null)" [titulo]="'Conferir ' + (conf()?.nome ?? '')">
+      @if (conf(); as c) {
+        <div class="form">
+          <div class="chips wrap">
+            @for (m of mesesConf(); track m) {
+              <button type="button" class="chip" [class.on]="mesConf() === m" (click)="trocarMes(m)">Fatura de {{ m | mes: true }}</button>
+            }
+          </div>
+          <label class="field"><span>Total da fatura no app do banco</span>
+            <input inputmode="decimal" placeholder="0,00" [ngModel]="totalBanco()" (ngModelChange)="totalBanco.set($event)" /></label>
+          <div class="linha"><span class="muted">No CFP</span><b class="num">{{ totalApp() | brl }}</b></div>
+          @if (diferenca(); as d) {
+            @if (d > 0) {
+              <div class="aviso alerta"><app-icon class="i" name="playlist_add" /><div>
+                <div class="t">Faltam {{ d | brl }} no CFP</div>
+                <div class="s">Compra não lançada, IOF, juros ou anuidade. <a routerLink="/importar">Importe a fatura</a> para achar o que falta: o que já está lançado vem desmarcado.</div>
+              </div></div>
+            } @else {
+              <div class="aviso alerta"><app-icon class="i" name="playlist_remove" /><div>
+                <div class="t">O CFP tem {{ -d | brl }} a mais</div>
+                <div class="s">Compra lançada duas vezes, na fatura errada ou estorno que faltou lançar.</div>
+              </div></div>
+            }
+          } @else if (parseValor(totalBanco())) {
+            <div class="aviso sucesso"><app-icon class="i" name="check_circle" /><div><div class="t">Bate com o banco</div></div></div>
+          }
+          @if (suspeitos().size) { <p class="small muted">Em destaque: compras com o valor da diferença ou repetidas.</p> }
+          <div class="itens">
+            @if (anteriorConf()) {
+              <div class="it"><span>Saldo da fatura anterior</span><span class="num">{{ anteriorConf() | brl }}</span></div>
+            }
+            @for (f of fixasConf(); track f.descricao) {
+              <div class="it"><span>{{ f.descricao }} <span class="badge info">Conta fixa</span></span><span class="num">{{ f.valor | brl }}</span></div>
+            }
+            @for (g of gastosConf(); track g.id) {
+              <label class="it" [class.sus]="suspeitos().has(g.id)" [class.ok]="vistos().has(g.id)">
+                <span><input type="checkbox" [checked]="vistos().has(g.id)" (change)="ver(g.id)" /> {{ g.descricao }}<br /><span class="small muted">{{ g.data | dia }}</span></span>
+                <span class="num">{{ g.valor | brl }}</span>
+              </label>
+            }
+          </div>
+          <p class="small muted">Marque o que já conferiu no app do banco; a marcação não é salva.</p>
+        </div>
+      }
+    </app-sheet>
 
     <app-sheet [(open)]="aberto" [titulo]="f.id ? 'Editar cartão' : 'Novo cartão'">
       <form class="form" (ngSubmit)="salvar()">
@@ -161,6 +208,12 @@ interface FormCartao {
     .proj { display: flex; gap: 8px; align-items: flex-start; font-size: 0.85rem; color: var(--ink-2); background: var(--card-2); border-radius: 10px; padding: 8px 10px; }
     .proj app-icon { color: var(--primary); }
     .cap { text-transform: capitalize; }
+    .corpo > .btn { align-self: flex-start; }
+    .itens { max-height: 45dvh; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; }
+    .it { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; cursor: pointer; }
+    .it:last-child { border-bottom: 0; }
+    .it.sus { color: var(--warn, #d97706); font-weight: 600; }
+    .it.ok { opacity: 0.55; }
   `,
 })
 export default class Cartoes {
@@ -168,10 +221,42 @@ export default class Cartoes {
   private toast = inject(Toast);
 
   private futuros = signal<Futuro[]>([]);
-  private pagas = signal<{ ref_id: string; mes: string }[]>([]);
+  private pagas = signal<{ ref_id: string; mes: string; resto?: number }[]>([]);
   protected aberto = signal(false);
   protected salvando = signal(false);
   f: FormCartao = this.vazio();
+
+  /** Conferir a fatura com o total do app do banco */
+  protected conf = signal<Cartao | null>(null);
+  protected mesConf = signal('');
+  protected totalBanco = signal('');
+  protected gastosConf = signal<Gasto[]>([]);
+  protected anteriorConf = signal(0);
+  protected vistos = signal(new Set<string>());
+  protected parseValor = parseValor;
+  protected mesesConf = computed(() => {
+    const c = this.conf();
+    if (!c) return [];
+    const aberta = mesFatura(hoje(), c);
+    return [addMeses(aberta, -2), addMeses(aberta, -1), aberta];
+  });
+  protected fixasConf = computed(() => {
+    const c = this.conf();
+    return c ? fixasNaFatura(this.mesConf(), c, this.s.recorrenciasPrev()) : [];
+  });
+  protected totalApp = computed(() => soma(this.gastosConf(), (g) => g.valor) + soma(this.fixasConf(), (f) => f.valor) + this.anteriorConf());
+  protected diferenca = computed(() => {
+    const b = parseValor(this.totalBanco());
+    const d = Math.round((b - this.totalApp()) * 100) / 100;
+    return b && Math.abs(d) >= 0.01 ? d : 0;
+  });
+  /** Com o valor da diferença ou repetidas */
+  protected suspeitos = computed(() => {
+    const d = Math.abs(this.diferenca());
+    if (!d) return new Set<string>();
+    const l = this.gastosConf();
+    return new Set([...l.filter((g) => Math.abs(Math.abs(g.valor) - d) < 0.01).map((g) => g.id), ...duplicados(l).flat().map((g) => g.id)]);
+  });
 
   protected lista = computed(() => {
     const atual = mesAtual();
@@ -179,7 +264,9 @@ export default class Cartoes {
     const pagas = this.pagas();
     return this.s.cartoes().map((cartao) => {
       const dele = this.futuros().filter((g) => g.cartao_id === cartao.id);
-      const usado = soma(dele.filter((g) => !pagas.some((p) => p.ref_id === cartao.id && p.mes === g.fatura_mes)), (g) => g.valor);
+      const paga = (mes: string) => pagas.some((p) => p.ref_id === cartao.id && p.mes === mes);
+      const restos = soma(pagas.filter((p) => p.ref_id === cartao.id && p.resto && !paga(addMeses(p.mes, 1))), (p) => p.resto ?? 0);
+      const usado = soma(dele.filter((g) => !paga(g.fatura_mes)), (g) => g.valor) + restos;
       const fatura = this.s.contasMes().find((c) => c.tipo === 'fatura' && c.ref_id === cartao.id);
       return {
         cartao,
@@ -192,7 +279,8 @@ export default class Cartoes {
         projecao: cartao.ativo ? projetar(cartao, dele, this.s.recorrenciasPrev()) : null,
         proximas: meses.map((mes) => ({
           mes,
-          total: soma(dele.filter((g) => g.fatura_mes === mes), (g) => g.valor) + soma(fixasNaFatura(mes, cartao, this.s.recorrenciasPrev()), (f) => f.valor),
+          total: soma(dele.filter((g) => g.fatura_mes === mes), (g) => g.valor) + soma(fixasNaFatura(mes, cartao, this.s.recorrenciasPrev()), (f) => f.valor)
+            + (pagas.find((p) => p.ref_id === cartao.id && p.mes === addMeses(mes, -1))?.resto ?? 0),
         })),
       };
     });
@@ -214,8 +302,8 @@ export default class Cartoes {
         q<Futuro[]>(
           supabase.from('gastos').select('cartao_id, valor, fatura_mes, data, parcelamento_id').eq('carteira_id', id).eq('forma', 'cartao').gte('fatura_mes', atual),
         ),
-        q<{ ref_id: string; mes: string }[]>(
-          supabase.from('pagamentos').select('ref_id, mes').eq('carteira_id', id).eq('tipo', 'fatura').gte('mes', atual),
+        q<{ ref_id: string; mes: string; resto?: number }[]>(
+          supabase.from('pagamentos').select('*').eq('carteira_id', id).eq('tipo', 'fatura').gte('mes', addMeses(atual, -1)),
         ),
       ]);
       this.futuros.set(g);
@@ -223,6 +311,37 @@ export default class Cartoes {
     } catch (e) {
       this.toast.erro(e);
     }
+  }
+
+  conferir(c: Cartao) {
+    this.conf.set(c);
+    this.totalBanco.set('');
+    this.trocarMes(addMeses(mesFatura(hoje(), c), -1));
+  }
+
+  async trocarMes(mes: string) {
+    const c = this.conf()!;
+    this.mesConf.set(mes);
+    this.vistos.set(new Set());
+    try {
+      const [g, p] = await Promise.all([
+        q<Gasto[]>(supabase.from('gastos').select('*').eq('cartao_id', c.id).eq('fatura_mes', mes).order('data')),
+        q<{ resto?: number }[]>(supabase.from('pagamentos').select('*').eq('tipo', 'fatura').eq('ref_id', c.id).eq('mes', addMeses(mes, -1))),
+      ]);
+      if (this.mesConf() !== mes) return;
+      this.gastosConf.set(g);
+      this.anteriorConf.set(p[0]?.resto ?? 0);
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
+
+  ver(id: string) {
+    this.vistos.update((v) => {
+      const n = new Set(v);
+      if (!n.delete(id)) n.add(id);
+      return n;
+    });
   }
 
   private vazio(): FormCartao {

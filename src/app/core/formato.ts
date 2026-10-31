@@ -15,6 +15,15 @@ export function parseValor(s: string | number | null | undefined): number {
   return isFinite(n) ? Math.round(n * 100) / 100 : 0;
 }
 
+/** Termo de busca como valor ("49,90", "R$ 50", "1.200"): com centavos bate exato, sem centavos bate pelos reais */
+export function bateValor(valor: number, termo: string) {
+  const t = termo.replace(/r\$\s*/i, '').trim();
+  const v = /^[\d.,]+$/.test(t) ? parseValor(t) : 0;
+  if (!v) return false;
+  const a = Math.abs(valor);
+  return /[.,]\d{1,2}$/.test(t) ? Math.abs(a - v) < 0.005 : Math.trunc(a) === Math.trunc(v);
+}
+
 export const soma = <T>(l: T[], f: (x: T) => number) => l.reduce((a, x) => a + f(x), 0);
 
 /** Baixa CSV com `;` e BOM (abre certo no Excel); campos já escapados com `csvTexto` quando texto */

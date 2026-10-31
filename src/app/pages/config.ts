@@ -17,6 +17,7 @@ import { Toast } from '../shared/toast';
 import { Visor } from '../shared/visor';
 import { Ordenar } from '../shared/ordenar';
 import { Menus } from '../layout/menu';
+import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
 
 @Component({
   imports: [FormsModule, Avatar, Icon, IconePicker, Sheet, Visor, Ordenar],
@@ -213,6 +214,16 @@ import { Menus } from '../layout/menu';
         }
       </div>
 
+      <div class="card form">
+        <h2>Backup</h2>
+        <p class="small muted">Baixa tudo da carteira {{ s.carteira()?.nome }} num arquivo JSON. Restaurar grava o arquivo na carteira atual: o que tem o mesmo registro é substituído e nada é apagado.</p>
+        <div class="bts">
+          <button class="btn ghost" type="button" (click)="baixarBackup()" [disabled]="ocupado()"><app-icon name="download" [size]="18" />Baixar backup</button>
+          <label class="btn ghost" [class.off]="ocupado()"><app-icon name="upload" [size]="18" />Restaurar
+            <input type="file" accept=".json,application/json" hidden (change)="restaurarBackup($event)" [disabled]="ocupado()" /></label>
+        </div>
+      </div>
+
       <button class="btn danger block" type="button" (click)="sair()"><app-icon name="logout" [size]="18" />Sair</button>
     </div>
 
@@ -254,6 +265,8 @@ import { Menus } from '../layout/menu';
     .linha .btn { flex: 1; }
     .danger-ink { color: var(--danger); }
     .tit { display: flex; align-items: center; gap: 6px; flex: 1; border: 0; background: none; padding: 0; font: inherit; color: var(--ink); cursor: pointer; text-align: left; }
+    .bts { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn.off { opacity: 0.5; pointer-events: none; }
     .fechado > :not(.card-head) { display: none; }
     .fechado .card-head { margin-bottom: 0; }
     .grupo-cab { display: flex; align-items: center; gap: 4px; margin-top: 6px; border-radius: 10px; background: var(--card-2); padding: 0 4px 0 10px; }
@@ -288,6 +301,46 @@ export default class Config {
   novaCarteira = '';
   codigo = '';
   cat = { id: '', nome: '', icone: 'sell', cor: '#64748b', tipo: 'gasto' as 'gasto' | 'entrada', ordem: 50 };
+
+  async baixarBackup() {
+    const c = this.s.carteira();
+    if (!c) return;
+    this.ocupado.set(true);
+    try {
+      const b = await exportar(c.id, c.nome);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(b)], { type: 'application/json' }));
+      a.download = `cfp-${c.nome.replace(/[^\w-]+/g, '_')}-${b.exportado_em.slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      this.toast.ok(`Backup com ${totalLinhas(b)} registros`);
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.ocupado.set(false);
+    }
+  }
+
+  async restaurarBackup(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const f = input.files?.[0];
+    input.value = '';
+    const c = this.s.carteira();
+    if (!f || !c) return;
+    try {
+      const b = lerBackup(await f.text());
+      if (!confirm(`Restaurar ${totalLinhas(b)} registros do backup "${b.carteira}" de ${new Date(b.exportado_em).toLocaleDateString('pt-BR')} na carteira ${c.nome}?`)) return;
+      this.ocupado.set(true);
+      await restaurar(b, c.id);
+      await this.s.carregarTudo();
+      await this.s.carregarMes();
+      this.toast.ok('Backup restaurado');
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.ocupado.set(false);
+    }
+  }
 
   /** Cards retráteis (começam fechados) */
   aberto(id: string) {

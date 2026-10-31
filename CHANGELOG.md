@@ -2,6 +2,13 @@
 
 ## v1.26.10.15 — 2026-10-31
 - Cartões: fechamento contado em dias antes do vencimento (Nubank, C6, Inter: 7; Itaú: 8), com o dia mudando conforme o mês; compra no dia do fechamento vai para a próxima fatura e, ao mudar o fechamento, os gastos da fatura aberta em diante são refeitos (migration 031)
+- Estorno ou crédito: no lançamento de gasto marca "Estorno ou crédito" e o valor abate a fatura (ou o mês, no débito); a importação da fatura Nubank/OFX de cartão traz os estornos em vez de ignorar (migration 032)
+- Fatura paga em parte: em Contas, pagar menos que o total leva o resto para a fatura seguinte, com os juros do rotativo estimados pela média do Banco Central (opcional)
+- Cartões: Conferir com o banco compara o total da fatura no app do banco com o CFP, mostra a diferença e destaca compras com o valor dela ou repetidas
+- Planejamento: Separar todo mês mostra quanto guardar por mês para as contas anuais e eventos planejados, com botão para criar o cofrinho
+- Saldos bancários (nova tela): saldo de cada conta, total nos bancos e previsto no fim do mês pelo que falta pagar e receber
+- Configurações: backup da carteira em JSON (baixar e restaurar)
+- Busca por valor: em Gastos e na lupa do topo, "49,90" acha o valor exato e "49" acha de 49,00 a 49,99 (também com R$)
 
 ## v1.26.10.14 — 2026-10-30
 - Calculadoras organizadas por assunto (Compras, Crédito e dívidas, Renda e reserva, Investir) num painel de escolha, abrindo na última usada; a reserva de emergência acha o cofrinho pelo nome

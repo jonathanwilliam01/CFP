@@ -34,6 +34,14 @@ describe('contasDoMes', () => {
     expect(l[0].vencimento).toBe('2026-11-08');
   });
 
+  it('fatura paga em parte leva o resto para a seguinte e estorno abate', () => {
+    const l = contasDoMes(mes, [], [cartao()],
+      [gasto({ forma: 'cartao', cartao_id: 'c1', fatura_mes: mes, valor: 200 }), gasto({ id: 'g2', forma: 'cartao', cartao_id: 'c1', fatura_mes: mes, valor: -50 })],
+      [pago({ tipo: 'fatura', ref_id: 'c1', mes: '2026-09-01', valor: 300, resto: 120 })], new Map());
+    expect(l[0].valor).toBe(270);
+    expect(l[0].anterior).toBe(120);
+  });
+
   it('usa o valor pago quando há baixa', () => {
     const l = contasDoMes(mes, [conta()], [], [], [pago({ valor: 120 })], new Map());
     expect(l[0].valor).toBe(120);

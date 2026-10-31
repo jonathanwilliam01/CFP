@@ -89,6 +89,8 @@ interface FormLanc {
   /** acerto entre membros (carteira com divisão) */
   pagoPor: string;
   dividido: boolean;
+  /** gasto com valor negativo: abate a fatura ou o mês */
+  estorno: boolean;
 }
 
 @Component({
@@ -209,14 +211,14 @@ export class LancarSheet {
     return {
       valor: '', descricao: '', categoria_id: null, data: hoje(), pagamento: this.pagamentoPadrao(), parcelas: 2, valorEhTotal: true,
       repete: this.l.fixa(), variavel: false, anterior: false, fim: '', jaPago: true, tags: '',
-      pagoPor: this.auth.user()?.id ?? '', dividido: true,
+      pagoPor: this.auth.user()?.id ?? '', dividido: true, estorno: false,
     };
   }
 
   private deGasto(g: Gasto): FormLanc {
     const pagamento = g.forma === 'cartao' ? g.cartao_id! : g.forma === 'beneficio' ? `b:${g.beneficio_id}` : 'debito';
-    return { ...this.vazio(), valor: String(g.valor).replace('.', ','), descricao: g.descricao, categoria_id: g.categoria_id, data: g.data, pagamento, tags: (g.tags ?? []).join(' '),
-      pagoPor: g.pago_por ?? g.criado_por ?? '', dividido: g.dividido ?? true };
+    return { ...this.vazio(), valor: String(Math.abs(g.valor)).replace('.', ','), descricao: g.descricao, categoria_id: g.categoria_id, data: g.data, pagamento, tags: (g.tags ?? []).join(' '),
+      pagoPor: g.pago_por ?? g.criado_por ?? '', dividido: g.dividido ?? true, estorno: g.valor < 0 };
   }
 
   private deEntrada(e: Entrada): FormLanc {
@@ -357,7 +359,7 @@ export class LancarSheet {
     const forma: Forma = f.pagamento === 'debito' ? 'debito' : f.pagamento.startsWith('b:') ? 'beneficio' : 'cartao';
     const tags = lerTags(f.tags);
     return {
-      descricao: f.descricao.trim(), categoria_id: f.categoria_id, valor, data: f.data, forma,
+      descricao: f.descricao.trim(), categoria_id: f.categoria_id, valor: f.estorno && this.l.modo() === 'gasto' ? -valor : valor, data: f.data, forma,
       cartao_id: forma === 'cartao' ? f.pagamento : null,
       beneficio_id: forma === 'beneficio' ? f.pagamento.slice(2) : null,
       // só manda a coluna quando há marcador: banco sem a migration 020 segue aceitando o lançamento
@@ -379,7 +381,7 @@ export class LancarSheet {
     if (!valor || valor <= 0) return this.toast.erro('Informe o valor');
     if (!f.descricao.trim()) return this.toast.erro('Informe a descrição');
     const sb = this.saldoBenef();
-    if (sb && valor > sb.saldo + 0.005) return this.toast.erro(`Saldo do ${sb.nome} insuficiente: resta ${moeda(Math.max(0, sb.saldo))}`);
+    if (sb && !f.estorno && valor > sb.saldo + 0.005) return this.toast.erro(`Saldo do ${sb.nome} insuficiente: resta ${moeda(Math.max(0, sb.saldo))}`);
     const modo = this.l.modo();
     const item = this.editando() ? null : this.novoItem(f, valor);
     this.salvando.set(true);

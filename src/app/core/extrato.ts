@@ -18,7 +18,7 @@ export type Origem = 'nubank' | 'csv' | 'ofx-cartao' | 'ofx-conta';
 
 export interface Extrato {
   itens: ItemExtrato[];
-  /** pagamentos, estornos, créditos e linhas sem data/valor */
+  /** pagamentos (e créditos fora da fatura do cartão) e linhas sem data/valor */
   ignorados: number;
   origem: Origem;
 }
@@ -38,7 +38,7 @@ export function lerExtrato(texto: string): Extrato {
   return lerCsv(cab, tab);
 }
 
-/** Fatura do Nubank: valor positivo é compra; pagamento e estorno (negativos) ficam de fora */
+/** Fatura do Nubank: valor positivo é compra; negativo é estorno/crédito, menos o pagamento da fatura */
 function lerNubank(cab: string[], tab: string[][]): Extrato {
   const [iD, iT, iV] = ['date', 'title', 'amount'].map((c) => cab.indexOf(c));
   return montar(tab.map((l) => ({ data: l[iD], titulo: l[iT], valor: parseValor(l[iV]) })), 'nubank');
@@ -68,17 +68,22 @@ function lerOfx(texto: string): Extrato {
   return montar(brutos, /<CCSTMTRS>/i.test(texto) ? 'ofx-cartao' : 'ofx-conta');
 }
 
+const PAGAMENTO = /pagamento|pagto|pgto/i;
+
 function montar(brutos: { data?: string; titulo?: string; valor: number }[], origem: Origem): Extrato {
   const itens: ItemExtrato[] = [];
+  // na fatura do cartão, valor negativo que não é o pagamento é estorno ou crédito e abate a fatura
+  const creditos = origem === 'nubank' || origem === 'ofx-cartao';
   let ignorados = 0;
   for (const b of brutos) {
     const data = dataIso(b.data ?? '');
-    if (!(b.valor > 0) || !data) {
+    const titulo = (b.titulo ?? '').trim();
+    const credito = creditos && b.valor < 0 && !PAGAMENTO.test(titulo);
+    if (!(b.valor > 0 || credito) || !data) {
       ignorados++;
       continue;
     }
-    const titulo = (b.titulo ?? '').trim();
-    const p = titulo.match(PARCELA);
+    const p = credito ? null : titulo.match(PARCELA);
     const parcelado = p && +p[2] >= 1 && +p[2] <= +p[3] && +p[3] > 1;
     const base = parcelado ? p[1] : titulo;
     itens.push({

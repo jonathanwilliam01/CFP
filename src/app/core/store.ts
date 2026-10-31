@@ -6,7 +6,7 @@ import { addMeses, fimMes, hoje, inicioMes, mesAtual } from './datas';
 import { GastoHist, Transferencia, acertoMes, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
 import {
-  Acerto, Beneficio, Carteira, Cartao, Categoria, Cofrinho, CofrinhoMov, Dados, Desafio, Divida, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado,
+  Acerto, Beneficio, Carteira, Cartao, Categoria, ContaBancaria, Cofrinho, CofrinhoMov, Dados, Desafio, Divida, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado,
   OrcamentoValor, Pagamento, Receber, Recorrencia, Registro, Tabela, UsoBeneficio,
 } from './models';
 import { Toast } from '../shared/toast';
@@ -14,7 +14,7 @@ import { q, supabase } from './supabase';
 
 const CADASTROS = [
   'categorias', 'cartoes', 'beneficios', 'recorrencias', 'orcamentos', 'orcamento_valores', 'orcamento_fechados', 'cofrinhos', 'cofrinho_movs', 'registros',
-  'acertos', 'receber', 'dividas', 'desafios',
+  'acertos', 'receber', 'dividas', 'desafios', 'contas_bancarias',
 ] as const;
 type Cadastro = (typeof CADASTROS)[number];
 const eCadastro = (t: string): t is Cadastro => (CADASTROS as readonly string[]).includes(t);
@@ -61,6 +61,7 @@ export class Store {
   readonly receber = signal<Receber[]>([]);
   readonly dividas = signal<Divida[]>([]);
   readonly desafios = signal<Desafio[]>([]);
+  readonly contasBancarias = signal<ContaBancaria[]>([]);
 
   /** Gastos com data no mês anterior/atual ou na fatura do mês */
   readonly gastos = signal<Gasto[]>([]);
@@ -220,7 +221,7 @@ export class Store {
   private limpar() {
     this.carteiras.set([]);
     this.membros.set([]);
-    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.orcamentoFechados, this.cofrinhos, this.cofrinhoMovs, this.registros, this.acertos, this.receber, this.dividas, this.desafios, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
+    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.orcamentoFechados, this.cofrinhos, this.cofrinhoMovs, this.registros, this.acertos, this.receber, this.dividas, this.desafios, this.contasBancarias, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
     for (const s of listas) s.set([]);
   }
 
@@ -244,12 +245,12 @@ export class Store {
   async recarregar(t: Cadastro) {
     const ordem: Record<Cadastro, string> = {
       categorias: 'ordem', cartoes: 'nome', beneficios: 'nome', recorrencias: 'dia', orcamentos: 'valor', orcamento_valores: 'mes', orcamento_fechados: 'mes',
-      cofrinhos: 'criado_em', cofrinho_movs: 'data', registros: 'criado_em', acertos: 'criado_em', receber: 'data', dividas: 'criado_em', desafios: 'inicio',
+      cofrinhos: 'criado_em', cofrinho_movs: 'data', registros: 'criado_em', acertos: 'criado_em', receber: 'data', dividas: 'criado_em', desafios: 'inicio', contas_bancarias: 'nome',
     };
     const alvo: Record<Cadastro, WritableSignal<any[]>> = {
       categorias: this.categorias, cartoes: this.cartoes, beneficios: this.beneficios, recorrencias: this.recorrencias,
       orcamentos: this.orcamentos, orcamento_valores: this.orcamentoValores, orcamento_fechados: this.orcamentoFechados, cofrinhos: this.cofrinhos, cofrinho_movs: this.cofrinhoMovs, registros: this.registros,
-      acertos: this.acertos, receber: this.receber, dividas: this.dividas, desafios: this.desafios,
+      acertos: this.acertos, receber: this.receber, dividas: this.dividas, desafios: this.desafios, contas_bancarias: this.contasBancarias,
     };
     alvo[t].set(await this.sel(t, ordem[t]));
   }
@@ -268,7 +269,7 @@ export class Store {
           .order('data', { ascending: false }).order('criado_em', { ascending: false }),
       ),
       q<Entrada[]>(supabase.from('entradas').select('*').eq('carteira_id', id).gte('data', mes).lte('data', fim).order('data', { ascending: false })),
-      q<Pagamento[]>(supabase.from('pagamentos').select('*').eq('carteira_id', id).in('mes', [mes, addMeses(mes, 1)])),
+      q<Pagamento[]>(supabase.from('pagamentos').select('*').eq('carteira_id', id).in('mes', [ini, mes, addMeses(mes, 1)])),
       q<UsoBeneficio[]>(supabase.rpc('uso_beneficios', { p_carteira: id, p_ate: fim })),
       q<Recente[]>(
         supabase.from('gastos').select('descricao, categoria_id, forma, cartao_id, beneficio_id').eq('carteira_id', id).is('parcelamento_id', null)
@@ -316,7 +317,7 @@ export class Store {
     const locais: Partial<Record<Tabela, WritableSignal<{ id: string }[]>>> = {
       gastos: this.gastos, entradas: this.entradas, pagamentos: this.pagamentos, categorias: this.categorias, cartoes: this.cartoes,
       beneficios: this.beneficios, recorrencias: this.recorrencias, orcamentos: this.orcamentos, cofrinhos: this.cofrinhos,
-      cofrinho_movs: this.cofrinhoMovs, registros: this.registros, receber: this.receber, dividas: this.dividas, desafios: this.desafios,
+      cofrinho_movs: this.cofrinhoMovs, registros: this.registros, receber: this.receber, dividas: this.dividas, desafios: this.desafios, contas_bancarias: this.contasBancarias,
     };
     locais[tabela]?.update((l) => l.filter((x) => x.id !== id));
     if (tabela === 'parcelamentos') this.gastos.update((l) => l.filter((g) => g.parcelamento_id !== id));
@@ -360,10 +361,11 @@ export class Store {
   }
 
   /** Registra a baixa e devolve o id do pagamento; sem pagoEm só grava o valor do mês */
-  async pagar(tipo: 'recorrencia' | 'fatura', refId: string, valor: number, pagoEm: string | null, mes = this.mes()) {
+  /** `resto`: fatura paga em parte, o que passa para a fatura seguinte */
+  async pagar(tipo: 'recorrencia' | 'fatura', refId: string, valor: number, pagoEm: string | null, mes = this.mes(), resto = 0) {
     const { id } = await q<{ id: string }>(
       supabase.from('pagamentos').upsert(
-        { carteira_id: this.carteiraId(), tipo, ref_id: refId, mes, valor, pago_em: pagoEm },
+        { carteira_id: this.carteiraId(), tipo, ref_id: refId, mes, valor, pago_em: pagoEm, ...(tipo === 'fatura' ? { resto } : {}) },
         { onConflict: 'tipo,ref_id,mes' },
       ).select('id').single(),
     );
@@ -418,7 +420,7 @@ export class Store {
     const [gastos, entradas, pagamentos] = await Promise.all([
       q<Gasto[]>(supabase.from('gastos').select('*').eq('carteira_id', id).or(`and(data.gte.${ini},data.lte.${fim}),and(fatura_mes.gte.${ini},fatura_mes.lte.${fimFat})`)),
       q<Entrada[]>(supabase.from('entradas').select('*').eq('carteira_id', id).gte('data', ini).lte('data', fim)),
-      q<Pagamento[]>(supabase.from('pagamentos').select('*').eq('carteira_id', id).gte('mes', ini).lte('mes', fimFat)),
+      q<Pagamento[]>(supabase.from('pagamentos').select('*').eq('carteira_id', id).gte('mes', addMeses(inicioMes(ini), -1)).lte('mes', fimFat)),
     ]);
     return { gastos, entradas, pagamentos };
   }

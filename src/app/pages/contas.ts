@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { diffDias, hoje, inicioMes, mesAtual, mesesEntre, nomeMes } from '../core/datas';
+import { addMeses, diffDias, hoje, inicioMes, mesAtual, mesesEntre, nomeMes } from '../core/datas';
 import { ACIMA_MEDIA, CompraRecorrente, Recebimento, aporteMensal, fixasNaFatura, mediaContas, noMes, porRecebimento } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, moeda, parseValor, soma } from '../core/formato';
 import { Cartao, Cofrinho, ContaMes, Gasto, Recorrencia } from '../core/models';
@@ -11,6 +11,7 @@ import { AcaoDeslizar, Deslizar } from '../shared/deslizar';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { taxas } from './calc/comum';
 
 @Component({
   imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa, Deslizar],
@@ -166,13 +167,16 @@ import { Toast } from '../shared/toast';
           <p class="muted">Vencimento {{ c.vencimento | dia }}</p>
           @if (c.tipo === 'fatura') {
             <div class="itens">
+              @if (c.anterior) {
+                <div class="it"><span class="tit">Saldo da fatura anterior<span class="badge alerta">Pago em parte</span></span><span class="num">{{ c.anterior | brl }}</span></div>
+              }
               @for (g of itensFatura(); track g.id) {
                 <div class="it"><span class="tit">{{ g.descricao }}@if (g.fixa) {<span class="badge info">Conta fixa</span>}</span><span class="num">{{ g.valor | brl }}</span></div>
               }
             </div>
           }
           @if (c.pago) {
-            <div class="aviso sucesso"><app-icon class="i" name="check_circle" /><div><div class="t">Paga em {{ c.pago.pago_em! | dia }}</div><div class="s">{{ c.pago.valor | brl }}</div></div></div>
+            <div class="aviso sucesso"><app-icon class="i" name="check_circle" /><div><div class="t">Paga em {{ c.pago.pago_em! | dia }}</div><div class="s">{{ c.pago.valor | brl }}@if (c.pago.resto) { · {{ c.pago.resto | brl }} foi para a fatura seguinte }</div></div></div>
             <button class="btn ghost block" (click)="desfazer(c)">Desfazer pagamento</button>
           } @else {
             <div class="grid2">
@@ -187,7 +191,14 @@ import { Toast } from '../shared/toast';
                 <div class="aviso alerta"><app-icon class="i" name="trending_up" /><div><div class="t">{{ p }}% acima da média</div><div class="s">Confira a leitura ou se houve cobrança a mais.</div></div></div>
               }
             }
-            <button class="btn block" (click)="pagar(c)"><app-icon name="check" [size]="18" />Marcar como paga</button>
+            @if (parcial(c); as p) {
+              <div class="aviso alerta"><app-icon class="i" name="call_split" /><div>
+                <div class="t">Pagamento parcial: {{ p.resto | brl }} vai para a fatura de {{ p.proxima | mes }}</div>
+                <div class="s">No rotativo (~{{ p.taxa }}% ao mês, média do Banco Central) os juros ficam perto de {{ p.juros | brl }}, fora IOF. Confira na próxima fatura.</div>
+                <label class="check small"><input type="checkbox" [(ngModel)]="somarJuros" />Somar os juros estimados na próxima fatura</label>
+              </div></div>
+            }
+            <button class="btn block" (click)="pagar(c)"><app-icon name="check" [size]="18" />{{ parcial(c) ? 'Pagar só esse valor' : 'Marcar como paga' }}</button>
             @if (variavel(c)) {
               <p class="small muted">Salve o valor que chegou para contar nas saídas deste mês sem pagar agora. Os outros meses continuam pela média.</p>
               <button class="btn ghost block" (click)="pagar(c, true)">Salvar só o valor do mês</button>
@@ -256,6 +267,7 @@ export default class Contas {
   protected sel = signal<ContaMes | null>(null);
   protected valorPago = '';
   protected pagoEm = hoje();
+  protected somarJuros = true;
 
   protected formAberto = signal(false);
   protected fixaSel = signal<Recorrencia | null>(null);
@@ -373,6 +385,16 @@ export default class Contas {
     }
   }
 
+  /** Fatura paga com menos que o total: o resto (e os juros do rotativo, se somados) passa para a seguinte */
+  parcial(c: ContaMes) {
+    if (c.tipo !== 'fatura') return null;
+    const v = parseValor(this.valorPago);
+    const resto = Math.round((c.valor - v) * 100) / 100;
+    if (!v || resto < 0.01) return null;
+    const taxa = parseValor(taxas.rotativo());
+    return { resto, proxima: addMeses(c.mes, 1), taxa: taxa.toLocaleString('pt-BR'), juros: Math.round(resto * taxa) / 100 };
+  }
+
   beneficioNome(id: string) {
     return this.s.beneficios().find((b) => b.id === id)?.nome ?? 'Benefício';
   }
@@ -394,6 +416,7 @@ export default class Contas {
     this.sel.set(c);
     this.valorPago = String(c.valor.toFixed(2)).replace('.', ',');
     this.pagoEm = hoje();
+    this.somarJuros = true;
     this.detalhe.set(true);
   }
 
@@ -420,8 +443,10 @@ export default class Contas {
         await this.s.pagar(c.tipo, c.ref_id, valor, null, c.mes);
         this.toast.ok(`Valor de ${c.descricao} salvo`);
       } else {
-        const id = await this.s.pagar(c.tipo, c.ref_id, valor, this.pagoEm, c.mes);
-        this.toast.feito(`${c.descricao} paga`, () => this.s.desfazerPagamento(id));
+        const p = this.parcial(c);
+        const resto = p ? Math.round((p.resto + (this.somarJuros ? p.juros : 0)) * 100) / 100 : 0;
+        const id = await this.s.pagar(c.tipo, c.ref_id, valor, this.pagoEm, c.mes, resto);
+        this.toast.feito(p ? `${c.descricao}: ${moeda(resto)} para a fatura seguinte` : `${c.descricao} paga`, () => this.s.desfazerPagamento(id));
       }
       this.detalhe.set(false);
     } catch (e) {

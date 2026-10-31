@@ -127,6 +127,18 @@ export interface Pagamento {
   valor: number;
   /** null: valor do mês informado (conta variável), ainda não pago */
   pago_em: string | null;
+  /** fatura paga em parte: o que passa para a fatura seguinte (migration 032) */
+  resto?: number;
+}
+
+/** Saldo real informado de uma conta bancária (migration 032) */
+export interface ContaBancaria {
+  id: string;
+  nome: string;
+  saldo: number;
+  atualizado_em: string;
+  cor: string;
+  ativo: boolean;
 }
 
 export interface Cofrinho {
@@ -268,6 +280,8 @@ export interface ContaMes {
   informado?: Pagamento | null;
   /** conta fixa paga com benefício */
   beneficio_id?: string | null;
+  /** fatura: o que ficou da fatura anterior paga em parte */
+  anterior?: number;
 }
 
 export interface Mensagem {
@@ -310,6 +324,7 @@ export interface Tabelas {
   receber: Receber;
   dividas: Divida;
   desafios: Desafio;
+  contas_bancarias: ContaBancaria;
 }
 
 export type Tabela = keyof Tabelas;

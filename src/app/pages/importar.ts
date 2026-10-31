@@ -36,8 +36,8 @@ const DEBITO = 'debito';
 
       <section class="card intro">
         <p class="small muted">
-          Fatura do cartão ou extrato da conta em CSV (Nubank e outros bancos) ou OFX. Pagamentos, estornos e créditos ficam de fora
-          e o que já foi lançado no CFP vem desmarcado.
+          Fatura do cartão ou extrato da conta em CSV (Nubank e outros bancos) ou OFX. Pagamentos ficam de fora, estornos e créditos da fatura
+          abatem o total e o que já foi lançado no CFP vem desmarcado.
         </p>
         <label class="btn ghost block">
           <app-icon name="upload_file" [size]="20" />{{ arquivo() || 'Escolher arquivo CSV ou OFX' }}
@@ -67,7 +67,7 @@ const DEBITO = 'debito';
         <div class="total card">
           <span class="muted small">
             {{ marcadas().length }} de {{ linhas().length }} marcados
-            @if (ignorados()) { · {{ ignorados() }} pagamento(s)/crédito(s) ignorado(s) }
+            @if (ignorados()) { · {{ ignorados() }} pagamento(s) ignorado(s) }
           </span>
           <b class="num">{{ total() | brl }}</b>
         </div>
@@ -91,6 +91,7 @@ const DEBITO = 'debito';
                   <span class="s">{{ dataDe(x) | dia }} · {{ x.titulo }}</span>
                   <b class="num">{{ x.valor | brl }}</b>
                 </div>
+                @if (x.valor < 0) { <span class="badge info">Estorno ou crédito: abate a fatura</span> }
                 @if (x.dup) { <span class="badge alerta">Parece já lançado</span> }
                 @if (x.fixa; as fx) {
                   @if (noCartao() && !fx.diferente) {
@@ -186,7 +187,7 @@ export default class Importar {
     if (!c) return null;
     const n = new Map<string, number>();
     for (const x of this.linhas()) {
-      if ((x.parcela ?? 1) > 1) continue;
+      if ((x.parcela ?? 1) > 1 || x.valor < 0) continue;
       const m = mesFatura(x.data, c);
       n.set(m, (n.get(m) ?? 0) + 1);
     }
@@ -285,7 +286,7 @@ export default class Importar {
     const usadas = new Set<string>();
     this.linhas.update((l) =>
       l.map((x) => {
-        if (x.parcela) return { ...x, fixa: null };
+        if (x.parcela || x.valor < 0) return { ...x, fixa: null };
         const casa = (r: Recorrencia) => parecido(r.descricao, x.descricao) || parecido(r.descricao, x.chave);
         if (c) {
           const mes = mesFatura(this.dataDe(x), c);

@@ -4,7 +4,8 @@ import { RouterLink } from '@angular/router';
 import { hoje } from '../core/datas';
 import { duplicados } from '../core/financas';
 import { q, supabase } from '../core/supabase';
-import { BrlPipe, DiaPipe, soma } from '../core/formato';
+import { BrlPipe, DiaPipe, bateValor, soma } from '../core/formato';
+import { normalizar } from '../core/texto';
 import { Gasto } from '../core/models';
 import { Store } from '../core/store';
 import { AcaoDeslizar, Deslizar } from '../shared/deslizar';
@@ -145,14 +146,15 @@ export default class Gastos {
   protected tags = computed(() => [...new Set(this.s.gastosMes().flatMap((g) => g.tags ?? []))].sort());
 
   protected lista = computed(() => {
-    const b = this.busca().trim().toLowerCase();
+    const b = normalizar(this.busca());
+    const cats = this.s.catMap();
     return this.s.gastosMes().filter(
       (g) =>
         (this.filtro() === 'todos' || g.forma === this.filtro()) &&
         (this.filtro() !== 'cartao' || !this.cartao() || g.cartao_id === this.cartao()) &&
         (!this.cat() || g.categoria_id === this.cat()) &&
         (!this.tag() || !!g.tags?.includes(this.tag()!)) &&
-        (!b || g.descricao.toLowerCase().includes(b)),
+        (!b || normalizar(g.descricao).includes(b) || normalizar(cats.get(g.categoria_id ?? '')?.nome ?? '').includes(b) || bateValor(g.valor, b)),
     );
   });
 

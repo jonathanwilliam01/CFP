@@ -19,6 +19,7 @@ export const ATALHOS: { rota: string; icone: string; rotulo: string; grupo: Grup
   { rota: '/calendario', icone: 'calendar_view_month', rotulo: 'Calendário', grupo: 'Dia a dia' },
   { rota: '/entradas', icone: 'payments', rotulo: 'Entradas', grupo: 'Dia a dia' },
   { rota: '/cartoes', icone: 'credit_card', rotulo: 'Cartões', grupo: 'Dia a dia' },
+  { rota: '/saldos', icone: 'account_balance_wallet', rotulo: 'Saldos', grupo: 'Dia a dia' },
   { rota: '/beneficios', icone: 'restaurant', rotulo: 'Benefícios', grupo: 'Dia a dia' },
   { rota: '/parcelamentos', icone: 'event_repeat', rotulo: 'Parcelamentos', grupo: 'Compromissos' },
   { rota: '/assinaturas', icone: 'subscriptions', rotulo: 'Assinaturas', grupo: 'Compromissos' },

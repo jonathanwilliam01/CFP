@@ -118,6 +118,10 @@
       </div>
     }
 
+    @if (l.modo() === 'gasto' && !repete()) {
+      <label class="check"><input name="est" type="checkbox" [ngModel]="f().estorno" (ngModelChange)="set('estorno', $event)" />Estorno ou crédito (abate {{ fatura() ? 'a fatura' : 'o mês' }})</label>
+    }
+
     @if (s.divisao() && l.modo() === 'gasto' && !repete() && s.membros().length > 1) {
       <div class="field">
         <span>Quem pagou</span>

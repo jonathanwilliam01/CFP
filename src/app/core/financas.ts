@@ -59,9 +59,11 @@ export function contasDoMes(
   const faturas: ContaMes[] = cartoes
     .map((c) => {
       const fm = faturaDoMes(mes, c);
+      const anterior = pago('fatura', c.id, addMeses(fm, -1))?.resto ?? 0;
       const total =
         soma(gastos.filter((g) => g.cartao_id === c.id && g.fatura_mes === fm), (g) => g.valor) +
-        soma(fixasNaFatura(fm, c, recorrencias), (f) => f.valor);
+        soma(fixasNaFatura(fm, c, recorrencias), (f) => f.valor) +
+        anterior;
       const p = pago('fatura', c.id, fm);
       return {
         tipo: 'fatura' as const,
@@ -73,6 +75,7 @@ export function contasDoMes(
         mes: fm,
         valor: p?.valor ?? total,
         pago: p,
+        anterior,
       };
     })
     .filter((f) => f.valor > 0);
@@ -225,8 +228,10 @@ export function porCategoria(gastos: { categoria_id: string | null; valor: numbe
     a.qtd++;
     m.set(k, a);
   }
-  const total = soma([...m.values()], (a) => a.total);
-  return [...m.entries()]
+  // estorno pode zerar ou deixar negativa uma categoria: fica fora do gráfico
+  const l = [...m.entries()].filter(([, a]) => a.total > 0);
+  const total = soma(l, ([, a]) => a.total);
+  return l
     .map(([id, a]) => {
       const c = id ? categorias.get(id) : undefined;
       return {

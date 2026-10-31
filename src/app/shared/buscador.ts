@@ -24,7 +24,7 @@ const LIMITE = 100;
       </label>
 
       @if (termo().trim().length < 2) {
-        <p class="small muted dica">Digite ao menos 2 letras. Valor (ex.: 49,90) acha o gasto exato; #viagem busca pelo marcador.</p>
+        <p class="small muted dica">Digite ao menos 2 letras. Valor com centavos (49,90) acha o exato, só reais (49) acha de 49,00 a 49,99; #viagem busca pelo marcador.</p>
       } @else {
         @if (gastos().length) {
           <div class="card-head"><h2>Gastos</h2><span class="small muted">{{ gastos().length }}{{ gastos().length === limite ? '+' : '' }} · <b class="num">{{ totalGastos() | brl }}</b></span></div>
@@ -131,12 +131,15 @@ export class Buscador {
     const id = this.s.carteiraId()!;
     // tira o que quebra o filtro do PostgREST
     const limpo = t.replace(/[,()*%\\"]/g, ' ').trim();
-    const valor = /^[\d.,]+$/.test(t) ? parseValor(t) : 0;
+    // valor com centavos acha o exato; só reais acha 50,00 a 50,99
+    const num = t.replace(/r\$\s*/i, '').trim();
+    const valor = /^[\d.,]+$/.test(num) ? parseValor(num) : 0;
+    const porValor = !valor ? [] : /[.,]\d{1,2}$/.test(num) ? [`valor.eq.${valor}`] : [`and(valor.gte.${valor},valor.lt.${valor + 1})`];
     const cats = this.s.categorias().filter((c) => normalizar(c.nome).includes(normalizar(limpo))).map((c) => c.id);
     const filtroGasto = limpo.startsWith('#')
       ? `tags.cs.{${normalizar(limpo.slice(1))}}`
-      : [`descricao.ilike.*${limpo}*`, ...(valor ? [`valor.eq.${valor}`] : []), ...(cats.length ? [`categoria_id.in.(${cats.join(',')})`] : [])].join(',');
-    const filtroEntrada = [`descricao.ilike.*${limpo}*`, ...(valor ? [`valor.eq.${valor}`] : [])].join(',');
+      : [`descricao.ilike.*${limpo}*`, ...porValor, ...(cats.length ? [`categoria_id.in.(${cats.join(',')})`] : [])].join(',');
+    const filtroEntrada = [`descricao.ilike.*${limpo}*`, ...porValor].join(',');
     this.buscando.set(true);
     try {
       const [g, e] = await Promise.all([

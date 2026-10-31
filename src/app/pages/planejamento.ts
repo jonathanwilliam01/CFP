@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { addMeses, fimMes, hoje, mesAtual, mesFatura, nomeMes } from '../core/datas';
+import { RouterLink } from '@angular/router';
+import { addMeses, fimMes, hoje, mesAtual, mesFatura, mesesEntre, nomeMes } from '../core/datas';
 import { contasDoMes, faturaDoMes, noMes, orcamentosNoMes, proximosMeses, resumoMes, statusOrcamentos } from '../core/financas';
 import { BrlPipe, MesPipe, parseValor, soma } from '../core/formato';
 import { Cartao, Entrada, Gasto, Pagamento, Plano } from '../core/models';
@@ -10,6 +11,7 @@ import { Barras, Coluna } from '../shared/graficos';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { normalizar } from '../core/texto';
 
 interface FormPlano {
   id?: string;
@@ -24,7 +26,7 @@ interface FormPlano {
 const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && !g.parcelamento_id;
 
 @Component({
-  imports: [BrlPipe, MesPipe, FormsModule, Sheet, Icon, Barras],
+  imports: [BrlPipe, MesPipe, FormsModule, RouterLink, Sheet, Icon, Barras],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -61,6 +63,31 @@ const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && 
           </p>
         }
       </section>
+
+      @if (provisao().itens.length) {
+        <section class="card">
+          <div class="card-head"><h2>Separar todo mês</h2><b class="num">{{ provisao().total | brl }}/mês</b></div>
+          <p class="small muted">Contas anuais (IPVA, IPTU, seguro, matrícula) e eventos planejados: quanto guardar por mês até a data.</p>
+          <div class="list">
+            @for (x of provisao().itens; track x.p.id) {
+              <div class="row">
+                <div class="grow">
+                  <div class="t">{{ x.p.descricao }}@if (x.p.anual) { <app-icon name="autorenew" [size]="14" /> }</div>
+                  <div class="s"><span class="cap">{{ x.mes | mes }}</span> · {{ x.p.valor | brl }} · {{ x.meses > 1 ? x.meses + ' meses' : 'este mês' }}</div>
+                </div>
+                <div class="v">
+                  <b class="num">{{ x.porMes | brl }}</b>
+                  @if (x.cofrinho; as c) {
+                    <a class="s" [routerLink]="['/cofrinhos', c.id]">Ver cofrinho</a>
+                  } @else {
+                    <button type="button" class="btn ghost sm" (click)="criarCofrinho(x.p, x.mes)">Criar cofrinho</button>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+      }
 
       <label class="card check">
         <input type="checkbox" [checked]="estimar()" (change)="estimar.set(!estimar())" />
@@ -227,6 +254,32 @@ export default class Planejamento {
         } satisfies Gasto;
       }),
     );
+  }
+
+  /** Saídas planejadas daqui para frente (anual: a próxima vez): quanto guardar por mês até lá, contando o mês atual */
+  protected provisao = computed(() => {
+    const atual = mesAtual();
+    const cofres = new Map(this.s.cofrinhos().map((c) => [normalizar(c.nome), c]));
+    const itens = this.planos()
+      .filter((p) => p.tipo === 'saida')
+      .map((p) => {
+        let mes = p.mes;
+        if (p.anual) while (mes < atual) mes = addMeses(mes, 12);
+        const meses = mesesEntre(atual, mes) + 1;
+        return { p, mes, meses, porMes: Math.round((p.valor / meses) * 100) / 100, cofrinho: cofres.get(normalizar(p.descricao)) ?? null };
+      })
+      .filter((x) => x.mes >= atual)
+      .sort((a, b) => a.mes.localeCompare(b.mes));
+    return { itens, total: soma(itens, (x) => x.porMes) };
+  });
+
+  async criarCofrinho(p: Plano, mes: string) {
+    try {
+      const id = await this.s.salvar('cofrinhos', { nome: p.descricao, meta: p.valor, prazo: mes, icone: 'event', cor: '#f59e0b' });
+      this.toast.feito(`Cofrinho ${p.descricao} criado`, () => this.s.excluir('cofrinhos', id));
+    } catch (e) {
+      this.toast.erro(e);
+    }
   }
 
   /** planos do mês, incluindo os anuais de anos anteriores no mesmo mês */

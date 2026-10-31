@@ -11,6 +11,14 @@ describe('lerExtrato', () => {
     expect(e.itens[1]).toMatchObject({ descricao: 'Loja X', parcela: 2, parcelas: 5, valor: 100 });
   });
 
+  it('fatura Nubank: estorno entra negativo e abate a fatura', () => {
+    const csv = 'date,title,amount\n2026-10-02,Loja Y,80.00\n2026-10-05,Estorno de Loja Y,-80.00\n2026-10-06,Pagamento recebido,-300.00\n';
+    const e = lerExtrato(csv);
+    expect(e.ignorados).toBe(1);
+    expect(e.itens.map((x) => x.valor)).toEqual([80, -80]);
+    expect(e.itens[1].parcela).toBeNull();
+  });
+
   it('CSV de banco com ";" e saídas negativas', () => {
     const csv = 'Data;Descrição;Valor\n05/10/2026;Mercado Bom;-1.234,56\n06/10/2026;Pix recebido;300,00\n07/10/2026;Uber;-20,00\n';
     const e = lerExtrato(csv);

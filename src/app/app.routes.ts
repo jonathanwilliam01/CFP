@@ -26,6 +26,7 @@ export const routes: Routes = [
       { path: 'contas', loadComponent: () => import('./pages/contas'), title: 'Contas · Controle Financeiro Pessoal' },
       { path: 'entradas', loadComponent: () => import('./pages/entradas'), title: 'Entradas · Controle Financeiro Pessoal' },
       { path: 'cartoes', loadComponent: () => import('./pages/cartoes'), title: 'Cartões · Controle Financeiro Pessoal' },
+      { path: 'saldos', loadComponent: () => import('./pages/saldos'), title: 'Saldos bancários · Controle Financeiro Pessoal' },
       { path: 'beneficios', loadComponent: () => import('./pages/beneficios'), title: 'Benefícios · Controle Financeiro Pessoal' },
       { path: 'parcelamentos', loadComponent: () => import('./pages/parcelamentos'), title: 'Parcelamentos · Controle Financeiro Pessoal' },
       { path: 'cofrinhos', loadComponent: () => import('./pages/cofrinhos'), title: 'Cofrinhos · Controle Financeiro Pessoal' },
