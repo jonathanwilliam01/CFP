@@ -222,7 +222,7 @@ export default class Planejamento {
         return {
           id: `sim-${i}`, descricao: 'Simulação', categoria_id: null, valor: Math.round((total / n) * 100) / 100, data,
           forma: c ? 'cartao' : 'debito', cartao_id: c?.id ?? null, beneficio_id: null,
-          fatura_mes: c ? mesFatura(data, c.fechamento_dia, c.vencimento_dia) : null,
+          fatura_mes: c ? mesFatura(data, c) : null,
           parcelamento_id: n > 1 ? 'sim' : null, parcela: n > 1 ? i + 1 : null, criado_por: null,
         } satisfies Gasto;
       }),

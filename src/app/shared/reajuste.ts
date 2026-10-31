@@ -78,7 +78,7 @@ export class Reajuste implements OnInit {
   ngOnInit() {
     atualizarTaxas();
     const c = this.s.cartoes().find((x) => x.id === this.rec().cartao_id);
-    if (c) this.mes.set(mesFatura(hoje(), c.fechamento_dia, c.vencimento_dia).slice(0, 7));
+    if (c) this.mes.set(mesFatura(hoje(), c).slice(0, 7));
   }
 
   protected ipca = computed(() => {

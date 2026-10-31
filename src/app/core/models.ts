@@ -38,6 +38,8 @@ export interface Cartao {
   nome: string;
   fechamento_dia: number;
   vencimento_dia: number;
+  /** fecha N dias corridos antes do vencimento (Nubank, C6, Inter...); null = fecha no fechamento_dia (migration 031) */
+  fecha_dias: number | null;
   limite: number | null;
   cor: string;
   padrao: boolean;

@@ -2,7 +2,7 @@ import { avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendim
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
-  id: 'c1', nome: 'Nu', fechamento_dia: 1, vencimento_dia: 8, limite: null, cor: '#000', padrao: true, ativo: true, paga_mes_anterior: false, ...p,
+  id: 'c1', nome: 'Nu', fechamento_dia: 1, vencimento_dia: 8, fecha_dias: null, limite: null, cor: '#000', padrao: true, ativo: true, paga_mes_anterior: false, ...p,
 });
 
 const conta = (p: Partial<Recorrencia> = {}): Recorrencia => ({

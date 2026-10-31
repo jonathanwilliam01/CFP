@@ -167,7 +167,7 @@ export class ContaFixa implements OnInit {
       ...f,
       beneficio_id: v?.startsWith('b:') ? v.slice(2) : null,
       cartao_id: id,
-      inicio: f.id ? f.inicio : (c ? mesFatura(hoje(), c.fechamento_dia, c.vencimento_dia) : mesAtual()).slice(0, 7),
+      inicio: f.id ? f.inicio : (c ? mesFatura(hoje(), c) : mesAtual()).slice(0, 7),
     }));
   }
 

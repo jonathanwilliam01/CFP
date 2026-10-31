@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.26.10.15 — 2026-10-31
+- Cartões: fechamento contado em dias antes do vencimento (Nubank, C6, Inter: 7; Itaú: 8), com o dia mudando conforme o mês; compra no dia do fechamento vai para a próxima fatura e, ao mudar o fechamento, os gastos da fatura aberta em diante são refeitos (migration 031)
+
 ## v1.26.10.14 — 2026-10-30
 - Calculadoras organizadas por assunto (Compras, Crédito e dívidas, Renda e reserva, Investir) num painel de escolha, abrindo na última usada; a reserva de emergência acha o cofrinho pelo nome
 - Valores como 3.000 (ponto de milhar) passam a valer três mil em todos os campos

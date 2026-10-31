@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { addDias, hoje, inicioMes, mesFatura } from '../core/datas';
+import { addDias, diffDias, hoje, inicioFatura, inicioMes, mesFatura } from '../core/datas';
 import { inicioFixa, saldoBeneficio } from '../core/financas';
 import { BrlPipe, MesPipe, moeda, parseValor } from '../core/formato';
 import { Entrada, Forma, Gasto } from '../core/models';
@@ -161,7 +161,7 @@ export class LancarSheet {
   protected fatura = computed(() => {
     const f = this.f();
     const c = this.s.cartoes().find((x) => x.id === f.pagamento);
-    return c ? mesFatura(f.data, c.fechamento_dia, c.vencimento_dia) : null;
+    return c ? mesFatura(f.data, c) : null;
   });
 
   /** limite livre do cartão escolhido (só cartão com limite) e se a compra cai logo após o fechamento */
@@ -170,8 +170,8 @@ export class LancarSheet {
   protected melhorDia = computed(() => {
     const c = this.s.cartoes().find((x) => x.id === this.f().pagamento);
     if (!c) return false;
-    const dia = Number(this.f().data.slice(8, 10));
-    return dia >= c.fechamento_dia && dia <= c.fechamento_dia + 2;
+    const data = this.f().data;
+    return diffDias(inicioFatura(mesFatura(data, c), c), data) <= 2;
   });
 
   constructor() {

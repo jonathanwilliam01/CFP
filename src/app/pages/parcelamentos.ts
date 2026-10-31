@@ -131,12 +131,12 @@ export default class Parcelamentos {
       const c = p.cartao_id ? cartoes.get(p.cartao_id) : undefined;
       const mesDa = (i: number) => {
         const d = addMeses(p.primeira_data, i);
-        return c ? mesFatura(d, c.fechamento_dia, c.vencimento_dia) : inicioMes(d);
+        return c ? mesFatura(d, c) : inicioMes(d);
       };
       // parcela de mês passado conta como paga; importada a partir da parcela N não tem as anteriores como gasto
       // antecipação (parcela null) não é parcela: as que ela substituiu contam como pagas
       const futuras = this.parcelas().filter((g) => g.parcelamento_id === p.id && g.parcela != null && (g.fatura_mes ?? inicioMes(g.data)) >= atual);
-      const alvo = c ? mesFatura(hoje(), c.fechamento_dia, c.vencimento_dia) : atual;
+      const alvo = c ? mesFatura(hoje(), c) : atual;
       const pagas = p.num_parcelas - futuras.length;
       const cat = p.categoria_id ? this.s.catMap().get(p.categoria_id) : undefined;
       return {

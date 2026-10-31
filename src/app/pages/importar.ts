@@ -178,7 +178,7 @@ export default class Importar {
   protected faturas = computed(() => {
     const c = this.cartao();
     if (!c) return '';
-    return [...new Set(this.linhas().map((x) => mesFatura(this.dataDe(x), c.fechamento_dia, c.vencimento_dia)))].sort().map((m) => nomeMes(m)).join(', ');
+    return [...new Set(this.linhas().map((x) => mesFatura(this.dataDe(x), c)))].sort().map((m) => nomeMes(m)).join(', ');
   });
   /** Fatura do arquivo: a mais comum entre as compras novas (sem parcela ou 1ª parcela) */
   private alvo = computed(() => {
@@ -187,7 +187,7 @@ export default class Importar {
     const n = new Map<string, number>();
     for (const x of this.linhas()) {
       if ((x.parcela ?? 1) > 1) continue;
-      const m = mesFatura(x.data, c.fechamento_dia, c.vencimento_dia);
+      const m = mesFatura(x.data, c);
       n.set(m, (n.get(m) ?? 0) + 1);
     }
     return [...n].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
@@ -197,8 +197,8 @@ export default class Importar {
   protected dataDe(x: ItemExtrato) {
     const c = this.cartao();
     const alvo = this.alvo();
-    if (!c || !alvo || (x.parcela ?? 1) === 1 || mesFatura(x.data, c.fechamento_dia, c.vencimento_dia) >= alvo) return x.data;
-    return inicioFatura(alvo, c.fechamento_dia, c.vencimento_dia);
+    if (!c || !alvo || (x.parcela ?? 1) === 1 || mesFatura(x.data, c) >= alvo) return x.data;
+    return inicioFatura(alvo, c);
   }
 
   async abrir(ev: Event) {
@@ -239,7 +239,7 @@ export default class Importar {
     const c = this.cartao();
     const linhas = this.linhas();
     if (!linhas.length) return;
-    const chave = (x: ItemExtrato) => (c ? mesFatura(this.dataDe(x), c.fechamento_dia, c.vencimento_dia) : x.data);
+    const chave = (x: ItemExtrato) => (c ? mesFatura(this.dataDe(x), c) : x.data);
     try {
       const chaves = [...new Set(linhas.map(chave))];
       const existentes = c
@@ -288,7 +288,7 @@ export default class Importar {
         if (x.parcela) return { ...x, fixa: null };
         const casa = (r: Recorrencia) => parecido(r.descricao, x.descricao) || parecido(r.descricao, x.chave);
         if (c) {
-          const mes = mesFatura(this.dataDe(x), c.fechamento_dia, c.vencimento_dia);
+          const mes = mesFatura(this.dataDe(x), c);
           const r = fixas.find((r) => ativaNoMes(r, mes) && casa(r));
           if (!r) return { ...x, fixa: null };
           const diferente = !r.variavel && Math.abs(r.valor - x.valor) >= 0.01;

@@ -1,4 +1,4 @@
-import { addDias, addMeses, diaNoMes, diasNoMes, diffDias, fimMes, inicioMes, mesFatura, mesesEntre } from './datas';
+import { addDias, addMeses, diaNoMes, diasNoMes, diffDias, fechamentoFatura, fimMes, inicioFatura, inicioMes, mesFatura, mesesEntre } from './datas';
 import { pct, soma } from './formato';
 import { normalizar } from './texto';
 import {
@@ -399,7 +399,7 @@ export const proximosMeses = (mes: string, n: number) => Array.from({ length: n 
 /** Primeiro mês e dia de uma fixa criada pelo lançamento: no cartão, a fatura da data e o vencimento do cartão */
 export function inicioFixa(data: string, cartao?: Cartao) {
   return cartao
-    ? { inicio: mesFatura(data, cartao.fechamento_dia, cartao.vencimento_dia), dia: cartao.vencimento_dia }
+    ? { inicio: mesFatura(data, cartao), dia: cartao.vencimento_dia }
     : { inicio: inicioMes(data), dia: Number(data.slice(8, 10)) };
 }
 
@@ -535,10 +535,9 @@ export function faturaProjetada(
   recorrencias: Recorrencia[],
   hoje: string,
 ) {
-  const mes = mesFatura(hoje, c.fechamento_dia, c.vencimento_dia);
-  const m = inicioMes(hoje);
-  const fecha = Number(hoje.slice(8, 10)) >= c.fechamento_dia ? diaNoMes(addMeses(m, 1), c.fechamento_dia) : diaNoMes(m, c.fechamento_dia);
-  const abriu = diaNoMes(addMeses(inicioMes(fecha), -1), c.fechamento_dia);
+  const mes = mesFatura(hoje, c);
+  const fecha = fechamentoFatura(mes, c);
+  const abriu = inicioFatura(mes, c);
   const dela = gastos.filter((g) => g.cartao_id === c.id && g.fatura_mes === mes);
   const atual = soma(dela, (g) => g.valor) + soma(fixasNaFatura(mes, c, recorrencias), (f) => f.valor);
   const avulsas = soma(dela.filter((g) => !g.parcelamento_id && g.data >= abriu && g.data <= hoje), (g) => g.valor);

@@ -72,16 +72,26 @@ export function faltaPara(prazo: string, de = hoje()) {
   return `faltam ${mesesEntre(de, prazo)} meses`;
 }
 
+/** Fechamento do cartão: dia fixo ou, com fecha_dias, N dias corridos antes do vencimento */
+export interface Ciclo {
+  fechamento_dia: number;
+  vencimento_dia: number;
+  fecha_dias: number | null;
+}
+
+/** Dia em que fecha a fatura que vence em `mes`; compras desse dia em diante vão para a seguinte. Mesma regra de fechamento_fatura no banco. */
+export function fechamentoFatura(mes: string, c: Ciclo) {
+  if (c.fecha_dias) return addDias(diaNoMes(mes, c.vencimento_dia), -c.fecha_dias);
+  const m = addMeses(mes, c.vencimento_dia <= c.fechamento_dia ? -1 : 0);
+  return c.fechamento_dia > diasNoMes(m) ? addMeses(m, 1) : diaNoMes(m, c.fechamento_dia);
+}
+
 /** Mês (dia 1) em que vence a fatura de uma compra. Mesma regra de calc_fatura no banco. */
-export function mesFatura(data: string, fech: number, venc: number) {
+export function mesFatura(data: string, c: Ciclo) {
   let m = inicioMes(data);
-  if (parse(data).getDate() >= fech) m = addMeses(m, 1);
-  if (venc <= fech) m = addMeses(m, 1);
+  while (data >= fechamentoFatura(m, c)) m = addMeses(m, 1);
   return m;
 }
 
 /** Primeiro dia de compra que cai na fatura `mes` (inverso de mesFatura) */
-export function inicioFatura(mes: string, fech: number, venc: number) {
-  const m = addMeses(mes, venc <= fech ? -2 : -1);
-  return fech > diasNoMes(m) ? addMeses(m, 1) : diaNoMes(m, fech);
-}
+export const inicioFatura = (mes: string, c: Ciclo) => fechamentoFatura(addMeses(mes, -1), c);

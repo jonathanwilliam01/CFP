@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { addMeses, hoje, mesAtual } from '../core/datas';
+import { addMeses, fechamentoFatura, hoje, mesAtual, mesFatura } from '../core/datas';
 import { BrlPipe, MesPipe, pct, soma } from '../core/formato';
 import { faturaDoMes, faturaProjetada, fixasNaFatura } from '../core/financas';
 import { Cartao, Recorrencia } from '../core/models';
@@ -24,6 +24,7 @@ interface FormCartao {
   nome: string;
   fechamento_dia: number;
   vencimento_dia: number;
+  fecha_dias: number | null;
   limite: number | null;
   cor: string;
   padrao: boolean;
@@ -49,7 +50,7 @@ interface FormCartao {
           <div class="topo" [style.background]="c.cartao.cor">
             <div>
               <b>{{ c.cartao.nome }}</b>
-              <small>Fecha dia {{ c.cartao.fechamento_dia }} · vence dia {{ c.cartao.vencimento_dia }} · melhor dia de compra {{ c.cartao.fechamento_dia }}</small>
+              <small>Fecha {{ c.fecha }}{{ c.cartao.fecha_dias ? ' (' + c.cartao.fecha_dias + ' dias antes do vencimento)' : '' }} · vence dia {{ c.cartao.vencimento_dia }} · melhor dia de compra {{ c.fecha }}</small>
             </div>
             <div class="acts">
               <button type="button" class="star" [class.on]="c.cartao.padrao" (click)="padrao(c.cartao)"
@@ -104,18 +105,24 @@ interface FormCartao {
         </div>
       }
 
-      <p class="small muted">A estrela marca o cartão padrão, já selecionado ao lançar um gasto. Compras no dia do fechamento ou depois vão para a fatura seguinte.</p>
+      <p class="small muted">A estrela marca o cartão padrão, já selecionado ao lançar um gasto. Compras no dia do fechamento ou depois vão para a fatura seguinte. Nubank, C6, Inter e Itaú fecham um número fixo de dias antes do vencimento, então o dia muda conforme o mês.</p>
     </div>
 
     <app-sheet [(open)]="aberto" [titulo]="f.id ? 'Editar cartão' : 'Novo cartão'">
       <form class="form" (ngSubmit)="salvar()">
         <label class="field"><span>Nome</span><input name="nome" [(ngModel)]="f.nome" placeholder="Ex.: Nubank" required /></label>
         <div class="grid2">
-          <label class="field"><span>Dia do fechamento</span>
-            <input name="fech" type="number" inputmode="numeric" min="1" max="31" [(ngModel)]="f.fechamento_dia" /></label>
+          @if (f.fecha_dias !== null) {
+            <label class="field"><span>Dias antes do vencimento</span>
+              <input name="dias" type="number" inputmode="numeric" min="1" max="28" [(ngModel)]="f.fecha_dias" /></label>
+          } @else {
+            <label class="field"><span>Dia do fechamento</span>
+              <input name="fech" type="number" inputmode="numeric" min="1" max="31" [(ngModel)]="f.fechamento_dia" /></label>
+          }
           <label class="field"><span>Dia do vencimento</span>
             <input name="venc" type="number" inputmode="numeric" min="1" max="31" [(ngModel)]="f.vencimento_dia" /></label>
         </div>
+        <label class="check"><input type="checkbox" name="rel" [ngModel]="f.fecha_dias !== null" (ngModelChange)="f.fecha_dias = $event ? 7 : null" /> Fecha dias antes do vencimento (Nubank: 7)</label>
         <div class="grid2">
           <label class="field"><span>Limite (opcional)</span>
             <input name="limite" type="number" inputmode="decimal" step="0.01" [(ngModel)]="f.limite" /></label>
@@ -176,6 +183,7 @@ export default class Cartoes {
       const fatura = this.s.contasMes().find((c) => c.tipo === 'fatura' && c.ref_id === cartao.id);
       return {
         cartao,
+        fecha: fechamentoFatura(mesFatura(hoje(), cartao), cartao).split('-').reverse().slice(0, 2).join('/'),
         usado,
         pctLimite: cartao.limite ? pct(usado, cartao.limite) : 0,
         faturaRef: faturaDoMes(this.s.mes(), cartao),
@@ -218,7 +226,7 @@ export default class Cartoes {
   }
 
   private vazio(): FormCartao {
-    return { nome: '', fechamento_dia: 1, vencimento_dia: 10, limite: null, cor: '#7c3aed', padrao: !this.s.cartoes().length, ativo: true, paga_mes_anterior: false };
+    return { nome: '', fechamento_dia: 1, vencimento_dia: 10, fecha_dias: null, limite: null, cor: '#7c3aed', padrao: !this.s.cartoes().length, ativo: true, paga_mes_anterior: false };
   }
 
   novo() {
@@ -227,7 +235,7 @@ export default class Cartoes {
   }
 
   editar(c: Cartao) {
-    this.f = { id: c.id, nome: c.nome, fechamento_dia: c.fechamento_dia, vencimento_dia: c.vencimento_dia, limite: c.limite, cor: c.cor, padrao: c.padrao, ativo: c.ativo, paga_mes_anterior: c.paga_mes_anterior };
+    this.f = { id: c.id, nome: c.nome, fechamento_dia: c.fechamento_dia, vencimento_dia: c.vencimento_dia, fecha_dias: c.fecha_dias, limite: c.limite, cor: c.cor, padrao: c.padrao, ativo: c.ativo, paga_mes_anterior: c.paga_mes_anterior };
     this.aberto.set(true);
   }
 
@@ -246,6 +254,7 @@ export default class Cartoes {
     if (!f.nome.trim()) return this.toast.erro('Informe o nome');
     if (!(f.fechamento_dia >= 1 && f.fechamento_dia <= 31 && f.vencimento_dia >= 1 && f.vencimento_dia <= 31))
       return this.toast.erro('Dias devem estar entre 1 e 31');
+    if (f.fecha_dias !== null && !(f.fecha_dias >= 1 && f.fecha_dias <= 28)) return this.toast.erro('Dias antes do vencimento: entre 1 e 28');
     this.salvando.set(true);
     try {
       // padrão só pela RPC: o índice único não deixa dois cartões padrão nem por um instante

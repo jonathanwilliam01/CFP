@@ -8,6 +8,13 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.10.15',
+    data: '2026-10-31',
+    itens: [
+      'Cartões: fechamento contado em dias antes do vencimento (Nubank, C6, Inter: 7; Itaú: 8), com o dia mudando conforme o mês; compra no dia do fechamento vai para a próxima fatura e, ao mudar o fechamento, os gastos da fatura aberta em diante são refeitos (migration 031)',
+    ],
+  },
+  {
     versao: 'v1.26.10.14',
     data: '2026-10-30',
     itens: [
