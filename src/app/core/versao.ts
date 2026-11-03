@@ -8,6 +8,13 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.3',
+    data: '2026-11-03',
+    itens: [
+      'Gastos: no filtro Cartão, ver por fatura (a que vence no mês ou a seguinte), com o período de compras do cartão e as contas fixas da fatura; compra no dia do fechamento aparece na fatura certa sem voltar o mês. Em Cartões, tocar em "Fatura de…" abre essa lista',
+    ],
+  },
+  {
     versao: 'v1.26.11.2',
     data: '2026-11-02',
     itens: [

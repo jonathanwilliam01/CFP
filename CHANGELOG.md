@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.26.11.3 — 2026-11-03
+- Gastos: no filtro Cartão, ver por fatura (a que vence no mês ou a seguinte), com o período de compras do cartão e as contas fixas da fatura; compra no dia do fechamento aparece na fatura certa sem voltar o mês. Em Cartões, tocar em "Fatura de…" abre essa lista
+
 ## v1.26.11.2 — 2026-11-02
 - Aviso no celular quando outro membro lança gasto (parcelado avisa uma vez, importação manda um resumo), desligável em Configurações → Notificações (migration 034 e nova versão da função push)
 - Compartilhar foto ou PDF com o app abre o lançamento de gasto com o comprovante anexado (o texto compartilhado continua preenchendo o lançamento)

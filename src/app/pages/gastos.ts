@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { hoje } from '../core/datas';
-import { duplicados } from '../core/financas';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { addDias, addMeses, fechamentoFatura, hoje, inicioFatura } from '../core/datas';
+import { duplicados, fixasNaFatura } from '../core/financas';
 import { q, supabase } from '../core/supabase';
-import { BrlPipe, DiaPipe, bateValor, soma } from '../core/formato';
+import { BrlPipe, DiaPipe, MesPipe, bateValor, soma } from '../core/formato';
 import { normalizar } from '../core/texto';
 import { Gasto } from '../core/models';
 import { Store } from '../core/store';
@@ -16,7 +16,7 @@ import { Toast } from '../shared/toast';
 type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, Icon, Deslizar],
+  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Deslizar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -38,6 +38,14 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
           <button class="chip" [class.on]="filtro() === o.k" (click)="filtro.set(o.k)">@if (o.i) {<app-icon [name]="o.i" [size]="18" />}{{ o.r }}</button>
         }
       </div>
+      @if (filtro() === 'cartao') {
+        <div class="seg">
+          <button type="button" [class.on]="fatura() === null" (click)="fatura.set(null)">Por data</button>
+          @for (i of indices; track i) {
+            <button type="button" [class.on]="fatura() === i" (click)="fatura.set(i)">Fatura de {{ faturaMes(i) | mes: true }}</button>
+          }
+        </div>
+      }
       @if (filtro() === 'cartao' && s.cartoes().length > 1) {
         <div class="chips">
           <button class="chip" [class.on]="!cartao()" (click)="cartao.set(null)">Todos os cartões</button>
@@ -78,7 +86,10 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
       }
 
       <div class="total card">
-        <span class="muted">{{ lista().length }} gasto(s)</span>
+        <span class="muted">{{ lista().length }} gasto(s)
+          @if (periodo(); as p) { <br /><small>compras de {{ p.ini | dia }} a {{ p.fim | dia }}</small> }
+          @if (fixas()) { <br /><small>+ {{ fixas() | brl }} de contas fixas no cartão</small> }
+        </span>
         <b class="num">{{ total() | brl }}</b>
       </div>
 
@@ -112,6 +123,7 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
     .busca input { border: 0; background: none; box-shadow: none; padding: 10px 0; }
     .total { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; }
     .total b { font-size: 1.15rem; }
+    .total small { font-size: 0.75rem; color: var(--ink-3); }
     .list { padding-top: 4px; padding-bottom: 4px; }
     .benef { color: var(--ink-3); }
     .clip { color: var(--ink-3); vertical-align: -2px; margin-left: 3px; }
@@ -131,6 +143,17 @@ export default class Gastos {
   protected excluirAcao: AcaoDeslizar = { rotulo: 'Excluir', icone: 'delete', cor: 'var(--danger)' };
   protected repetirAcao: AcaoDeslizar = { rotulo: 'Lançar hoje', icone: 'content_copy', cor: 'var(--primary)' };
 
+  constructor() {
+    // vindo de Cartões: ?cartao=<id>&fatura=0|1
+    const p = inject(ActivatedRoute).snapshot.queryParamMap;
+    const f = p.get('fatura');
+    if (f === '0' || f === '1') {
+      this.filtro.set('cartao');
+      this.cartao.set(p.get('cartao'));
+      this.fatura.set(+f as 0 | 1);
+    }
+  }
+
   protected opcoes: { k: Filtro; r: string; i?: string }[] = [
     { k: 'todos', r: 'Todos' },
     { k: 'cartao', r: 'Cartão', i: 'credit_card' },
@@ -146,10 +169,30 @@ export default class Gastos {
   protected tag = signal<string | null>(null);
   protected tags = computed(() => [...new Set(this.s.gastosMes().flatMap((g) => g.tags ?? []))].sort());
 
+  /** Por fatura (0 = vence no mês, 1 = no seguinte; as duas já vêm carregadas): compras pelo ciclo do cartão, não pela data */
+  protected fatura = signal<0 | 1 | null>(null);
+  protected indices = [0, 1] as const;
+  protected faturaMes = (i: number) => addMeses(this.s.mes(), i);
+  private porFatura = computed(() => (this.filtro() === 'cartao' && this.fatura() !== null ? this.faturaMes(this.fatura()!) : null));
+  private cartaoSel = computed(() => (this.s.cartoes().length === 1 ? this.s.cartoes()[0] : this.s.cartoes().find((c) => c.id === this.cartao())));
+  /** do dia do fechamento anterior até a véspera do fechamento */
+  protected periodo = computed(() => {
+    const m = this.porFatura();
+    const c = this.cartaoSel();
+    return m && c ? { ini: inicioFatura(m, c), fim: addDias(fechamentoFatura(m, c), -1) } : null;
+  });
+  protected fixas = computed(() => {
+    const m = this.porFatura();
+    const c = this.cartaoSel();
+    return m && c ? soma(fixasNaFatura(m, c, this.s.recorrenciasPrev()), (f) => f.valor) : 0;
+  });
+
   protected lista = computed(() => {
     const b = normalizar(this.busca());
     const cats = this.s.catMap();
-    return this.s.gastosMes().filter(
+    const fm = this.porFatura();
+    const base = fm ? this.s.gastos().filter((g) => g.forma === 'cartao' && g.fatura_mes === fm) : this.s.gastosMes();
+    return base.filter(
       (g) =>
         (this.filtro() === 'todos' || g.forma === this.filtro()) &&
         (this.filtro() !== 'cartao' || !this.cartao() || g.cartao_id === this.cartao()) &&

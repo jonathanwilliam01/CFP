@@ -60,13 +60,13 @@ interface FormCartao {
           </div>
 
           <div class="corpo">
-            <div class="linha">
-              <span class="muted small">Fatura de {{ c.faturaRef | mes }}</span>
+            <a class="linha ver" routerLink="/gastos" [queryParams]="{ cartao: c.cartao.id, fatura: c.faturaRef === s.mes() ? 0 : 1 }">
+              <span class="muted small">Fatura de {{ c.faturaRef | mes }} <app-icon name="chevron_right" [size]="16" /></span>
               <span class="num">
                 <b>{{ c.faturaMes | brl }}</b>
                 @if (c.pagaMes) { <span class="badge ok">Paga</span> }
               </span>
-            </div>
+            </a>
 
             @if (c.cartao.limite) {
               <div class="linha">
@@ -200,6 +200,8 @@ interface FormCartao {
     .linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .linha .num { display: inline-flex; gap: 6px; align-items: center; }
     .sub { margin-top: 6px; font-size: 0.8rem; color: var(--ink-2); }
+    .ver { color: inherit; }
+    .ver .small { display: inline-flex; align-items: center; }
     .faturas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
     .fat { background: var(--card-2); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; }
     .fat small { font-size: 0.7rem; color: var(--ink-2); text-transform: capitalize; font-weight: 600; }
