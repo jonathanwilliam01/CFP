@@ -26,6 +26,8 @@ import { Icon } from '../shared/icon';
         }
         <button class="link small" type="button" (click)="esqueci()">Esqueci o PIN (sair da conta)</button>
       </div>
+    } @else if (b.coberto()) {
+      <div class="trava capa" aria-hidden="true"><app-icon class="cad" name="lock" [size]="44" /></div>
     }
   `,
   styles: `
@@ -48,9 +50,11 @@ export class BloqueioTela {
   protected erro = signal(false);
 
   constructor() {
-    // ao travar já pede a biometria; navegador que exige toque fica com o botão
+    // ao travar e ao voltar ao app já pede a biometria (não no blur: o próprio pedido tira o foco);
+    // navegador que exige toque fica com o botão
     effect(() => {
-      if (this.b.travado() && untracked(this.b.cfg)?.cred) untracked(() => this.b.biometria());
+      this.b.voltou();
+      if (this.b.travado() && !document.hidden && untracked(this.b.cfg)?.cred) untracked(() => this.b.biometria());
     });
   }
 

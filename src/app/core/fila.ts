@@ -1,6 +1,8 @@
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { Toast } from '../shared/toast';
 import { Auth } from './auth';
+import { apagarArquivo, lerArquivo } from './arquivos';
+import { enviarComprovante } from './comprovante';
 import { Store } from './store';
 import { q, supabase } from './supabase';
 
@@ -8,7 +10,8 @@ type Dados = Record<string, unknown>;
 
 /** Lançamento novo; o id vem do aparelho para o reenvio não duplicar */
 export type ItemFila =
-  | { tipo: 'inserir'; tabela: 'gastos' | 'entradas'; dados: Dados }
+  /** comprovante: arquivo guardado no aparelho (arquivos.ts) com o id do gasto */
+  | { tipo: 'inserir'; tabela: 'gastos' | 'entradas'; dados: Dados; comprovante?: boolean }
   | { tipo: 'parcelamento'; params: Dados }
   | { tipo: 'fixa'; dados: Dados; pago: { mes: string; valor: number; pago_em: string } | null };
 
@@ -57,7 +60,10 @@ export class Fila {
 
   /** Envia já (com internet) e atualiza a tela */
   async executar(item: ItemFila, carteira = this.s.carteiraId()!) {
-    if (item.tipo === 'inserir') await this.inserir(item.tabela, { ...item.dados, carteira_id: carteira });
+    if (item.tipo === 'inserir') {
+      await this.inserir(item.tabela, { ...item.dados, carteira_id: carteira });
+      if (item.comprovante) await this.comprovante(String(item.dados['id']), carteira);
+    }
     else if (item.tipo === 'parcelamento') await q(supabase.rpc('criar_parcelamento', { ...item.params, p_carteira: carteira }));
     else {
       await this.inserir('recorrencias', { ...item.dados, carteira_id: carteira });
@@ -70,6 +76,15 @@ export class Fila {
     if (carteira !== this.s.carteiraId()) return;
     if (item.tipo === 'fixa') await this.s.recarregar('recorrencias');
     await this.s.carregarMes();
+  }
+
+  /** Sobe o comprovante guardado e liga ao gasto; sem rede o item fica e tenta de novo */
+  private async comprovante(id: string, carteira: string) {
+    const arq = await lerArquivo(id);
+    if (!arq) return;
+    const caminho = await enviarComprovante(carteira, id, arq);
+    await q(supabase.from('gastos').update({ comprovante: caminho }).eq('id', id));
+    await apagarArquivo(id);
   }
 
   // reenvio de algo que já tinha chegado ao banco: chave repetida conta como enviado

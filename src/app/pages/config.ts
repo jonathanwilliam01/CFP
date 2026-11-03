@@ -212,13 +212,19 @@ import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
         @if (push.disponivel && insights.permissao() !== 'denied') {
           <label class="check">
             <input type="checkbox" [checked]="push.ativo()" (change)="alternarPush()" [disabled]="ocupado()" />
-            Avisos com o app fechado (chat e contas vencendo)
+            Avisos com o app fechado (chat, gastos e contas vencendo)
           </label>
           @if (push.ativo()) {
             <label class="check">
               <input type="checkbox" [checked]="lembrete()" (change)="alternarLembrete()" [disabled]="ocupado()" />
               Lembrete às 21h quando ninguém lançou gasto no dia
             </label>
+            @if (s.membros().length > 1) {
+              <label class="check">
+                <input type="checkbox" [checked]="avisoGastos()" (change)="alternarAvisoGastos()" [disabled]="ocupado()" />
+                Avisar quando outro membro lançar gasto
+              </label>
+            }
           }
         }
       </div>
@@ -458,6 +464,16 @@ export default class Config {
       await q(supabase.from('carteiras').update({ divisao }).eq('id', this.s.carteiraId()!));
       await this.s.iniciar();
     }, divisao ? 'Divisão ligada' : 'Divisão desligada');
+  }
+
+  protected avisoGastos = computed(() => this.s.membros().find((m) => m.user_id === this.auth.user()?.id)?.push_gastos !== false);
+
+  alternarAvisoGastos() {
+    const push_gastos = !this.avisoGastos();
+    return this.exec(async () => {
+      await q(supabase.from('carteira_membros').update({ push_gastos }).eq('carteira_id', this.s.carteiraId()!).eq('user_id', this.auth.user()!.id));
+      await this.s.carregarTudo();
+    }, push_gastos ? 'Aviso de gastos ligado' : 'Aviso de gastos desligado');
   }
 
   alternarLembrete() {

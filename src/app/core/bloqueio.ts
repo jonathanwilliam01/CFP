@@ -27,6 +27,10 @@ export class Bloqueio {
   private uid = computed(() => this.auth.user()?.id ?? null);
   readonly cfg = signal<ConfigBloqueio | null>(null);
   readonly travado = signal(false);
+  /** fora do app (ou janela sem foco): tela coberta para a prévia do seletor de apps não mostrar valores */
+  readonly coberto = signal(false);
+  /** conta as voltas ao app (visível de novo): pedir a biometria outra vez */
+  readonly voltou = signal(0);
   private saiuEm = 0;
 
   constructor() {
@@ -41,11 +45,18 @@ export class Bloqueio {
     document.addEventListener('visibilitychange', () => {
       const c = this.cfg();
       if (!c) return;
+      this.coberto.set(document.hidden);
       if (document.hidden) {
         this.saiuEm = Date.now();
         if (!c.minutos) this.travado.set(true);
-      } else if (Date.now() - this.saiuEm >= c.minutos * 60_000) this.travado.set(true);
+      } else {
+        if (Date.now() - this.saiuEm >= c.minutos * 60_000) this.travado.set(true);
+        this.voltou.update((n) => n + 1);
+      }
     });
+    // blur chega antes do print da prévia em alguns celulares
+    addEventListener('blur', () => this.cfg() && this.coberto.set(true));
+    addEventListener('focus', () => !document.hidden && this.coberto.set(false));
   }
 
   private chave = () => `cfp.bloqueio.${this.uid()}`;

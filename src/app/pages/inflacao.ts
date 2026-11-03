@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { atualizarTaxas, taxasBcb } from '../core/bcb';
-import { addMeses, fimMes, mesAtual } from '../core/datas';
-import { inflacaoCasal } from '../core/financas';
-import { BrlPipe, MesPipe } from '../core/formato';
+import { addMeses, hoje, mesAtual } from '../core/datas';
+import { inflacaoCasal, precosRepetidos } from '../core/financas';
+import { BrlPipe, DiaPipe, MesPipe } from '../core/formato';
 import { Gasto, Pagamento } from '../core/models';
 import { Store } from '../core/store';
 import { Abas, RELATORIOS } from '../shared/abas';
@@ -13,7 +13,7 @@ type Periodo = 'ano' | 'tri';
 
 /** Quanto subiu o custo de vida do casal (gastos + contas fixas) contra o IPCA */
 @Component({
-  imports: [Abas, BrlPipe, MesPipe, Icon],
+  imports: [Abas, BrlPipe, DiaPipe, MesPipe, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -59,6 +59,21 @@ type Periodo = 'ano' | 'tri';
         </section>
         <p class="small muted">Soma gastos lançados e contas fixas. Não é só preço: comprar mais ou menos também mexe no número.</p>
       }
+
+      @if (dados() && precos().length) {
+        <section class="card">
+          <div class="card-head"><h2>Preço do que mais compram</h2><span class="muted small">últimos 12 meses</span></div>
+          <div class="list">
+            @for (p of precos(); track p.chave) {
+              <div class="row">
+                <div class="grow"><div class="t">{{ p.nome }}</div><div class="s num">{{ p.vezes }} compras · {{ p.antes | brl }} → {{ p.agora | brl }} · última {{ p.ultima | dia }}</div></div>
+                <span class="v num" [class.neg]="p.pct > 0" [class.pos]="p.pct < 0">{{ p.pct > 0 ? '+' : '' }}{{ p.pct }}%</span>
+              </div>
+            }
+          </div>
+          <p class="small muted">Mesma descrição, pelo menos 4 compras em 2 meses ou mais: média das 3 primeiras contra as 3 últimas.</p>
+        </section>
+      }
     </div>
   `,
   styles: `
@@ -83,6 +98,8 @@ export default class Inflacao {
   protected anterior = computed(() => this.atual().map((m) => addMeses(m, this.periodo() === 'ano' ? -12 : -3)));
   protected dados = signal<{ gastos: Gasto[]; pagamentos: Pagamento[] } | null>(null);
   protected ipca = computed(() => taxasBcb()?.ipca12 ?? null);
+  private desde12 = addMeses(mesAtual(), -11);
+  protected precos = computed(() => precosRepetidos((this.dados()?.gastos ?? []).filter((g) => g.data >= this.desde12 && !this.s.antesDoInicio(g.data))).slice(0, 15));
   private req = 0;
 
   protected r = computed(() => {
@@ -104,7 +121,8 @@ export default class Inflacao {
   constructor() {
     atualizarTaxas();
     effect(() => {
-      const ini = this.anterior()[0];
+      // 12 meses também para os preços
+      const ini = [this.anterior()[0], this.desde12].sort()[0];
       this.s.mudou();
       if (!this.s.carteiraId()) return;
       untracked(() => this.carregar(ini));
@@ -115,7 +133,7 @@ export default class Inflacao {
     const r = ++this.req;
     this.dados.set(null);
     try {
-      const d = await this.s.historico(ini, fimMes(this.fim));
+      const d = await this.s.historico(ini, hoje());
       if (r === this.req) this.dados.set(d);
     } catch (e) {
       this.toast.erro(e);

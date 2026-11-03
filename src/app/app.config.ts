@@ -21,7 +21,8 @@ export const appConfig: ApplicationConfig = {
       withInMemoryScrolling({ scrollPositionRestoration: 'top' }),
     ),
     { provide: LOCALE_ID, useValue: 'pt-BR' },
-    provideServiceWorker('ngsw-worker.js', {
+    // sw.js recebe o compartilhamento de arquivo e carrega o ngsw-worker.js
+    provideServiceWorker('sw.js', {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000',
     }),

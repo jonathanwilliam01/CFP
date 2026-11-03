@@ -1,4 +1,4 @@
-import { avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
+import { avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, precosRepetidos, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -536,5 +536,18 @@ describe('deducoesIR', () => {
       ['2026-09-15', 'Plano', 300, null],
       ['2026-10-15', 'Plano', 300, null],
     ]);
+  });
+});
+
+describe('precosRepetidos', () => {
+  const g = (descricao: string, data: string, valor: number, parcelamento_id: string | null = null) => ({ descricao, data, valor, parcelamento_id });
+
+  it('compara as primeiras com as últimas compras da mesma descrição', () => {
+    const l = precosRepetidos([
+      g('Posto Shell', '2026-01-05', 200), g('posto shell', '2026-02-05', 200), g('Posto  Shell', '2026-05-05', 220), g('Posto Shell', '2026-06-05', 240),
+      g('Padaria', '2026-06-01', 10), g('Padaria', '2026-06-02', 10), g('Padaria', '2026-06-03', 12), g('Padaria', '2026-06-04', 12),
+      g('Loja (1/4)', '2026-01-01', 50, 'p1'), g('Loja (2/4)', '2026-02-01', 50, 'p1'), g('Loja (3/4)', '2026-03-01', 50, 'p1'), g('Loja (4/4)', '2026-04-01', 50, 'p1'),
+    ]);
+    expect(l.map((x) => [x.nome, x.vezes, x.antes, x.agora, x.pct])).toEqual([['Posto Shell', 4, 200, 230, 15]]);
   });
 });

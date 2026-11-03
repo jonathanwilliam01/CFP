@@ -34,7 +34,7 @@ Opcional; sem isso o app só avisa com ele aberto ou em segundo plano.
 5. SQL Editor: `insert into push_config (url, segredo) values ('https://<ref>.supabase.co/functions/v1/push', '<mesmo PUSH_SEGREDO>');`
 6. No app: Configurações → Notificações → *Avisos com o app fechado*.
 
-Envia mensagem nova do chat (trigger em `mensagens`) e contas fixas/faturas não pagas que vencem hoje ou amanhã, todo dia às 8h (pg_cron `cfp-vencimentos`). Às 21h lembra quem não lançou gasto no dia (pg_cron `cfp-lembrete`, desligável em Configurações).
+Envia mensagem nova do chat (trigger em `mensagens`), gasto lançado por outro membro (triggers em `gastos`/`parcelamentos` e resumo da importação, migration 034; desligável por membro) e contas fixas/faturas não pagas que vencem hoje ou amanhã, todo dia às 8h (pg_cron `cfp-vencimentos`). Às 21h lembra quem não lançou gasto no dia (pg_cron `cfp-lembrete`, desligável em Configurações).
 
 ## Testes
 
@@ -72,3 +72,7 @@ A cada build publicado na Vercel: nova nota no topo de `src/app/core/versao.ts` 
 - **Importar fatura ou extrato** (Gastos/Cartões → Importar): CSV do Nubank, CSV de outros bancos (colunas de data, descrição e valor achadas pelo nome) ou OFX. Pagamentos, estornos e créditos ficam de fora. Lança no cartão escolhido ou como Pix/Débito; já lançado (mesmo valor na mesma fatura, ou no mesmo dia no débito) vem desmarcado. No cartão, parcela vira parcelamento com as próximas. Tudo entra numa transação. Descrição e categoria escolhidas ficam lembradas no aparelho.
 - **Parcelado pelo valor total**: a última parcela leva a sobra dos centavos (100 em 3x = 33,33 + 33,33 + 33,34).
 - **Chat**: mensagens entre os membros da carteira em tempo real. Aviso por toast com o app aberto e notificação do sistema com o app em segundo plano (precisa de permissão); com o app fechado, só com o Web Push configurado.
+
+## Service worker
+
+`public/sw.js` é o registrado: recebe o compartilhamento com arquivo (`share_target` POST em `/compartilhar`), guarda no IndexedDB e abre `/?compartilhado=1`; o resto vem do `ngsw-worker.js` do Angular (importScripts).

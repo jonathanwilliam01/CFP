@@ -933,3 +933,40 @@ export function deducoesIR(ano: number, gastos: Gasto[], recorrencias: Recorrenc
     }
   return l.sort((a, b) => a.data.localeCompare(b.data));
 }
+
+export interface PrecoItem {
+  chave: string;
+  nome: string;
+  vezes: number;
+  /** média das primeiras e das últimas compras (até 3 de cada lado) */
+  antes: number;
+  agora: number;
+  pct: number;
+  ultima: string;
+}
+
+/**
+ * Compras avulsas que se repetem com a mesma descrição (gasolina, padaria...): quanto o valor mudou.
+ * Precisa de `minimo` compras espalhadas por 2 meses ou mais; maior alta primeiro.
+ */
+export function precosRepetidos(gastos: Pick<Gasto, 'descricao' | 'valor' | 'data' | 'parcelamento_id'>[], minimo = 4): PrecoItem[] {
+  const grupos = new Map<string, Pick<Gasto, 'descricao' | 'valor' | 'data'>[]>();
+  for (const g of gastos) {
+    if (g.parcelamento_id || g.valor <= 0) continue;
+    const k = normalizar(g.descricao).replace(/\s+/g, ' ');
+    if (k) grupos.set(k, [...(grupos.get(k) ?? []), g]);
+  }
+  const media = (l: { valor: number }[]) => soma(l, (x) => x.valor) / l.length;
+  const l: PrecoItem[] = [];
+  for (const [chave, gs] of grupos) {
+    if (gs.length < minimo) continue;
+    gs.sort((a, b) => a.data.localeCompare(b.data));
+    const ultima = gs[gs.length - 1];
+    if (diffDias(gs[0].data, ultima.data) < 60) continue;
+    const k = Math.min(3, Math.floor(gs.length / 2));
+    const antes = media(gs.slice(0, k));
+    const agora = media(gs.slice(-k));
+    l.push({ chave, nome: ultima.descricao, vezes: gs.length, antes, agora, pct: Math.round((agora / antes - 1) * 1000) / 10, ultima: ultima.data });
+  }
+  return l.sort((a, b) => b.pct - a.pct);
+}

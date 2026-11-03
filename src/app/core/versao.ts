@@ -8,6 +8,17 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.2',
+    data: '2026-11-02',
+    itens: [
+      'Aviso no celular quando outro membro lança gasto (parcelado avisa uma vez, importação manda um resumo), desligável em Configurações → Notificações (migration 034 e nova versão da função push)',
+      'Compartilhar foto ou PDF com o app abre o lançamento de gasto com o comprovante anexado (o texto compartilhado continua preenchendo o lançamento)',
+      'Comprovante lançado sem internet fica guardado no aparelho e sobe junto com o gasto quando a conexão volta',
+      'Com o bloqueio ligado, a tela é coberta ao sair do app (a prévia do seletor de apps não mostra valores) e a biometria é pedida de novo ao voltar',
+      'Relatórios → Inflação: Preço do que mais compram, com a variação das compras que se repetem com a mesma descrição nos últimos 12 meses',
+    ],
+  },
+  {
     versao: 'v1.26.11.1',
     data: '2026-11-02',
     itens: [

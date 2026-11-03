@@ -24,6 +24,8 @@ export interface Membro {
   foto: Foto | null;
   /** push às 21h sem gasto no dia (028) */
   lembrete?: boolean;
+  /** push quando outro membro lança gasto (034) */
+  push_gastos?: boolean;
 }
 
 export interface Categoria {

@@ -1,4 +1,5 @@
-// Envia Web Push: mensagem nova do chat (trigger em mensagens), contas vencendo e lembrete da noite (pg_cron).
+// Envia Web Push: mensagem nova do chat (trigger em mensagens), gasto lançado (triggers em gastos/parcelamentos e importação),
+// contas vencendo e lembrete da noite (pg_cron).
 // Chamada só pelo banco via push_enviar, com o segredo de push_config.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
@@ -20,14 +21,15 @@ Deno.serve(async (req) => {
   const segredo = Deno.env.get('PUSH_SEGREDO');
   if (!segredo || req.headers.get('Authorization') !== `Bearer ${segredo}`) return new Response('não autorizado', { status: 401 });
   const ev = await req.json();
-  const envios = ev.tipo === 'chat' ? await chat(ev) : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : [];
+  const envios = ev.tipo === 'chat' ? await chat(ev) : ev.tipo === 'gasto' || ev.tipo === 'importacao' ? await gasto(ev)
+    : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : [];
   let n = 0;
   for (const e of envios) n += await enviar(e);
   return Response.json({ enviados: n });
 });
 
 async function membros(carteira: string) {
-  const { data, error } = await db.from('carteira_membros').select('user_id, nome').eq('carteira_id', carteira);
+  const { data, error } = await db.from('carteira_membros').select('user_id, nome, push_gastos').eq('carteira_id', carteira);
   if (error) throw error;
   return data;
 }
@@ -41,6 +43,36 @@ async function chat(ev: { carteira_id: string; user_id: string; texto: string })
     texto: ev.texto.length > 120 ? ev.texto.slice(0, 120) + '…' : ev.texto,
     tag: `chat-${ev.carteira_id}`,
     url: '/chat',
+  }];
+}
+
+const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+interface EventoGasto {
+  tipo: 'gasto' | 'importacao';
+  carteira_id: string;
+  user_id: string;
+  qtd: number;
+  valor: number;
+  parcelas?: number;
+  texto?: string;
+}
+
+/** Avisa os outros membros (com aviso de gasto ligado) */
+async function gasto(ev: EventoGasto): Promise<Envio[]> {
+  const l = await membros(ev.carteira_id);
+  const nome = l.find((m) => m.user_id === ev.user_id)?.nome ?? 'Alguém';
+  const valor = brl.format(Number(ev.valor));
+  const texto = ev.tipo === 'importacao' ? `${ev.qtd} gasto(s) importados · ${valor}`
+    : ev.parcelas ? `${ev.texto} · ${ev.parcelas}x de ${valor}`
+    : ev.qtd > 1 ? `${ev.qtd} gastos · ${valor}`
+    : `${ev.texto} · ${valor}`;
+  return [{
+    usuarios: l.filter((m) => m.user_id !== ev.user_id && m.push_gastos !== false).map((m) => m.user_id),
+    titulo: ev.tipo === 'importacao' ? `${nome} importou gastos` : `${nome} lançou ${Number(ev.valor) < 0 ? 'um estorno' : 'um gasto'}`,
+    texto,
+    tag: `gasto-${ev.carteira_id}-${Date.now()}`,
+    url: '/gastos',
   }];
 }
 

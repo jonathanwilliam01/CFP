@@ -13,9 +13,12 @@ import { addMeses } from '../core/datas';
 import { alternarPrivado, privado } from '../core/formato';
 import { Avatar } from '../shared/avatar';
 import { BloqueioTela } from './bloqueio';
+import { tirarCompartilhado } from '../core/arquivos';
+import { prepararComprovante } from '../core/comprovante';
 import { Buscador } from '../shared/buscador';
 import { Calculadora } from '../shared/calculadora';
 import { Icon } from '../shared/icon';
+import { Toast } from '../shared/toast';
 import { Lancar, LancarSheet, Modo } from '../shared/lancar';
 import { MesPicker } from '../shared/mes-picker';
 import { Avisos } from './avisos';
@@ -315,6 +318,7 @@ export class Shell {
   protected insights = inject(Insights);
   protected chat = inject(Chat);
   protected lancar = inject(Lancar);
+  private toast = inject(Toast);
   protected tema = inject(Tema);
   protected fila = inject(Fila);
 
@@ -347,9 +351,14 @@ export class Shell {
     initialValue: this.router.url.split('?')[0],
   });
 
-  // atalho do ícone (?lancar=gasto), lembrete da noite e texto compartilhado com o app (share_target: titulo/texto/link)
+  // atalho do ícone (?lancar=gasto), lembrete da noite e compartilhado com o app (sw.js guarda texto e arquivo: ?compartilhado=1;
+  // titulo/texto/link na URL ficam para o manifesto antigo instalado)
   constructor() {
     const sub = inject(ActivatedRoute).queryParamMap.subscribe((p) => {
+      if (p.get('compartilhado')) {
+        this.router.navigate([], { queryParams: {}, replaceUrl: true });
+        return void this.abrirCompartilhado();
+      }
       const modo = p.get('lancar');
       const texto = ['titulo', 'texto', 'link'].map((k) => p.get(k)).filter(Boolean).join('\n');
       if (!modo && !texto) return;
@@ -359,6 +368,16 @@ export class Shell {
     });
     const nav = this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => this.pop.set(null));
     inject(DestroyRef).onDestroy(() => (sub.unsubscribe(), nav.unsubscribe()));
+  }
+
+  private async abrirCompartilhado() {
+    try {
+      const c = await tirarCompartilhado();
+      if (!c) return;
+      this.lancar.deTexto(c.texto, c.arquivo ? await prepararComprovante(c.arquivo) : null);
+    } catch (e) {
+      this.toast.erro(e);
+    }
   }
 
   abrir(p: 'busca' | 'avisos') {

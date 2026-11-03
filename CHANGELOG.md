@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.26.11.2 — 2026-11-02
+- Aviso no celular quando outro membro lança gasto (parcelado avisa uma vez, importação manda um resumo), desligável em Configurações → Notificações (migration 034 e nova versão da função push)
+- Compartilhar foto ou PDF com o app abre o lançamento de gasto com o comprovante anexado (o texto compartilhado continua preenchendo o lançamento)
+- Comprovante lançado sem internet fica guardado no aparelho e sobe junto com o gasto quando a conexão volta
+- Com o bloqueio ligado, a tela é coberta ao sair do app (a prévia do seletor de apps não mostra valores) e a biometria é pedida de novo ao voltar
+- Relatórios → Inflação: Preço do que mais compram, com a variação das compras que se repetem com a mesma descrição nos últimos 12 meses
+
 ## v1.26.11.1 — 2026-11-02
 - Início no tema claro: o bloco do saldo segue o tema e a cor principal (antes ficava escuro); o mesmo na Retrospectiva
 - Início: próximo recebimento no bloco do saldo (entrada fixa, em quantos dias e valor); a já recebida no mês fica de fora

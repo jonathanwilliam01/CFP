@@ -9,6 +9,7 @@ import { Recente, Store } from '../core/store';
 import { lerComprovante, lerTags, lerTexto } from '../core/texto';
 import { Auth } from '../core/auth';
 import { Fila, ItemFila, semRede } from '../core/fila';
+import { guardarArquivo } from '../core/arquivos';
 import { ePdf, enviarComprovante, linkComprovante, prepararComprovante, removerComprovante } from '../core/comprovante';
 import { Icon } from './icon';
 import { Sheet } from './sheet';
@@ -28,11 +29,14 @@ export class Lancar {
   readonly fixa = signal(false);
   /** texto que já abre aplicado no lançamento rápido (compartilhado com o app ou atalho) */
   readonly texto = signal('');
+  /** comprovante que já abre anexado (foto ou PDF compartilhado com o app) */
+  readonly arquivo = signal<Blob | null>(null);
 
   /** Texto compartilhado: comprovante vira "valor data pix nome", senão vai como veio */
-  deTexto(t: string) {
+  deTexto(t: string, arquivo: Blob | null = null) {
     this.novo('gasto');
-    this.texto.set(lerComprovante(t) ?? t.replace(/\s+/g, ' ').trim());
+    this.arquivo.set(arquivo);
+    this.texto.set(t ? (lerComprovante(t) ?? t.replace(/\s+/g, ' ').trim()) : '');
   }
 
   /** Sem modo abre no último tipo lançado */
@@ -200,7 +204,8 @@ export class LancarSheet {
       untracked(() => {
         this.f.set(g ? this.deGasto(g) : e ? this.deEntrada(e) : (this.proxima ?? this.vazio()));
         this.proxima = null;
-        this.arquivo.set(null);
+        this.arquivo.set(this.l.arquivo());
+        this.l.arquivo.set(null);
         this.tirar.set(false);
         const t = this.l.texto();
         if (t) {
@@ -451,13 +456,13 @@ export class LancarSheet {
         }
         this.toast.ok('Salvo');
       } else if (!navigator.onLine) {
-        return void this.offline(item, continuar, f);
+        return void (await this.offline(item, continuar, f));
       } else {
         try {
           await this.fila.executar(item);
         } catch (e) {
           if (!semRede(e)) throw e;
-          return void this.offline(item, continuar, f);
+          return void (await this.offline(item, continuar, f));
         }
         const arq = this.arquivo();
         if (arq && item.tipo === 'inserir' && item.tabela === 'gastos') await this.comprovanteNovo(item.dados['id'] as string, arq);
@@ -474,9 +479,19 @@ export class LancarSheet {
     }
   }
 
-  private offline(item: ItemFila, continuar: boolean, f: FormLanc) {
+  private async offline(item: ItemFila, continuar: boolean, f: FormLanc) {
+    const arq = this.arquivo();
+    let perdeu = false;
+    if (arq && item.tipo === 'inserir' && item.tabela === 'gastos') {
+      try {
+        await guardarArquivo(item.dados['id'] as string, arq);
+        item.comprovante = true;
+      } catch {
+        perdeu = true;
+      }
+    }
     this.fila.guardar(item);
-    this.toast.ok(`Sem internet: guardado no aparelho, envia quando a conexão voltar${this.arquivo() ? ' (o comprovante não foi guardado)' : ''}`);
+    this.toast.ok(`Sem internet: guardado no aparelho, envia quando a conexão voltar${perdeu ? ' (o comprovante não coube no aparelho)' : ''}`);
     this.depois(continuar, f);
   }
 
