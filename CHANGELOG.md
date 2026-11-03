@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.26.11.1 — 2026-11-02
+- Início no tema claro: o bloco do saldo segue o tema e a cor principal (antes ficava escuro); o mesmo na Retrospectiva
+- Início: próximo recebimento no bloco do saldo (entrada fixa, em quantos dias e valor); a já recebida no mês fica de fora
+- Esconder valores (olho do topo) passa a valer também nos textos de avisos e dicas e nos orçamentos por recebimento em Contas
+- Comprovante no gasto: anexar foto ou PDF no lançamento, ver, trocar ou remover; o clipe aparece na lista de Gastos (migration 033, arquivos privados da carteira)
+- Meta de sobra do mês (% das entradas) em Configurações: o Início mostra a sobra prevista contra a meta e avisa quando ela fica para trás (migration 033)
+- Relatórios → Inflação: quanto subiu o custo de vida de vocês (gastos e contas fixas) por categoria, em 1 ano contra o IPCA ou contra o trimestre anterior
+- Relatórios → Imposto de Renda: despesas dedutíveis do ano por categoria e por pessoa, com comprovantes e CSV; categoria marcada como dedutível em Configurações (Saúde e Educação já vêm marcadas, migration 033)
+- Bloqueio do app neste aparelho: PIN e, se o celular tiver, digital ou rosto; escolhe em quanto tempo fora do app ele trava
+
 ## v1.26.10.15 — 2026-10-31
 - Cartões: fechamento contado em dias antes do vencimento (Nubank, C6, Inter: 7; Itaú: 8), com o dia mudando conforme o mês; compra no dia do fechamento vai para a próxima fatura e, ao mudar o fechamento, os gastos da fatura aberta em diante são refeitos (migration 031)
 - Estorno ou crédito: no lançamento de gasto marca "Estorno ou crédito" e o valor abate a fatura (ou o mês, no débito); a importação da fatura Nubank/OFX de cartão traz os estornos em vez de ignorar (migration 032)

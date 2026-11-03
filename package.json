@@ -1,6 +1,6 @@
 {
   "name": "cfp",
-  "version": "1.26.10",
+  "version": "1.26.11",
   "scripts": {
     "ng": "ng",
     "env": "node scripts/set-env.mjs",

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, model } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, model } from '@angular/core';
 import { Icon } from './icon';
 import { fecharNoVoltar } from './voltar';
 
@@ -10,7 +10,7 @@ import { fecharNoVoltar } from './voltar';
   template: `
     @if (url(); as u) {
       <div class="visor" (click)="url.set(null)">
-        <img [src]="u" alt="Foto de perfil" />
+        <img [src]="u" [alt]="alt()" />
         <button type="button" class="btn ghost icon fechar" aria-label="Fechar"><app-icon name="close" /></button>
       </div>
     }
@@ -27,6 +27,7 @@ import { fecharNoVoltar } from './voltar';
 })
 export class Visor {
   readonly url = model<string | null>(null);
+  readonly alt = input('Foto de perfil');
 
   constructor() {
     fecharNoVoltar(() => !!this.url(), () => this.url.set(null));

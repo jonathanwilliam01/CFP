@@ -90,7 +90,7 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
               <button class="row" (click)="lancar.editarGasto(g)">
                 <span class="ico" [style.background]="(cat_(g)?.cor ?? '#94a3b8') + '22'" [style.color]="(cat_(g)?.cor ?? '#94a3b8')"><app-icon [name]="cat_(g)?.icone ?? 'help'" /></span>
                 <div class="grow">
-                  <div class="t">{{ g.descricao }}@for (t of g.tags ?? []; track t) {<span class="tag">#{{ t }}</span>}</div>
+                  <div class="t">{{ g.descricao }}@if (g.comprovante) {<app-icon class="clip" name="attach_file" [size]="14" />}@for (t of g.tags ?? []; track t) {<span class="tag">#{{ t }}</span>}</div>
                   <div class="s">{{ cat_(g)?.nome ?? 'Sem categoria' }} · {{ forma(g) }}{{ quem(g) }}</div>
                 </div>
                 <span class="v" [class.benef]="g.forma === 'beneficio'">{{ g.valor | brl }}</span>
@@ -114,6 +114,7 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
     .total b { font-size: 1.15rem; }
     .list { padding-top: 4px; padding-bottom: 4px; }
     .benef { color: var(--ink-3); }
+    .clip { color: var(--ink-3); vertical-align: -2px; margin-left: 3px; }
     .dica { text-align: center; }
     .dups { border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
     .dups h2 { display: flex; align-items: center; gap: 6px; color: var(--warn); }

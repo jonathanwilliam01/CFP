@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { mesAtual } from '../core/datas';
+import { PrivPipe } from '../core/formato';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
 
 @Component({
-  imports: [RouterLink, Icon],
+  imports: [RouterLink, Icon, PrivPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -43,12 +44,12 @@ import { Icon } from '../shared/icon';
           @if (a.link) {
             <a class="aviso" [class]="a.nivel" [routerLink]="a.link">
               <app-icon class="i" [name]="a.icone" />
-              <div><div class="t">{{ a.titulo }}</div><div class="s">{{ a.texto }}</div></div>
+              <div><div class="t">{{ a.titulo }}</div><div class="s">{{ a.texto | priv }}</div></div>
             </a>
           } @else {
             <div class="aviso" [class]="a.nivel">
               <app-icon class="i" [name]="a.icone" />
-              <div><div class="t">{{ a.titulo }}</div><div class="s">{{ a.texto }}</div></div>
+              <div><div class="t">{{ a.titulo }}</div><div class="s">{{ a.texto | priv }}</div></div>
             </div>
           }
         } @empty {

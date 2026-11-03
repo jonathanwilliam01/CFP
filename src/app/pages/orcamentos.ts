@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { addMeses, diasNoMes, hoje, nomeMes } from '../core/datas';
 import { StatusOrcamento, ajusteOrcamento, ritmoMes } from '../core/financas';
-import { BrlPipe, MesPipe, moeda, soma } from '../core/formato';
+import { BrlPipe, MesPipe, PrivPipe, moeda, soma } from '../core/formato';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
@@ -27,7 +27,7 @@ interface FormOrcamento {
 }
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, MesPipe, Icon, Sheet],
+  imports: [FormsModule, RouterLink, BrlPipe, PrivPipe, MesPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -43,7 +43,7 @@ interface FormOrcamento {
             @for (a of bandeiras(); track a.id) {
               <a class="aviso" [class]="a.nivel" [routerLink]="a.link">
                 <app-icon class="i" [name]="a.icone" />
-                <span><span class="t">{{ a.titulo }}</span><br /><span class="s">{{ a.texto }}</span></span>
+                <span><span class="t">{{ a.titulo }}</span><br /><span class="s">{{ a.texto | priv }}</span></span>
               </a>
             }
           </div>

@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { addMeses, diffDias, hoje, inicioMes, mesAtual, mesesEntre, nomeMes } from '../core/datas';
 import { ACIMA_MEDIA, CompraRecorrente, Recebimento, aporteMensal, fixasNaFatura, mediaContas, noMes, porRecebimento } from '../core/financas';
-import { BrlPipe, DiaPipe, MesPipe, moeda, parseValor, soma } from '../core/formato';
+import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, parseValor, soma } from '../core/formato';
 import { Cartao, Cofrinho, ContaMes, Gasto, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
 import { ContaFixa } from '../shared/conta-fixa';
@@ -14,7 +14,7 @@ import { Toast } from '../shared/toast';
 import { taxas } from './calc/comum';
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa, Deslizar],
+  imports: [FormsModule, RouterLink, BrlPipe, PrivPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa, Deslizar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -40,8 +40,8 @@ import { taxas } from './calc/comum';
               <div class="lin"><span>Contas</span><b>{{ g.total | brl }}</b></div>
               <div class="lin"><span>A pagar</span><b class="neg">{{ g.aPagar | brl }}</b></div>
               @if (g.reservado) {
-                <div class="lin orc" [title]="nomesReservas(g)"><span><app-icon name="flag" [size]="14" [fill]="true" />Orçamentos</span><b>{{ g.reservado | brl }}</b></div>
-                <div class="orcn">{{ nomesReservas(g) }}</div>
+                <div class="lin orc" [title]="nomesReservas(g) | priv"><span><app-icon name="flag" [size]="14" [fill]="true" />Orçamentos</span><b>{{ g.reservado | brl }}</b></div>
+                <div class="orcn">{{ nomesReservas(g) | priv }}</div>
               }
               <div class="lin sobra"><span>Sobra</span><b [class.neg]="g.sobra < 0">{{ g.sobra | brl }}</b></div>
             </button>

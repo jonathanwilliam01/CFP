@@ -63,7 +63,7 @@ const SEMANA = ['domingo', 'segunda', 'ter√ßa', 'quarta', 'quinta', 'sexta', 's√
   `,
   styles: `
     .ano { font-variant-numeric: tabular-nums; padding: 0 2px; }
-    .hero { background: var(--hero); color: #fff; display: flex; flex-direction: column; gap: 4px; padding: 22px; }
+    .hero { background: var(--hero); color: var(--hero-ink); display: flex; flex-direction: column; gap: 4px; padding: 22px; }
     .hero .small { opacity: 0.85; }
     .grande { font-size: clamp(2rem, 8vw, 2.8rem); letter-spacing: -0.03em; }
     .grade { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }

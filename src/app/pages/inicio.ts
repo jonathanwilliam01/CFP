@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { addMeses, diffDias, hoje, mesAtual } from '../core/datas';
-import { Recebimento, Transferencia, creditoBeneficios, noMes, parcelasDoMes, porCategoria, porRecebimento, ritmoMes, saldoBeneficio, saldoDiario, variacaoGastos } from '../core/financas';
-import { BrlPipe, DiaPipe, MesPipe, moeda, pct, soma } from '../core/formato';
+import { Recebimento, Transferencia, creditoBeneficios, noMes, parcelasDoMes, porCategoria, porRecebimento, proximoRecebimento, ritmoMes, saldoBeneficio, saldoDiario, variacaoGastos } from '../core/financas';
+import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, pct, soma } from '../core/formato';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Avatar } from '../shared/avatar';
@@ -12,7 +12,7 @@ import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
 
 @Component({
-  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, Donut, Linha, Icon, Avatar, Bloco],
+  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, PrivPipe, Donut, Linha, Icon, Avatar, Bloco],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -28,11 +28,22 @@ import { Lancar } from '../shared/lancar';
           <a routerLink="/entradas"><span><i class="sobe">↑</i> Entradas</span><b class="num sobe">{{ saldo().entradas | brl }}</b></a>
           <a routerLink="/contas"><span><i class="desce">↓</i> Saídas</span><b class="num desce">{{ saldo().saidas | brl }}</b></a>
         </div>
+        @if (proxReceb(); as p) {
+          <a class="receb" routerLink="/entradas"><app-icon name="payments" [size]="16" />
+            <span>{{ p.nome }} {{ p.dias === 0 ? 'hoje' : p.dias === 1 ? 'amanhã' : 'em ' + p.dias + ' dias' }}<small> · dia {{ +p.data.slice(8) }}</small></span>
+            <b class="num">{{ p.valor | brl }}</b></a>
+        }
         @if (r().reservado > 0) {
           <a class="compara reserva" routerLink="/orcamentos">Saídas incluem {{ r().reservado | brl }} reservados em orçamentos</a>
         }
         @if (variacao(); as v) {
           <span class="compara">Gastos lançados <b [class.sobe]="v < 0" [class.desce]="v > 0">{{ v > 0 ? '↑' : '↓' }} {{ v > 0 ? v : -v }}%</b> em relação a {{ mesAnterior() | mes }}{{ noMesAtual() ? ' (até hoje)' : '' }}</span>
+        }
+        @if (s.meta(); as m) {
+          <a class="meta" routerLink="/config" [class.ok]="m.ok">
+            <span><app-icon [name]="m.ok ? 'check_circle' : 'savings'" [size]="16" />Meta de sobra {{ m.meta }}%<small> · prevista {{ m.prevista }}%</small></span>
+            <div class="bar"><i [style.width.%]="m.pct"></i></div>
+          </a>
         }
         @if (r().saidas > 0) {
           <div class="pago">
@@ -57,7 +68,7 @@ import { Lancar } from '../shared/lancar';
           @for (a of avisos(); track a.id) {
             <a class="aviso" [class]="a.nivel" [routerLink]="a.link ?? '/notificacoes'">
               <app-icon class="i" [name]="a.icone" />
-              <div class="grow"><div class="t">{{ a.titulo }}</div><div class="s">{{ a.texto }}</div></div>
+              <div class="grow"><div class="t">{{ a.titulo }}</div><div class="s">{{ a.texto | priv }}</div></div>
               <button type="button" class="dispensar" aria-label="Dispensar até o mês que vem" title="Dispensar até o mês que vem"
                 (click)="$event.preventDefault(); $event.stopPropagation(); insights.dispensar(a.id)"><app-icon name="close" [size]="18" /></button>
             </a>
@@ -239,7 +250,7 @@ import { Lancar } from '../shared/lancar';
       @if (insights.dicas()[0]; as d) {
         <a class="card dica" routerLink="/resumo" bloco="dica">
           <app-icon class="i" [name]="d.icone" [size]="28" />
-          <div><b>{{ d.titulo }}</b><p class="small muted">{{ d.texto }}</p></div>
+          <div><b>{{ d.titulo }}</b><p class="small muted">{{ d.texto | priv }}</p></div>
         </a>
       }
     </div>
@@ -247,29 +258,37 @@ import { Lancar } from '../shared/lancar';
   styles: `
     .saldo {
       background: var(--hero);
-      color: #fff; border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 4px;
+      color: var(--hero-ink); border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 4px;
       box-shadow: var(--hero-shadow);
     }
     .saldo small { opacity: 0.8; font-weight: 600; }
     .topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .modo {
-      border: 0; background: rgb(255 255 255 / 0.12); color: #fff; font: inherit; font-size: 0.72rem; font-weight: 700;
+      border: 0; background: var(--hero-glass); color: inherit; font: inherit; font-size: 0.72rem; font-weight: 700;
       padding: 4px 10px; border-radius: 999px; cursor: pointer; display: inline-flex; gap: 6px;
     }
-    .reserva { color: #fff; opacity: 0.8; text-decoration: underline; text-underline-offset: 2px; }
+    .receb { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 8px 12px; border-radius: 12px; background: var(--hero-glass); color: inherit; font-size: 0.82rem; font-weight: 600; }
+    .receb span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .receb small { opacity: 0.75; }
+    .reserva { color: inherit; opacity: 0.8; text-decoration: underline; text-underline-offset: 2px; }
     .compara { font-size: 0.78rem; opacity: 0.9; margin-top: 6px; }
     .saldo strong { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.03em; }
     .es { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
-    .es a { background: rgb(255 255 255 / 0.12); border-radius: 14px; padding: 10px 12px; color: #fff; display: flex; flex-direction: column; }
+    .es a { background: var(--hero-glass); border-radius: 14px; padding: 10px 12px; color: inherit; display: flex; flex-direction: column; }
     .es span { font-size: 0.75rem; opacity: 0.85; font-weight: 600; }
     .es b { font-size: 1.05rem; }
     .es i { font-style: normal; font-weight: 800; }
-    /* fundo do saldo é neutro: verde e vermelho fixos, independem da cor principal */
-    .sobe { color: #4ade80; }
-    .desce { color: #ff7a7a; }
+    .sobe { color: var(--hero-sobe); }
+    .desce { color: var(--hero-desce); }
+    .meta { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; color: inherit; font-size: 0.78rem; font-weight: 600; }
+    .meta span { display: inline-flex; align-items: center; gap: 5px; }
+    .meta small { opacity: 0.75; }
+    .meta .bar { background: var(--hero-trilho); }
+    .meta .bar i { background: var(--warn); }
+    .meta.ok .bar i { background: var(--hero-sobe); }
     .pago { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 0.78rem; opacity: 0.9; }
-    .pago .bar { background: rgb(255 255 255 / 0.2); }
-    .pago .bar i { background: #fff; }
+    .pago .bar { background: var(--hero-trilho); }
+    .pago .bar i { background: var(--hero-barra); }
     [bloco] .card-head h2 { cursor: pointer; display: inline-flex; align-items: center; gap: 2px; }
     [bloco] .card-head h2::after { content: 'expand_less'; font-family: 'Material Symbols Rounded'; font-feature-settings: 'liga'; font-weight: 400; font-size: 20px; line-height: 1; color: var(--ink-3); }
     .fechado .card-head h2::after { content: 'expand_more'; }
@@ -370,6 +389,7 @@ export default class Inicio {
   protected idxHoje = computed(() => (noMes(hoje(), this.s.mes()) ? Number(hoje().slice(8)) - 1 : null));
   protected recebimentos = computed(() => porRecebimento(this.s.mes(), this.s.contasMes(), this.s.recorrencias(), this.s.pagamentos(), this.s.reservasDia()));
   protected nomesReservas = (g: Recebimento) => g.reservas.map((r) => r.nome).join(', ');
+  protected proxReceb = computed(() => (this.noMesAtual() ? proximoRecebimento(hoje(), this.s.recorrencias(), this.s.pagamentos()) : null));
   protected ritmo = computed(() => ritmoMes(this.s.mes(), hoje()));
 
   /** Fatias das entradas: fixas e parcelas (presas), resto do cartão, à vista e o que sobra */

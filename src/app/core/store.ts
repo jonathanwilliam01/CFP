@@ -2,8 +2,9 @@ import { Injectable, WritableSignal, computed, effect, inject, signal, untracked
 import { Router } from '@angular/router';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Auth } from './auth';
+import { removerComprovante } from './comprovante';
 import { addMeses, fimMes, hoje, inicioMes, mesAtual } from './datas';
-import { GastoHist, Transferencia, acertoMes, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
+import { GastoHist, Transferencia, acertoMes, metaSobra, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
 import {
   Acerto, Beneficio, Carteira, Cartao, Categoria, ContaBancaria, Cofrinho, CofrinhoMov, Dados, Desafio, Divida, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado,
@@ -98,6 +99,7 @@ export class Store {
 
   /** acerto entre os membros ligado na carteira */
   readonly divisao = computed(() => !!this.carteira()?.divisao);
+  readonly meta = computed(() => metaSobra(this.resumo().entradas, this.resumo().saldo, this.carteira()?.meta_sobra));
   readonly acerto = computed(() =>
     this.divisao() ? acertoMes(this.gastos(), this.membros().map((m) => m.user_id), this.acertos(), this.mes()) : null,
   );
@@ -319,12 +321,15 @@ export class Store {
       beneficios: this.beneficios, recorrencias: this.recorrencias, orcamentos: this.orcamentos, cofrinhos: this.cofrinhos,
       cofrinho_movs: this.cofrinhoMovs, registros: this.registros, receber: this.receber, dividas: this.dividas, desafios: this.desafios, contas_bancarias: this.contasBancarias,
     };
+    // arquivos dos comprovantes saem junto com o gasto (o banco não apaga do storage)
+    const arquivos = this.gastos().filter((g) => g.comprovante && (tabela === 'gastos' ? g.id === id : tabela === 'parcelamentos' && g.parcelamento_id === id)).map((g) => g.comprovante!);
     locais[tabela]?.update((l) => l.filter((x) => x.id !== id));
     if (tabela === 'parcelamentos') this.gastos.update((l) => l.filter((g) => g.parcelamento_id !== id));
     this.toast.adiar(
       texto,
       async () => {
         await this.excluir(tabela, id);
+        await Promise.all(arquivos.map((a) => removerComprovante(a).catch(() => undefined)));
         await recarregar?.();
       },
       async () => {

@@ -1,4 +1,4 @@
-import { avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
+import { avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -104,6 +104,39 @@ describe('porRecebimento', () => {
 
   it('com um só dia de recebimento não separa', () => {
     expect(porRecebimento(mes, [], [salario], [])).toEqual([]);
+  });
+});
+
+describe('metaSobra', () => {
+  it('compara a sobra prevista com a meta', () => {
+    expect(metaSobra(5000, 600, 15)).toEqual({ meta: 15, alvo: 750, prevista: 12, falta: 150, ok: false, pct: 80 });
+    expect(metaSobra(5000, 900, 15)).toMatchObject({ ok: true, falta: 0, pct: 100 });
+    expect(metaSobra(5000, -100, 15)).toMatchObject({ prevista: -2, pct: 0 });
+  });
+
+  it('sem meta ou sem entradas: nada', () => {
+    expect(metaSobra(5000, 600, null)).toBeNull();
+    expect(metaSobra(0, 0, 10)).toBeNull();
+  });
+});
+
+describe('proximoRecebimento', () => {
+  const vale = conta({ id: 'e1', tipo: 'entrada', descricao: 'Vale', valor: 2000, dia: 20 });
+  const salario = conta({ id: 'e2', tipo: 'entrada', descricao: 'Salário', valor: 3000, dia: 7 });
+  const bonus = conta({ id: 'e3', tipo: 'entrada', descricao: 'Bônus', valor: 500, dia: 20 });
+
+  it('pega o próximo dia do mês e junta as entradas do mesmo dia', () => {
+    expect(proximoRecebimento('2026-10-10', [vale, salario, bonus, conta({ dia: 15 })], [])).toEqual({ data: '2026-10-20', dias: 10, nome: 'Vale + Bônus', valor: 2500 });
+    expect(proximoRecebimento('2026-10-07', [vale, salario], [])?.dias).toBe(0);
+  });
+
+  it('já recebida fica de fora e, sem mais nenhuma no mês, vai para o seguinte', () => {
+    expect(proximoRecebimento('2026-10-05', [vale, salario], [pago({ ref_id: 'e2' })])?.data).toBe('2026-10-20');
+    expect(proximoRecebimento('2026-10-25', [vale, salario], [])).toEqual({ data: '2026-11-07', dias: 13, nome: 'Salário', valor: 3000 });
+  });
+
+  it('sem entrada fixa ativa: nada', () => {
+    expect(proximoRecebimento('2026-10-10', [conta(), { ...salario, ativo: false }], [])).toBeNull();
   });
 });
 
@@ -466,5 +499,42 @@ describe('calculadoras de crédito e salário', () => {
     const ir = rendimento(1000, 0, 12, 0.01)!;
     expect(ir.imposto).toBeCloseTo((r.final - 1000) * 0.2, 2);
     expect(rendimento(0, 100, 3, 0, false)!.final).toBe(300);
+  });
+});
+
+describe('inflacaoCasal', () => {
+  const luz = conta({ id: 'luz', categoria_id: 'casa', valor: 100 });
+  const gastos = [
+    gasto({ data: '2025-10-05', valor: 400, categoria_id: 'merc' }),
+    gasto({ data: '2026-10-05', valor: 500, categoria_id: 'merc' }),
+    gasto({ data: '2026-10-08', valor: 60, categoria_id: 'lazer' }),
+  ];
+
+  it('média mensal por categoria, com contas fixas pelo valor pago', () => {
+    const r = inflacaoCasal(['2026-10-01'], ['2025-10-01'], gastos, [{ ...luz, inicio: '2025-01-01' }], [pago({ ref_id: 'luz', mes: '2026-10-01', valor: 120 })]);
+    expect(r.antes).toBe(500);
+    expect(r.agora).toBe(680);
+    expect(r.pct).toBe(36);
+    expect(r.cats.map((c) => [c.id, c.pct])).toEqual([['merc', 25], ['lazer', null], ['casa', 20]]);
+  });
+});
+
+describe('deducoesIR', () => {
+  it('gastos e fixas das categorias dedutíveis no ano', () => {
+    const gastos = [
+      gasto({ id: 'a', data: '2026-03-10', valor: 200, categoria_id: 'saude', criado_por: 'u1' }),
+      gasto({ id: 'b', data: '2026-03-11', valor: 50, categoria_id: 'merc' }),
+      gasto({ id: 'c', data: '2025-12-30', valor: 90, categoria_id: 'saude' }),
+    ];
+    const escola = conta({ id: 'esc', descricao: 'Escola', categoria_id: 'edu', valor: 800, dia: 5, inicio: '2026-02-01' });
+    const plano = conta({ id: 'pl', descricao: 'Plano', categoria_id: 'saude', valor: 300, dia: 15, cartao_id: 'c1', inicio: '2026-09-01' });
+    const pags = [pago({ ref_id: 'esc', mes: '2026-02-01', valor: 800, pago_em: '2026-02-05' }), pago({ ref_id: 'esc', mes: '2026-03-01', valor: 820, pago_em: null })];
+    const l = deducoesIR(2026, gastos, [escola, plano], pags, new Set(['saude', 'edu']), '2026-10-01');
+    expect(l.map((d) => [d.data, d.descricao, d.valor, d.pessoa])).toEqual([
+      ['2026-02-05', 'Escola', 800, null],
+      ['2026-03-10', 'x', 200, 'u1'],
+      ['2026-09-15', 'Plano', 300, null],
+      ['2026-10-15', 'Plano', 300, null],
+    ]);
   });
 });

@@ -9,8 +9,10 @@ import { Recente, Store } from '../core/store';
 import { lerComprovante, lerTags, lerTexto } from '../core/texto';
 import { Auth } from '../core/auth';
 import { Fila, ItemFila, semRede } from '../core/fila';
+import { ePdf, enviarComprovante, linkComprovante, prepararComprovante, removerComprovante } from '../core/comprovante';
 import { Icon } from './icon';
 import { Sheet } from './sheet';
+import { Visor } from './visor';
 import { Toast } from './toast';
 
 export type Modo = 'gasto' | 'entrada' | 'parcelado';
@@ -95,7 +97,7 @@ interface FormLanc {
 
 @Component({
   selector: 'app-lancar',
-  imports: [Sheet, FormsModule, BrlPipe, MesPipe, Icon],
+  imports: [Sheet, FormsModule, BrlPipe, MesPipe, Icon, Visor],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './lancar.html',
   styleUrl: './lancar.scss',
@@ -119,6 +121,11 @@ export class LancarSheet {
     const id = this.l.gasto()?.id;
     return id ? this.chat.mensagens().filter((m) => m.gasto_id === id) : [];
   });
+  /** comprovante novo escolhido (vai junto ao salvar) e pedido de tirar o atual */
+  protected arquivo = signal<Blob | null>(null);
+  protected tirar = signal(false);
+  protected comprovante = computed(() => (this.tirar() ? null : (this.l.gasto()?.comprovante ?? null)));
+  protected verUrl = signal<string | null>(null);
   protected hoje = hoje();
   protected ontem = addDias(hoje(), -1);
 
@@ -193,6 +200,8 @@ export class LancarSheet {
       untracked(() => {
         this.f.set(g ? this.deGasto(g) : e ? this.deEntrada(e) : (this.proxima ?? this.vazio()));
         this.proxima = null;
+        this.arquivo.set(null);
+        this.tirar.set(false);
         const t = this.l.texto();
         if (t) {
           this.l.texto.set('');
@@ -304,6 +313,53 @@ export class LancarSheet {
     this.l.modo.set(modo);
   }
 
+  async escolher(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const arq = input.files?.[0];
+    input.value = '';
+    if (!arq) return;
+    try {
+      this.arquivo.set(await prepararComprovante(arq));
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
+
+  async verComprovante(caminho: string) {
+    try {
+      const url = await linkComprovante(caminho);
+      if (ePdf(caminho)) window.open(url, '_blank');
+      else this.verUrl.set(url);
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
+
+  /** Na edição: sobe o novo (apagando o antigo se mudou de tipo) ou tira o atual */
+  private async comprovanteEdicao(id: string) {
+    const antigo = this.l.gasto()?.comprovante;
+    const arq = this.arquivo();
+    if (arq) {
+      const caminho = await enviarComprovante(this.s.carteiraId()!, id, arq);
+      if (antigo && antigo !== caminho) await removerComprovante(antigo);
+      return { comprovante: caminho };
+    }
+    if (this.tirar() && antigo) {
+      await removerComprovante(antigo);
+      return { comprovante: null };
+    }
+    return {};
+  }
+
+  /** Gasto novo já gravado: sobe o arquivo; falha aqui não desfaz o gasto */
+  private async comprovanteNovo(id: string, arq: Blob) {
+    try {
+      await this.s.salvar('gastos', { id, comprovante: await enviarComprovante(this.s.carteiraId()!, id, arq) });
+    } catch (e) {
+      this.toast.erro('Gasto salvo, mas o comprovante não subiu: ' + (e instanceof Error ? e.message : e));
+    }
+  }
+
   async comentar() {
     const g = this.l.gasto();
     const t = this.comentario().trim();
@@ -389,7 +445,10 @@ export class LancarSheet {
       if (!item) {
         const e = this.l.entrada();
         if (e) await this.s.salvar('entradas', { id: e.id, descricao: f.descricao.trim(), categoria_id: f.categoria_id, valor, data: f.data });
-        else await this.s.salvar('gastos', { id: this.l.gasto()!.id, ...this.dadosGasto(f, valor) });
+        else {
+          const id = this.l.gasto()!.id;
+          await this.s.salvar('gastos', { id, ...this.dadosGasto(f, valor), ...(await this.comprovanteEdicao(id)) });
+        }
         this.toast.ok('Salvo');
       } else if (!navigator.onLine) {
         return void this.offline(item, continuar, f);
@@ -400,6 +459,8 @@ export class LancarSheet {
           if (!semRede(e)) throw e;
           return void this.offline(item, continuar, f);
         }
+        const arq = this.arquivo();
+        if (arq && item.tipo === 'inserir' && item.tabela === 'gastos') await this.comprovanteNovo(item.dados['id'] as string, arq);
         this.toast.ok(
           item.tipo === 'fixa' ? (modo === 'entrada' ? 'Entrada fixa criada' : 'Conta fixa criada')
           : item.tipo === 'parcelamento' ? `${f.parcelas}x de ${moeda(this.valorParcela())} lançadas` : 'Salvo',
@@ -415,12 +476,13 @@ export class LancarSheet {
 
   private offline(item: ItemFila, continuar: boolean, f: FormLanc) {
     this.fila.guardar(item);
-    this.toast.ok('Sem internet: guardado no aparelho, envia quando a conexão voltar');
+    this.toast.ok(`Sem internet: guardado no aparelho, envia quando a conexão voltar${this.arquivo() ? ' (o comprovante não foi guardado)' : ''}`);
     this.depois(continuar, f);
   }
 
   private depois(continuar: boolean, f: FormLanc) {
     if (!this.editando()) localStorage.setItem('cfp.lancar', this.l.modo());
+    this.arquivo.set(null);
     if (continuar) this.f.set({ ...this.vazio(), data: f.data, pagamento: f.pagamento, repete: f.repete, tags: f.tags });
     else this.l.aberto.set(false);
   }

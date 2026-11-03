@@ -11,6 +11,8 @@ export interface Carteira {
   inicio?: string | null;
   /** acerto entre os membros ligado (028) */
   divisao?: boolean;
+  /** meta de sobra do mês, em % das entradas (033) */
+  meta_sobra?: number | null;
 }
 
 export interface Membro {
@@ -31,6 +33,8 @@ export interface Categoria {
   cor: string;
   tipo: 'gasto' | 'entrada';
   ordem: number;
+  /** dedutível no Imposto de Renda (033) */
+  dedutivel?: boolean;
 }
 
 export interface Cartao {
@@ -78,6 +82,8 @@ export interface Gasto {
   dividido?: boolean;
   /** confirmado como não duplicado (029) */
   nao_duplicado?: boolean;
+  /** caminho no bucket comprovantes (033) */
+  comprovante?: string | null;
 }
 
 export interface Parcelamento {

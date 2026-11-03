@@ -8,9 +8,9 @@ import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 import { Visor } from '../shared/visor';
 import { fecharNoVoltar } from '../shared/voltar';
+import { reduzir } from '../core/imagem';
 
 const TAM = 220;
-const MAX_LADO = 1024;
 
 /** Minha conta: dados do usuário e foto de perfil (visualizar, trocar, enquadrar) */
 @Component({
@@ -176,7 +176,7 @@ export class Conta {
     input.value = '';
     if (!arquivo) return;
     try {
-      const blob = await reduzir(arquivo);
+      const blob = await reduzir(arquivo, 1024);
       this.limparImagem();
       this.imagem = blob;
       this.ajuste.set({ url: URL.createObjectURL(blob), zoom: 1, x: 0, y: 0 });
@@ -259,16 +259,4 @@ function limitar(a: Foto): Foto {
   const lim = (a.zoom - 1) * 50;
   const c = (v: number) => Math.round(Math.min(lim, Math.max(-lim, v)) * 100) / 100;
   return { ...a, x: c(a.x), y: c(a.y) };
-}
-
-/** Reduz para no máximo 1024px de lado, em JPEG */
-async function reduzir(arquivo: File): Promise<Blob> {
-  const img = await createImageBitmap(arquivo);
-  const k = Math.min(1, MAX_LADO / Math.max(img.width, img.height));
-  const cv = document.createElement('canvas');
-  cv.width = Math.round(img.width * k);
-  cv.height = Math.round(img.height * k);
-  cv.getContext('2d')!.drawImage(img, 0, 0, cv.width, cv.height);
-  img.close();
-  return new Promise((ok, falha) => cv.toBlob((b) => (b ? ok(b) : falha()), 'image/jpeg', 0.85));
 }

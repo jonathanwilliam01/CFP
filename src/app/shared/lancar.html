@@ -122,6 +122,25 @@
       <label class="check"><input name="est" type="checkbox" [ngModel]="f().estorno" (ngModelChange)="set('estorno', $event)" />Estorno ou crédito (abate {{ fatura() ? 'a fatura' : 'o mês' }})</label>
     }
 
+    @if (l.modo() === 'gasto' && !repete()) {
+      <div class="field">
+        <span>Comprovante (opcional)</span>
+        <div class="comp">
+          @if (arquivo(); as a) {
+            <span class="anexo"><app-icon [name]="a.type === 'application/pdf' ? 'picture_as_pdf' : 'image'" [size]="18" />{{ a.type === 'application/pdf' ? 'PDF' : 'Foto' }} pronto para salvar</span>
+            <button type="button" class="btn ghost sm" (click)="arquivo.set(null)">Tirar</button>
+          } @else if (comprovante(); as c) {
+            <button type="button" class="btn ghost sm" (click)="verComprovante(c)"><app-icon name="receipt_long" [size]="18" />Ver</button>
+            <label class="btn ghost sm">Trocar<input type="file" accept="image/*,application/pdf" hidden (change)="escolher($event)" /></label>
+            <button type="button" class="btn ghost sm" (click)="tirar.set(true)">Remover</button>
+          } @else {
+            <label class="btn ghost sm"><app-icon name="attach_file" [size]="18" />Anexar foto ou PDF<input type="file" accept="image/*,application/pdf" hidden (change)="escolher($event)" /></label>
+            @if (tirar()) { <span class="anexo">Será removido ao salvar</span> }
+          }
+        </div>
+      </div>
+    }
+
     @if (s.divisao() && l.modo() === 'gasto' && !repete() && s.membros().length > 1) {
       <div class="field">
         <span>Quem pagou</span>
@@ -190,3 +209,4 @@
     }
   </form>
 </app-sheet>
+<app-visor [(url)]="verUrl" alt="Comprovante" />

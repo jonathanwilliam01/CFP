@@ -97,6 +97,10 @@ export class Insights {
 
     if (r.entradas > 0 && r.saldo < 0)
       l.push({ id: `saldo-${mes}`, nivel: 'perigo', icone: 'trending_down', titulo: 'Saldo do mês negativo', texto: `As saídas superam as entradas em ${moeda(-r.saldo)}.`, link: '/resumo' });
+    else if (s.meta() && !s.meta()!.ok) {
+      const m = s.meta()!;
+      l.push({ id: `meta-sobra-${mes}`, nivel: 'alerta', icone: 'savings', titulo: `Sobra abaixo da meta de ${m.meta}%`, texto: `Previsto sobrar ${m.prevista}% (${moeda(r.saldo)}). Faltam ${moeda(m.falta)} para os ${moeda(m.alvo)}.`, link: '/resumo' });
+    }
 
     for (const b of s.beneficiosAtivos()) {
       const { saldo } = saldoBeneficio(b, s.usoBeneficios(), mes, s.cobrancasBeneficio());

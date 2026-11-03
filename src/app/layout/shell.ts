@@ -12,6 +12,7 @@ import { VERSAO } from '../core/versao';
 import { addMeses } from '../core/datas';
 import { alternarPrivado, privado } from '../core/formato';
 import { Avatar } from '../shared/avatar';
+import { BloqueioTela } from './bloqueio';
 import { Buscador } from '../shared/buscador';
 import { Calculadora } from '../shared/calculadora';
 import { Icon } from '../shared/icon';
@@ -23,10 +24,11 @@ import { Menus, PRINCIPAIS } from './menu';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora, BloqueioTela],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.recolhido]': 'recolhido()', '(document:keydown)': 'atalho($event)', '(window:scroll)': 'rolou()' },
   template: `
+    <app-bloqueio />
     <header class="top">
       <div class="marca">
         <button type="button" class="user" (click)="conta.set(true)" aria-label="Minha conta">

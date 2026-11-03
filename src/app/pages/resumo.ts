@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { RouterLink } from '@angular/router';
 import { diaNoMes, nomeMes } from '../core/datas';
 import { ativaNoMes, creditoBeneficios, porCategoria } from '../core/financas';
-import { BrlPipe, DiaPipe, MesPipe, baixarCsv, csvData, csvTexto, csvValor, moeda, pct, soma } from '../core/formato';
+import { BrlPipe, DiaPipe, MesPipe, PrivPipe, baixarCsv, csvData, csvTexto, csvValor, moeda, pct, soma } from '../core/formato';
 import { Insights } from '../core/insights';
 import { Gasto } from '../core/models';
 import { Store } from '../core/store';
@@ -11,7 +11,7 @@ import { Toast } from '../shared/toast';
 import { Abas, RELATORIOS } from '../shared/abas';
 
 @Component({
-  imports: [Abas, BrlPipe, DiaPipe, MesPipe, Icon, RouterLink],
+  imports: [Abas, BrlPipe, PrivPipe, DiaPipe, MesPipe, Icon, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -136,7 +136,7 @@ import { Abas, RELATORIOS } from '../shared/abas';
         <div class="card-head"><h2>Dicas</h2></div>
         <div class="dicas">
           @for (d of insights.dicas(); track d.titulo) {
-            <div class="aviso"><app-icon class="i" [name]="d.icone" /><div><div class="t">{{ d.titulo }}</div><div class="s">{{ d.texto }}</div></div></div>
+            <div class="aviso"><app-icon class="i" [name]="d.icone" /><div><div class="t">{{ d.titulo }}</div><div class="s">{{ d.texto | priv }}</div></div></div>
           }
         </div>
       </section>

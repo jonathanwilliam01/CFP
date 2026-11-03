@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Auth } from '../core/auth';
+import { Bloqueio } from '../core/bloqueio';
 import { Insights } from '../core/insights';
 import { Categoria, Membro } from '../core/models';
 import { Painel } from '../core/painel';
@@ -9,6 +10,7 @@ import { Push } from '../core/push';
 import { Store } from '../core/store';
 import { CORES, Cor, Tema } from '../core/tema';
 import { q, supabase } from '../core/supabase';
+import { parseValor } from '../core/formato';
 import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
 import { IconePicker } from '../shared/icone-picker';
@@ -49,6 +51,13 @@ import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
             </div>
           </label>
           <p class="small muted">Meses anteriores ficam fora da navegação, do fechamento e das comparações. Parcelas e contas já lançadas continuam valendo. Vazio mostra tudo.</p>
+          <label class="field"><span>Meta de sobra do mês (% das entradas)</span>
+            <div class="linha">
+              <input name="meta" inputmode="decimal" placeholder="Ex.: 15" [(ngModel)]="metaSobra" />
+              <button class="btn ghost" type="button" (click)="salvarMeta()" [disabled]="ocupado()">Salvar</button>
+            </div>
+          </label>
+          <p class="small muted">O Início mostra a sobra prevista contra a meta e avisa quando ela fica para trás. Vazio desliga.</p>
           <div class="convite">
             <div>
               <span class="small muted">Código de convite</span>
@@ -215,6 +224,34 @@ import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
       </div>
 
       <div class="card form">
+        <h2>Bloqueio do app</h2>
+        @if (bloqueio.cfg(); as c) {
+          <p class="small tit"><app-icon name="lock" [size]="18" />Ligado neste aparelho{{ c.cred ? ', com biometria' : ', com PIN' }}.</p>
+          <label class="field"><span>Bloquear depois de sair do app</span>
+            <select name="min" [ngModel]="c.minutos" (ngModelChange)="bloqueio.minutos(+$event)">
+              @for (m of tempos; track m.v) { <option [ngValue]="m.v">{{ m.r }}</option> }
+            </select>
+          </label>
+          <button class="btn ghost" type="button" (click)="desligarBloqueio()"><app-icon name="lock_open" [size]="18" />Desligar</button>
+        } @else {
+          <p class="small muted">Pede PIN (ou digital/rosto) ao abrir o app neste aparelho. Esqueceu o PIN: sai da conta e entra de novo com a senha.</p>
+          <div class="linha">
+            <input name="pin1" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="PIN (4 a 8 números)" [(ngModel)]="pin1" />
+            <input name="pin2" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="Repita o PIN" [(ngModel)]="pin2" />
+          </div>
+          @if (bioOk()) {
+            <label class="check"><input name="bio" type="checkbox" [(ngModel)]="usarBio" />Desbloquear com a biometria do aparelho</label>
+          }
+          <label class="field"><span>Bloquear depois de sair do app</span>
+            <select name="min" [(ngModel)]="minutosBloqueio">
+              @for (m of tempos; track m.v) { <option [ngValue]="m.v">{{ m.r }}</option> }
+            </select>
+          </label>
+          <button class="btn ghost" type="button" (click)="ligarBloqueio()" [disabled]="ocupado()"><app-icon name="lock" [size]="18" />Ligar bloqueio</button>
+        }
+      </div>
+
+      <div class="card form">
         <h2>Backup</h2>
         <p class="small muted">Baixa tudo da carteira {{ s.carteira()?.nome }} num arquivo JSON. Restaurar grava o arquivo na carteira atual: o que tem o mesmo registro é substituído e nada é apagado.</p>
         <div class="bts">
@@ -237,6 +274,9 @@ import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
         <label class="field"><span>Cor</span><input name="cor" type="color" [(ngModel)]="cat.cor" /></label>
         <div class="field"><span>Ícone</span><app-icone-picker [(valor)]="cat.icone" [cor]="cat.cor" /></div>
         <label class="field"><span>Ordem</span><input name="ordem" type="number" inputmode="numeric" [(ngModel)]="cat.ordem" /></label>
+        @if (cat.tipo === 'gasto') {
+          <label class="check"><input name="ded" type="checkbox" [(ngModel)]="cat.dedutivel" />Dedutível no Imposto de Renda (saúde, educação)</label>
+        }
         <button class="btn block" [disabled]="ocupado()">Salvar</button>
         @if (cat.id) {
           <button class="btn danger block" type="button" (click)="excluirCategoria()">Excluir categoria</button>
@@ -286,6 +326,13 @@ export default class Config {
   protected abertos = signal<string[]>([]);
   protected cores = (Object.keys(CORES) as Cor[]).map((id) => ({ id, hex: CORES[id].hex, nome: CORES[id].nome }));
   protected push = inject(Push);
+  protected bloqueio = inject(Bloqueio);
+  protected bioOk = signal(false);
+  protected tempos = [{ v: 0, r: 'Na hora' }, { v: 1, r: '1 minuto' }, { v: 5, r: '5 minutos' }, { v: 15, r: '15 minutos' }];
+  pin1 = '';
+  pin2 = '';
+  usarBio = true;
+  minutosBloqueio = 1;
   private toast = inject(Toast);
   private router = inject(Router);
 
@@ -298,9 +345,27 @@ export default class Config {
   nome = this.auth.nome();
   nomeCarteira = this.s.carteira()?.nome ?? '';
   inicioUso = this.s.inicio()?.slice(0, 7) ?? '';
+  metaSobra = String(this.s.carteira()?.meta_sobra ?? '').replace('.', ',');
   novaCarteira = '';
   codigo = '';
-  cat = { id: '', nome: '', icone: 'sell', cor: '#64748b', tipo: 'gasto' as 'gasto' | 'entrada', ordem: 50 };
+  cat = { id: '', nome: '', icone: 'sell', cor: '#64748b', tipo: 'gasto' as 'gasto' | 'entrada', ordem: 50, dedutivel: false };
+
+  constructor() {
+    this.bloqueio.bioDisponivel().then((v) => this.bioOk.set(v));
+  }
+
+  async ligarBloqueio() {
+    if (!/^\d{4,8}$/.test(this.pin1)) return this.toast.erro('O PIN tem de 4 a 8 números');
+    if (this.pin1 !== this.pin2) return this.toast.erro('Os PINs não batem');
+    const ok = await this.exec(() => this.bloqueio.ativar(this.pin1, this.bioOk() && this.usarBio, this.minutosBloqueio), 'Bloqueio ligado');
+    if (ok) this.pin1 = this.pin2 = '';
+  }
+
+  desligarBloqueio() {
+    if (!confirm('Desligar o bloqueio neste aparelho?')) return;
+    this.bloqueio.desativar();
+    this.toast.ok('Bloqueio desligado');
+  }
 
   async baixarBackup() {
     const c = this.s.carteira();
@@ -406,6 +471,17 @@ export default class Config {
   private lerCarteira() {
     this.nomeCarteira = this.s.carteira()?.nome ?? '';
     this.inicioUso = this.s.inicio()?.slice(0, 7) ?? '';
+    this.metaSobra = String(this.s.carteira()?.meta_sobra ?? '').replace('.', ',');
+  }
+
+  salvarMeta() {
+    const v = parseValor(this.metaSobra);
+    if (v < 0 || v >= 100) return this.toast.erro('Meta entre 1 e 99%');
+    const meta_sobra = v || null;
+    return this.exec(async () => {
+      await q(supabase.from('carteiras').update({ meta_sobra }).eq('id', this.s.carteiraId()!));
+      await this.s.iniciar();
+    }, meta_sobra ? 'Meta salva' : 'Meta desligada');
   }
 
   salvarInicio() {
@@ -431,20 +507,23 @@ export default class Config {
   }
 
   novaCategoria() {
-    this.cat = { id: '', nome: '', icone: 'sell', cor: '#64748b', tipo: this.tipoCat(), ordem: 50 };
+    this.cat = { id: '', nome: '', icone: 'sell', cor: '#64748b', tipo: this.tipoCat(), ordem: 50, dedutivel: false };
     this.catAberta.set(true);
   }
 
   editarCategoria(c: Categoria) {
-    this.cat = { id: c.id, nome: c.nome, icone: c.icone, cor: c.cor, tipo: c.tipo, ordem: c.ordem };
+    this.cat = { id: c.id, nome: c.nome, icone: c.icone, cor: c.cor, tipo: c.tipo, ordem: c.ordem, dedutivel: !!c.dedutivel };
     this.catAberta.set(true);
   }
 
   async salvarCategoria() {
     if (!this.cat.nome.trim()) return this.toast.erro('Informe o nome');
-    const { id, ...dados } = this.cat;
+    const { id, dedutivel, ...dados } = this.cat;
+    // só manda a coluna quando muda algo nela: banco sem a migration 033 segue aceitando
+    const antes = !!this.s.catMap().get(id)?.dedutivel;
+    const ded = dedutivel || antes ? { dedutivel: dados.tipo === 'gasto' && dedutivel } : {};
     const ok = await this.exec(
-      () => this.s.salvar('categorias', { id: id || undefined, ...dados, nome: dados.nome.trim(), icone: dados.icone || 'sell', ordem: +dados.ordem || 0 }),
+      () => this.s.salvar('categorias', { id: id || undefined, ...dados, ...ded, nome: dados.nome.trim(), icone: dados.icone || 'sell', ordem: +dados.ordem || 0 }),
       'Categoria salva',
     );
     if (ok) this.catAberta.set(false);

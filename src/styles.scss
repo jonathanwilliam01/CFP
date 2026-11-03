@@ -21,8 +21,14 @@
   --info-soft: #dcf1f6;
   --radius: 16px;
   --shadow: 0 1px 2px rgb(20 27 43 / 0.04), 0 4px 16px rgb(20 27 43 / 0.06);
-  --hero: linear-gradient(145deg, #1f2937, #111827);
-  --hero-shadow: 0 10px 30px rgb(17 24 39 / 0.25);
+  --hero: linear-gradient(145deg, var(--primary-soft), var(--card) 75%);
+  --hero-shadow: var(--shadow);
+  --hero-ink: var(--ink);
+  --hero-glass: rgb(255 255 255 / 0.7);
+  --hero-trilho: rgb(20 27 43 / 0.08);
+  --hero-barra: var(--primary);
+  --hero-sobe: var(--ok);
+  --hero-desce: var(--danger);
   --nav-h: 64px;
   --side-w: 248px;
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -51,6 +57,12 @@
   --shadow: none;
   --hero: linear-gradient(145deg, #1e2736, #161d29);
   --hero-shadow: none;
+  --hero-ink: #fff;
+  --hero-glass: rgb(255 255 255 / 0.12);
+  --hero-trilho: rgb(255 255 255 / 0.2);
+  --hero-barra: #fff;
+  --hero-sobe: #4ade80;
+  --hero-desce: #ff7a7a;
   color-scheme: dark;
 }
 

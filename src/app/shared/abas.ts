@@ -5,6 +5,8 @@ export const RELATORIOS = [
   { rota: '/relatorios', rotulo: 'Visão geral' },
   { rota: '/resumo', rotulo: 'Resumo mensal' },
   { rota: '/retrospectiva', rotulo: 'Retrospectiva' },
+  { rota: '/inflacao', rotulo: 'Inflação' },
+  { rota: '/imposto', rotulo: 'Imposto de Renda' },
 ];
 
 export const ENTRADAS = [
@@ -30,7 +32,9 @@ export const ENTRADAS = [
   `,
   styles: `
     :host { display: flex; flex-direction: column; gap: 14px; }
-    .seg a { text-decoration: none; }
+    /* muitas abas: rolam de lado no celular */
+    .seg { overflow-x: auto; scrollbar-width: none; }
+    .seg a { text-decoration: none; flex: 1 0 auto; }
     .acoes { display: flex; gap: 6px; align-items: center; }
   `,
 })

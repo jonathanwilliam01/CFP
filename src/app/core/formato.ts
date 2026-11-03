@@ -58,6 +58,14 @@ export class BrlPipe implements PipeTransform {
   }
 }
 
+/** Valores já montados em texto (avisos, dicas): esconde no modo privado */
+@Pipe({ name: 'priv', pure: false })
+export class PrivPipe implements PipeTransform {
+  transform(t: string) {
+    return privado() ? t.replace(/-?R\$\s?[\d.,]*\d/g, 'R$ •••') : t;
+  }
+}
+
 @Pipe({ name: 'mes' })
 export class MesPipe implements PipeTransform {
   transform(v: string, curto = false) {

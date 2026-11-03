@@ -8,6 +8,20 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.1',
+    data: '2026-11-02',
+    itens: [
+      'Início no tema claro: o bloco do saldo segue o tema e a cor principal (antes ficava escuro); o mesmo na Retrospectiva',
+      'Início: próximo recebimento no bloco do saldo (entrada fixa, em quantos dias e valor); a já recebida no mês fica de fora',
+      'Esconder valores (olho do topo) passa a valer também nos textos de avisos e dicas e nos orçamentos por recebimento em Contas',
+      'Comprovante no gasto: anexar foto ou PDF no lançamento, ver, trocar ou remover; o clipe aparece na lista de Gastos (migration 033, arquivos privados da carteira)',
+      'Meta de sobra do mês (% das entradas) em Configurações: o Início mostra a sobra prevista contra a meta e avisa quando ela fica para trás (migration 033)',
+      'Relatórios → Inflação: quanto subiu o custo de vida de vocês (gastos e contas fixas) por categoria, em 1 ano contra o IPCA ou contra o trimestre anterior',
+      'Relatórios → Imposto de Renda: despesas dedutíveis do ano por categoria e por pessoa, com comprovantes e CSV; categoria marcada como dedutível em Configurações (Saúde e Educação já vêm marcadas, migration 033)',
+      'Bloqueio do app neste aparelho: PIN e, se o celular tiver, digital ou rosto; escolhe em quanto tempo fora do app ele trava',
+    ],
+  },
+  {
     versao: 'v1.26.10.15',
     data: '2026-10-31',
     itens: [

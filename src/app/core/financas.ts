@@ -151,6 +151,31 @@ export function porRecebimento(
   });
 }
 
+/** Sobra prevista do mês contra a meta (% das entradas); sem meta ou sem entradas: null */
+export function metaSobra(entradas: number, saldo: number, meta: number | null | undefined) {
+  if (!meta || entradas <= 0) return null;
+  const alvo = Math.round(entradas * meta) / 100;
+  const prevista = Math.round((saldo / entradas) * 1000) / 10;
+  return { meta, alvo, prevista, falta: Math.max(0, alvo - saldo), ok: saldo >= alvo - 0.005, pct: Math.max(0, Math.min(100, Math.round((saldo / alvo) * 100))) };
+}
+
+/** Próxima entrada fixa a partir do dia (neste mês ou no seguinte); já recebida (com pagamento no mês) fica de fora */
+export function proximoRecebimento(dia: string, recorrencias: Recorrencia[], pagamentos: Pagamento[]) {
+  for (const mes of [inicioMes(dia), addMeses(inicioMes(dia), 1)]) {
+    const datas = new Map<string, Recorrencia[]>();
+    for (const r of recorrencias) {
+      if (r.tipo !== 'entrada' || !ativaNoMes(r, mes) || pagamentos.some((p) => p.ref_id === r.id && p.mes === mes)) continue;
+      const d = diaNoMes(mes, r.dia);
+      if (d >= dia) datas.set(d, [...(datas.get(d) ?? []), r]);
+    }
+    const data = [...datas.keys()].sort()[0];
+    if (!data) continue;
+    const es = datas.get(data)!;
+    return { data, dias: diffDias(dia, data), nome: es.map((e) => e.descricao).join(' + '), valor: soma(es, (e) => e.valor) };
+  }
+  return null;
+}
+
 export interface ResumoMes {
   entradas: number;
   entradasFixas: number;
@@ -834,4 +859,77 @@ export function duplicados<T extends GastoDup>(gastos: T[]): [T, T][] {
       }
   }
   return pares;
+}
+
+/** Valor da conta fixa no mês: o pago/informado ou o cadastrado */
+const valorFixa = (r: Recorrencia, mes: string, pagamentos: Pagamento[]) =>
+  pagamentos.find((p) => p.tipo === 'recorrencia' && p.ref_id === r.id && p.mes === mes)?.valor ?? r.valor;
+
+/** Custo dos meses por categoria: gastos pela data + contas fixas ativas */
+export function custoPorCategoria(meses: string[], gastos: Pick<Gasto, 'data' | 'valor' | 'categoria_id'>[], recorrencias: Recorrencia[], pagamentos: Pagamento[]) {
+  const m = new Map<string | null, number>();
+  const somar = (cat: string | null, v: number) => m.set(cat, (m.get(cat) ?? 0) + v);
+  for (const g of gastos) if (meses.some((x) => noMes(g.data, x))) somar(g.categoria_id, g.valor);
+  for (const mes of meses)
+    for (const r of recorrencias) if (r.tipo === 'conta' && ativaNoMes(r, mes)) somar(r.categoria_id, valorFixa(r, mes, pagamentos));
+  return m;
+}
+
+export interface Variacao {
+  id: string | null;
+  /** média mensal no período anterior e no atual */
+  antes: number;
+  agora: number;
+  /** null: não existia antes */
+  pct: number | null;
+}
+
+const variacao = (antes: number, agora: number) => (antes > 0 ? Math.round((agora / antes - 1) * 1000) / 10 : null);
+
+/** Custo de vida do casal: média mensal de `atual` contra `anterior`, no total e por categoria (maior mudança primeiro) */
+export function inflacaoCasal(atual: string[], anterior: string[], gastos: Pick<Gasto, 'data' | 'valor' | 'categoria_id'>[], recorrencias: Recorrencia[], pagamentos: Pagamento[]) {
+  const a = custoPorCategoria(atual, gastos, recorrencias, pagamentos);
+  const b = custoPorCategoria(anterior, gastos, recorrencias, pagamentos);
+  const media = (m: Map<string | null, number>, n: number) => soma([...m.values()], (v) => v) / n;
+  const antes = media(b, anterior.length);
+  const agora = media(a, atual.length);
+  const cats: Variacao[] = [...new Set([...a.keys(), ...b.keys()])]
+    .map((id) => {
+      const x = (b.get(id) ?? 0) / anterior.length;
+      const y = (a.get(id) ?? 0) / atual.length;
+      return { id, antes: x, agora: y, pct: variacao(x, y) };
+    })
+    .filter((c) => Math.abs(c.agora) >= 0.01 || Math.abs(c.antes) >= 0.01)
+    .sort((p, q) => Math.abs(q.agora - q.antes) - Math.abs(p.agora - p.antes));
+  return { antes, agora, pct: variacao(antes, agora), cats };
+}
+
+export interface Deducao {
+  data: string;
+  descricao: string;
+  categoria_id: string | null;
+  valor: number;
+  /** quem pagou (gasto) ou null (conta fixa) */
+  pessoa: string | null;
+  gasto: Gasto | null;
+}
+
+/**
+ * Despesas dedutíveis do ano (categorias marcadas): gastos pela data e contas fixas pagas no ano.
+ * Fixa no cartão não tem baixa própria: conta todo mês ativo até `ate` com o valor cadastrado.
+ */
+export function deducoesIR(ano: number, gastos: Gasto[], recorrencias: Recorrencia[], pagamentos: Pagamento[], dedutiveis: Set<string>, ate: string): Deducao[] {
+  const ded = (c: string | null) => !!c && dedutiveis.has(c);
+  const l: Deducao[] = gastos
+    .filter((g) => g.data.startsWith(`${ano}-`) && ded(g.categoria_id))
+    .map((g) => ({ data: g.data, descricao: g.descricao, categoria_id: g.categoria_id, valor: g.valor, pessoa: g.pago_por ?? g.criado_por, gasto: g }));
+  for (const r of recorrencias.filter((x) => x.tipo === 'conta' && ded(x.categoria_id)))
+    for (let i = 1; i <= 12; i++) {
+      const mes = `${ano}-${String(i).padStart(2, '0')}-01`;
+      if (mes > ate || !ativaNoMes(r, mes)) continue;
+      const p = pagamentos.find((x) => x.tipo === 'recorrencia' && x.ref_id === r.id && x.mes === mes);
+      if (p?.pago_em) l.push({ data: p.pago_em, descricao: r.descricao, categoria_id: r.categoria_id, valor: p.valor, pessoa: null, gasto: null });
+      else if (r.cartao_id) l.push({ data: diaNoMes(mes, r.dia), descricao: r.descricao, categoria_id: r.categoria_id, valor: p?.valor ?? r.valor, pessoa: null, gasto: null });
+    }
+  return l.sort((a, b) => a.data.localeCompare(b.data));
 }
