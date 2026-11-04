@@ -16,6 +16,7 @@ const MARCAS = {
   '035': ['regras.id', 'viagens.id', 'desejos.id', 'patrimonio.id', 'gastos.conferido', 'carteira_membros.resumo_mensal'],
   '036': ['check:pagamentos_tipo_check:parcela'],
   '037': ['carteira_membros.push_fatura', 'carteira_membros.lembrete_saldos'],
+  '038': ['recorrencias.dia_util'],
 };
 
 const url = process.env.SUPABASE_URL;

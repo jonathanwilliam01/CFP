@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Auth } from '../core/auth';
+import { conviteGuardado, limparConvite } from '../core/convite';
 import { Store } from '../core/store';
 import { Toast } from '../shared/toast';
 
@@ -21,6 +22,7 @@ import { Toast } from '../shared/toast';
 
       <form class="card form" (ngSubmit)="entrar()">
         <h2>Tenho um código</h2>
+        @if (convite) { <p class="small muted">Código do convite já preenchido. É só entrar.</p> }
         <label class="field"><span>Código de convite</span>
           <input name="codigo" [(ngModel)]="codigo" placeholder="ABCD2345" maxlength="8" class="cod" />
         </label>
@@ -43,7 +45,8 @@ export default class BemVindo {
   private toast = inject(Toast);
   protected enviando = signal(false);
   nome = 'Casa';
-  codigo = '';
+  protected convite = conviteGuardado();
+  codigo = this.convite;
 
   private async exec(f: () => Promise<void>) {
     this.enviando.set(true);
@@ -62,7 +65,10 @@ export default class BemVindo {
   }
 
   entrar() {
-    return this.exec(() => this.s.entrarCarteira(this.codigo));
+    return this.exec(async () => {
+      await this.s.entrarCarteira(this.codigo);
+      limparConvite();
+    });
   }
 
   async sair() {

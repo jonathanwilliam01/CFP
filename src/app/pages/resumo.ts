@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { diaNoMes, nomeMes } from '../core/datas';
-import { ativaNoMes, creditoBeneficios, porCategoria } from '../core/financas';
+import { nomeMes } from '../core/datas';
+import { ativaNoMes, creditoBeneficios, dataEntrada, porCategoria } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, PrivPipe, baixarCsv, csvData, csvTexto, csvValor, moeda, pct, soma } from '../core/formato';
 import { Insights } from '../core/insights';
 import { Gasto } from '../core/models';
@@ -239,7 +239,7 @@ export default class Resumo {
     const avulsas = s.entradasMes().map((e) => ['Entrada', csvData(e.data), csvTexto(e.descricao), cat(e.categoria_id), '', '', '', csvValor(e.valor)].join(';'));
     const fixas = s.recorrenciasPrev().filter((r) => r.tipo === 'entrada' && ativaNoMes(r, mes)).map((r) => {
       const p = s.pagamentos().find((x) => x.ref_id === r.id && x.mes === mes);
-      return ['Entrada fixa', csvData(diaNoMes(mes, r.dia)), csvTexto(r.descricao), cat(r.categoria_id), '', '', p ? 'Recebida' : 'Prevista', csvValor(p?.valor ?? r.valor)].join(';');
+      return ['Entrada fixa', csvData(dataEntrada(r, mes)), csvTexto(r.descricao), cat(r.categoria_id), '', '', p ? 'Recebida' : 'Prevista', csvValor(p?.valor ?? r.valor)].join(';');
     });
     const contas = s.contasMes().map((c) =>
       [c.tipo === 'fatura' ? 'Fatura' : c.tipo === 'parcela' ? 'Parcela' : 'Conta', csvData(c.vencimento), csvTexto(c.descricao), '', '', '', c.pago ? 'Paga' : 'Em aberto', csvValor(c.valor)].join(';'));

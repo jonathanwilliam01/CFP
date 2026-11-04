@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.26.11.6 — 2026-11-04
+- Início no computador em mosaico: cada bloco ocupa só a própria altura e o seguinte encaixa logo abaixo, sem buracos entre as colunas; avisos e dica viram blocos de coluna
+- Indicar o CFP (Mais e Configurações → Perfil): mensagem pronta com o link do app para WhatsApp, Telegram, Facebook, X, LinkedIn, e-mail, copiar ou o menu do aparelho (Instagram e outros)
+- Convidar para a carteira pelas mesmas redes: o link do convite abre direto em Criar conta e chega na tela da carteira com o código já preenchido (quem já tem carteira cai em Configurações → Entrar com código)
+- Entrada fixa no Nº dia útil (5º dia útil: segunda a sábado, sem feriados nacionais) e que cai no mês seguinte (salário do mês pago no outro) (migration 038)
+- Por recebimento mostra a data real em que cada entrada cai (20/11 Adiantamento, 05/12 Salário · 5º dia útil), em ordem
+- Por recebimento: com salário no mês seguinte, troca entre No mês (o salário do mês anterior que cai neste, com as contas que ele paga) e Competência (entradas e contas deste mês); a escolha fica no aparelho
+- Próximo recebimento, saldo dia a dia, calendário e aviso de entrada não confirmada usam a data real da entrada
+
 ## v1.26.11.5 — 2026-11-04
 - Comprovante: "Ler da foto" lê valor, data e loja do cupom fiscal ou do comprovante de Pix no próprio aparelho; foto compartilhada com o app já é lida sozinha
 - Aviso no celular quando a fatura do cartão fecha, com o total e o vencimento; toque abre os gastos da fatura (migration 037 e nova versão da função push)

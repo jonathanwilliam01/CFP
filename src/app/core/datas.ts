@@ -95,3 +95,26 @@ export function mesFatura(data: string, c: Ciclo) {
 
 /** Primeiro dia de compra que cai na fatura `mes` (inverso de mesFatura) */
 export const inicioFatura = (mes: string, c: Ciclo) => fechamentoFatura(addMeses(mes, -1), c);
+
+/** Domingo de Páscoa (algoritmo de Meeus) */
+function pascoa(ano: number) {
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100;
+  const h = (19 * a + b - Math.floor(b / 4) - Math.floor((b - Math.floor((8 * b + 13) / 25)) / 3) + 15) % 30;
+  const l = (32 + 2 * (b % 4) + 2 * Math.floor(c / 4) - h - (c % 4)) % 7;
+  const x = h + l - 7 * Math.floor((a + 11 * h + 22 * l) / 451) + 114;
+  return `${ano}-${pad(Math.floor(x / 31))}-${pad((x % 31) + 1)}`;
+}
+
+const FERIADOS = ['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25'];
+
+export const feriado = (s: string) => FERIADOS.includes(s.slice(5)) || s === addDias(pascoa(+s.slice(0, 4)), -2);
+
+/** N-ésimo dia útil do mês (regra da CLT: segunda a sábado, sem feriados nacionais) */
+export function diaUtil(mes: string, n: number) {
+  let d = addDias(inicioMes(mes), -1);
+  for (let k = 0; k < Math.max(1, n); ) {
+    d = addDias(d, 1);
+    if (parse(d).getDay() !== 0 && !feriado(d)) k++;
+  }
+  return d;
+}

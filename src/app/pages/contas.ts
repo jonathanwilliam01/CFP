@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { addMeses, diaNoMes, diffDias, hoje, inicioMes, mesAtual, mesesEntre, nomeMes } from '../core/datas';
-import { ACIMA_MEDIA, CompraRecorrente, Recebimento, aporteMensal, fixasNaFatura, mediaContas, noMes, porRecebimento } from '../core/financas';
+import { addMeses, diffDias, hoje, inicioMes, mesAtual, mesesEntre, nomeMes } from '../core/datas';
+import { ACIMA_MEDIA, CompraRecorrente, Recebimento, aporteMensal, fixasNaFatura, mediaContas, noMes } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, parseValor, soma } from '../core/formato';
 import { Cartao, Cofrinho, ContaMes, Gasto, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
@@ -31,11 +31,13 @@ import { taxas } from './calc/comum';
       </div>
 
       @if (recebimentos().length) {
-        <h2>Por recebimento</h2>
+        <div class="card-head"><h2>Por recebimento</h2>
+          @if (s.entradaMesSeguinte()) { <button type="button" class="btn ghost sm" (click)="s.trocarRecebimento(); diaSel.set(null)">{{ s.recebimentoModo() === 'mes' ? 'No mês' : 'Competência' }}<app-icon name="swap_horiz" [size]="16" /></button> }
+        </div>
         <div class="stats">
-          @for (g of recebimentos(); track g.dia) {
-            <button type="button" class="stat rec" [class.on]="diaSel() === g.dia" (click)="diaSel.set(diaSel() === g.dia ? null : g.dia)">
-              <div class="l">{{ dm(g.dia) }} · {{ g.nome }}</div>
+          @for (g of recebimentos(); track g.data) {
+            <button type="button" class="stat rec" [class.on]="diaSel() === g.data" (click)="diaSel.set(diaSel() === g.data ? null : g.data)">
+              <div class="l">{{ dm(g.data) }} · {{ nomeRec(g) }}</div>
               <div class="lin"><span>Recebe</span><b class="pos">{{ g.recebe | brl }}</b></div>
               <div class="lin"><span>Contas</span><b>{{ g.total | brl }}</b></div>
               <div class="lin"><span>A pagar</span><b class="neg">{{ g.aPagar | brl }}</b></div>
@@ -47,7 +49,7 @@ import { taxas } from './calc/comum';
             </button>
           }
         </div>
-        <p class="small muted">Cada conta fica com o último recebimento até o vencimento. Toque para ver só as contas dele.
+        <p class="small muted">Cada conta fica com o último recebimento até o dia do vencimento.{{ s.entradaMesSeguinte() ? (s.recebimentoModo() === 'mes' ? ' No mês: o que cai neste mês, com as contas do mês da entrada.' : ' Competência: entradas e contas deste mês, mesmo as que caem no seguinte.') : '' }} Toque para ver só as contas dele.
           @if (temReserva()) { A <app-icon class="fl" name="flag" [size]="13" [fill]="true" /> mostra o que os orçamentos reservam e ainda não foi gasto: entra na sobra. }</p>
       }
 
@@ -58,7 +60,7 @@ import { taxas } from './calc/comum';
             <span class="ico" [style.background]="c.cor + '22'" [style.color]="c.cor"><app-icon [name]="c.icone" /></span>
             <div class="grow">
               <div class="t">{{ c.descricao }}</div>
-              <div class="s">Vence {{ c.vencimento | dia }}{{ c.media ? ' · pela média' : '' }}{{ c.informado ? ' · valor do mês' : '' }}{{ c.beneficio_id ? ' · ' + beneficioNome(c.beneficio_id) : '' }}{{ c.mes !== s.mes() ? ' · paga com o salário deste mês' : '' }}@if (c.tipo === 'fatura' && reservaCartao().get(c.ref_id); as rv) { · <span class="fl">⚑ +{{ rv | brl }} reservado</span>}</div>
+              <div class="s">Vence {{ c.vencimento | dia }}{{ c.media ? ' · pela média' : '' }}{{ c.informado ? ' · valor do mês' : '' }}{{ c.beneficio_id ? ' · ' + beneficioNome(c.beneficio_id) : '' }}{{ c.mes > s.mes() ? ' · paga com o salário deste mês' : c.mes < s.mes() ? ' · de ' + (c.mes | mes: true) : '' }}@if (c.tipo === 'fatura' && reservaCartao().get(c.ref_id); as rv) { · <span class="fl">⚑ +{{ rv | brl }} reservado</span>}</div>
             </div>
             <div class="dir">
               <span class="v" [class.riscado]="c.pago">{{ c.valor | brl }}</span>
@@ -275,10 +277,11 @@ export default class Contas {
   protected fixaSel = signal<Recorrencia | null>(null);
   protected sugestao = signal<CompraRecorrente | null>(null);
 
-  /** dia do recebimento no mês selecionado: 05/11 */
-  protected dm = (d: number) => diaNoMes(this.s.mes(), d).slice(8) + '/' + this.s.mes().slice(5, 7);
+  /** data do recebimento: 05/12 */
+  protected dm = (d: string) => d.slice(8) + '/' + d.slice(5, 7);
+  protected nomeRec = (g: Recebimento) => (g.util ? `${g.dia}º dia útil · ` : '') + g.nome + (g.mes !== this.s.mes() ? ` de ${nomeMes(g.mes, true)}` : '');
 
-  protected recebimentos = computed(() => porRecebimento(this.s.mes(), this.s.contasMes(), this.s.recorrencias(), this.s.pagamentos(), this.s.reservasDia()));
+  protected recebimentos = this.s.recebimentos;
   protected nomesReservas = (g: Recebimento) => g.reservas.map((r) => `${r.nome} ${moeda(r.valor)}`).join(', ');
   /** Reserva de orçamento ainda não gasta por cartão (soma na fatura prevista) */
   protected reservaCartao = computed(() => {
@@ -290,7 +293,7 @@ export default class Contas {
   protected temReserva = computed(() => this.recebimentos().some((g) => g.reservado > 0));
   /** Reservas dos orçamentos na lista: do recebimento escolhido ou do mês todo */
   protected reservasLista = computed(() => {
-    const g = this.recebimentos().find((x) => x.dia === this.diaSel());
+    const g = this.recebimentos().find((x) => x.data === this.diaSel());
     if (g) return g.reservas;
     const m = new Map<string, { nome: string; valor: number }>();
     for (const r of this.s.reservasDia()) {
@@ -300,8 +303,8 @@ export default class Contas {
     }
     return [...m.entries()].map(([orcamento_id, a]) => ({ orcamento_id, nome: a.nome, valor: Math.round(a.valor * 100) / 100 }));
   });
-  protected diaSel = signal<number | null>(null);
-  protected contasLista = computed(() => this.recebimentos().find((g) => g.dia === this.diaSel())?.contas ?? this.s.contasMes());
+  protected diaSel = signal<string | null>(null);
+  protected contasLista = computed(() => this.recebimentos().find((g) => g.data === this.diaSel())?.contas ?? this.s.contasMes());
   protected total = computed(() => soma(this.s.contasMes().filter((c) => !c.beneficio_id), (c) => c.valor));
   /** Compras no crédito com data no mês, por cartão (a fatura delas pode ser de outro mês) */
   protected credito = computed(() => {

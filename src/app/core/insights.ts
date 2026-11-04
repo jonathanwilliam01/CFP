@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
-import { addDias, diaNoMes, diffDias, fechamentoFatura, hoje, inicioFatura, mesAtual, mesFatura, nomeMes } from './datas';
-import { aporteMensal, ativaNoMes, categoriasAcima, duplicados, faturaProjetada, fixasNaFatura, porCategoria, saldoBeneficio, variaveisAcima } from './financas';
+import { addDias, diffDias, fechamentoFatura, hoje, inicioFatura, mesAtual, mesFatura, nomeMes } from './datas';
+import { aporteMensal, ativaNoMes, dataEntrada, categoriasAcima, duplicados, faturaProjetada, fixasNaFatura, porCategoria, saldoBeneficio, variaveisAcima } from './financas';
 import { moeda, pct, soma } from './formato';
 import { Chat } from './chat';
 import { Store } from './store';
@@ -131,9 +131,9 @@ export class Insights {
       l.push({ id: `sugfixa-${x.chave}-${mes}`, nivel: 'info', icone: 'autorenew', titulo: `${x.descricao} todo mês`, texto: `Lançado nos últimos 3 meses (${moeda(x.valor)}). Vale virar conta fixa?`, link: '/contas' });
 
     for (const e of s.recorrencias().filter((x) => x.tipo === 'entrada' && ativaNoMes(x, mes))) {
-      const d = diffDias(diaNoMes(mes, e.dia), h);
-      if (d > 2 && !s.pagamentos().some((p) => p.ref_id === e.id && p.mes === mes))
-        l.push({ id: `entr-${e.id}-${mes}`, nivel: 'info', icone: 'payments', titulo: `${e.descricao} não confirmada`, texto: `Previsto para dia ${e.dia}. Marque como recebida.`, link: '/entradas' });
+      const data = dataEntrada(e, mes);
+      if (diffDias(data, h) > 2 && !s.pagamentos().some((p) => p.ref_id === e.id && p.mes === mes))
+        l.push({ id: `entr-${e.id}-${mes}`, nivel: 'info', icone: 'payments', titulo: `${e.descricao} não confirmada`, texto: `Prevista para ${data.slice(8)}/${data.slice(5, 7)}. Marque como recebida.`, link: '/entradas' });
     }
 
     const dups = duplicados(s.gastosMes());

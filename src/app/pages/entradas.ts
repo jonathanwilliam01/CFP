@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { diaNoMes, hoje, mesAtual } from '../core/datas';
-import { ativaNoMes } from '../core/financas';
+import { hoje, mesAtual } from '../core/datas';
+import { ativaNoMes, dataEntrada } from '../core/financas';
 import { BrlPipe, DiaPipe, parseValor } from '../core/formato';
 import { Recorrencia } from '../core/models';
 import { Store } from '../core/store';
@@ -22,6 +22,8 @@ interface FormFixa {
   fim: string;
   ativo: boolean;
   variavel: boolean;
+  dia_util: boolean;
+  mes_seguinte: boolean;
 }
 
 @Component({
@@ -45,7 +47,7 @@ interface FormFixa {
             <span class="ico"><app-icon [name]="s.catMap().get(r.categoria_id ?? '')?.icone ?? 'work'" /></span>
             <button class="grow txt" (click)="editar(r)">
               <div class="t">{{ r.descricao }}</div>
-              <div class="s">Dia {{ r.dia }} · {{ recebido(r) ? 'recebida' : r.variavel ? (s.medias().has(r.id) ? 'prevista pela média' : 'variável, prevista') : 'prevista' }}</div>
+              <div class="s">{{ quando(r) }} · {{ recebido(r) ? 'recebida' : r.variavel ? (s.medias().has(r.id) ? 'prevista pela média' : 'variável, prevista') : 'prevista' }}</div>
             </button>
             <span class="v pos">{{ (recebido(r)?.valor ?? r.valor) | brl }}</span>
             <button class="tog" [class.on]="recebido(r)" (click)="alternar(r)" [attr.aria-label]="recebido(r) ? 'Desmarcar' : 'Marcar recebida'">
@@ -76,7 +78,7 @@ interface FormFixa {
         <label class="field"><span>Descrição</span><input name="d" [(ngModel)]="form.descricao" placeholder="Ex.: Salário" /></label>
         <div class="grid2">
           <label class="field"><span>{{ form.variavel ? 'Valor estimado' : 'Valor' }}</span><input name="v" inputmode="decimal" [(ngModel)]="form.valor" /></label>
-          <label class="field"><span>Dia que cai</span><input name="dia" type="number" min="1" max="31" [(ngModel)]="form.dia" /></label>
+          <label class="field"><span>{{ form.dia_util ? 'Dia útil (nº)' : 'Dia que cai' }}</span><input name="dia" type="number" min="1" max="31" [(ngModel)]="form.dia" /></label>
         </div>
         @if (form.id) {
           <p class="small muted">Mudar o valor aqui troca todos os meses. Para mudar só a partir de um mês, use o reajuste abaixo.</p>
@@ -91,6 +93,11 @@ interface FormFixa {
           <label class="field"><span>A partir de</span><input name="i" type="month" [(ngModel)]="form.inicio" /></label>
           <label class="field"><span>Até (opcional)</span><input name="f" type="month" [(ngModel)]="form.fim" /></label>
         </div>
+        <label class="check"><input name="du" type="checkbox" [(ngModel)]="form.dia_util" />Contar em dias úteis (5º dia útil: segunda a sábado, sem feriados)</label>
+        <label class="check"><input name="ms" type="checkbox" [(ngModel)]="form.mes_seguinte" />Cai no mês seguinte (o salário do mês é pago no outro)</label>
+        @if (form.mes_seguinte) {
+          <p class="small muted">A entrada conta no mês a que se refere e paga as contas dele. Em Por recebimento, "No mês" mostra o salário do mês anterior que cai neste.</p>
+        }
         <label class="check"><input name="var" type="checkbox" [(ngModel)]="form.variavel" />Valor variável (comissão, freela, hora extra)</label>
         @if (form.variavel) {
           <p class="small muted">Ao marcar como recebida você informa quanto veio. Com 3 meses ou mais, a previsão passa a ser a média dos últimos 12.</p>
@@ -143,6 +150,12 @@ export default class Entradas {
   protected recebendo = signal<Recorrencia | null>(null);
   protected valorRecebido = '';
 
+  /** "5º dia útil · cai 07/12" */
+  quando(r: Recorrencia) {
+    const d = dataEntrada(r, this.s.mes());
+    return `${r.dia_util ? `${r.dia}º dia útil` : `Dia ${r.dia}`}${r.dia_util || r.paga_mes_anterior ? ` · cai ${d.slice(8)}/${d.slice(5, 7)}` : ''}`;
+  }
+
   recebido(r: Recorrencia) {
     return this.s.pagamentos().find((p) => p.tipo === 'recorrencia' && p.ref_id === r.id && p.mes === this.s.mes()) ?? null;
   }
@@ -163,7 +176,7 @@ export default class Entradas {
   async receber(r: Recorrencia, valor = parseValor(this.valorRecebido)) {
     if (!valor) return this.toast.erro('Informe o valor');
     try {
-      const dia = diaNoMes(this.s.mes(), r.dia);
+      const dia = dataEntrada(r, this.s.mes());
       const id = await this.s.pagar('recorrencia', r.id, valor, dia < hoje() ? dia : hoje());
       this.recebendo.set(null);
       this.toast.feito(`${r.descricao} recebida`, () => this.s.desfazerPagamento(id));
@@ -173,7 +186,7 @@ export default class Entradas {
   }
 
   private vazio(): FormFixa {
-    return { descricao: '', valor: '', dia: 5, categoria_id: this.s.catEntrada()[0]?.id ?? null, inicio: mesAtual().slice(0, 7), fim: '', ativo: true, variavel: false };
+    return { descricao: '', valor: '', dia: 5, categoria_id: this.s.catEntrada()[0]?.id ?? null, inicio: mesAtual().slice(0, 7), fim: '', ativo: true, variavel: false, dia_util: false, mes_seguinte: false };
   }
 
   nova() {
@@ -189,6 +202,7 @@ export default class Entradas {
     this.form = {
       id: r.id, descricao: r.descricao, valor: String(r.valor).replace('.', ','), dia: r.dia, categoria_id: r.categoria_id,
       inicio: r.inicio.slice(0, 7), fim: r.fim?.slice(0, 7) ?? '', ativo: r.ativo, variavel: r.variavel,
+      dia_util: !!r.dia_util, mes_seguinte: r.paga_mes_anterior,
     };
     this.aberto.set(true);
   }
@@ -200,6 +214,7 @@ export default class Entradas {
       await this.s.salvar('recorrencias', {
         id: f.id, tipo: 'entrada', descricao: f.descricao.trim(), valor: parseValor(f.valor), dia: f.dia || 1,
         categoria_id: f.categoria_id, inicio: `${f.inicio || mesAtual().slice(0, 7)}-01`, fim: f.fim ? `${f.fim}-01` : null, ativo: f.ativo, variavel: f.variavel,
+        dia_util: f.dia_util, paga_mes_anterior: f.mes_seguinte,
       });
       this.toast.ok('Entrada fixa salva');
       this.aberto.set(false);

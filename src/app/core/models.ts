@@ -127,8 +127,10 @@ export interface Recorrencia {
   ativo: boolean;
   cartao_id: string | null;
   variavel: boolean;
-  /** conta entra nas contas do mês anterior ao vencimento */
+  /** conta entra nas contas do mês anterior ao vencimento; entrada do mês cai no mês seguinte (salário pago no 5º dia útil) */
   paga_mes_anterior: boolean;
+  /** entrada: `dia` é o N-ésimo dia útil (migration 038) */
+  dia_util?: boolean;
   /** paga com benefício: desconta do saldo dele e não entra nas saídas */
   beneficio_id: string | null;
   /** recorrência anterior encerrada pelo reajuste */

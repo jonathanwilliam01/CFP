@@ -1,4 +1,4 @@
-import { addDias, addMeses, diaNoMes, fechamentoFatura, inicioFatura, mesFatura, mesesEntre } from './datas';
+import { addDias, addMeses, diaNoMes, diaUtil, feriado, fechamentoFatura, inicioFatura, mesFatura, mesesEntre } from './datas';
 
 const fixo = (fechamento_dia: number, vencimento_dia: number) => ({ fechamento_dia, vencimento_dia, fecha_dias: null });
 const dias = (vencimento_dia: number, fecha_dias: number) => ({ fechamento_dia: 1, vencimento_dia, fecha_dias });
@@ -66,5 +66,15 @@ describe('datas', () => {
           expect(mesFatura(addDias(ini, -1), c)).toBe(addMeses(mes, -1));
         }
     });
+  });
+});
+
+describe('diaUtil', () => {
+  it('conta sábado e pula domingo e feriados nacionais (Finados, Sexta-feira Santa)', () => {
+    expect(diaUtil('2026-12-01', 5)).toBe('2026-12-05');
+    expect(diaUtil('2026-11-01', 5)).toBe('2026-11-07');
+    expect(diaUtil('2026-04-01', 5)).toBe('2026-04-07');
+    expect(feriado('2026-04-03')).toBe(true);
+    expect(feriado('2025-04-18')).toBe(true);
   });
 });

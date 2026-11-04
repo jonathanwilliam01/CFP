@@ -1,4 +1,4 @@
-import { curvaFatura, decimoTerceiro, avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, precosRepetidos, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
+import { curvaFatura, dataEntrada, decimoTerceiro, avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, precosRepetidos, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -119,6 +119,15 @@ describe('porRecebimento', () => {
     expect(l[0].reservas).toEqual([{ orcamento_id: 'm', nome: 'Mercado · Nu', valor: 180 }, { orcamento_id: 'f', nome: 'Feira · Pix/Débito', valor: 20 }]);
   });
 
+  it('salário no 5º dia útil do mês seguinte: data real e ordem pela data', () => {
+    const sal = conta({ id: 'e2', tipo: 'entrada', descricao: 'Salário', valor: 3000, dia: 5, dia_util: true, paga_mes_anterior: true });
+    const recs = [vale, sal, conta({ dia: 20 }), conta({ id: 'r2', dia: 7, valor: 200, paga_mes_anterior: true })];
+    const nov = '2026-11-01';
+    const l = porRecebimento(nov, contasDoMes(nov, recs, [], [], [], new Map()), recs, []);
+    expect(l.map((g) => [g.data, g.mes, g.util, g.total])).toEqual([['2026-11-20', nov, false, 100], ['2026-12-05', nov, true, 200]]);
+    expect(dataEntrada(sal, '2026-10-01')).toBe('2026-11-07');
+  });
+
   it('com um só dia de recebimento não separa', () => {
     expect(porRecebimento(mes, [], [salario], [])).toEqual([]);
   });
@@ -150,6 +159,12 @@ describe('proximoRecebimento', () => {
   it('já recebida fica de fora e, sem mais nenhuma no mês, vai para o seguinte', () => {
     expect(proximoRecebimento('2026-10-05', [vale, salario], [pago({ ref_id: 'e2' })])?.data).toBe('2026-10-20');
     expect(proximoRecebimento('2026-10-25', [vale, salario], [])).toEqual({ data: '2026-11-07', dias: 13, nome: 'Salário', valor: 3000 });
+  });
+
+  it('salário do mês anterior que cai neste ainda conta', () => {
+    const sal = { ...salario, dia: 5, dia_util: true, paga_mes_anterior: true };
+    expect(proximoRecebimento('2026-11-04', [vale, sal], [])).toMatchObject({ data: '2026-11-07', nome: 'Salário' });
+    expect(proximoRecebimento('2026-11-04', [vale, sal], [pago({ ref_id: 'e2', mes: '2026-10-01' })])?.data).toBe('2026-11-20');
   });
 
   it('sem entrada fixa ativa: nada', () => {

@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { addMeses, diaNoMes, diffDias, hoje, mesAtual } from '../core/datas';
-import { Recebimento, Transferencia, creditoBeneficios, noMes, parcelasDoMes, porCategoria, porRecebimento, proximoRecebimento, ritmoMes, saldoBeneficio, saldoDiario, variacaoGastos } from '../core/financas';
+import { addMeses, diffDias, hoje, mesAtual, nomeMes } from '../core/datas';
+import { Recebimento, Transferencia, creditoBeneficios, noMes, parcelasDoMes, porCategoria, proximoRecebimento, ritmoMes, saldoBeneficio, saldoDiario, variacaoGastos } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, pct, soma } from '../core/formato';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Avatar } from '../shared/avatar';
 import { Bloco } from '../shared/bloco';
+import { Mosaico } from '../shared/mosaico';
 import { Donut, Linha } from '../shared/graficos';
 import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
@@ -14,10 +15,10 @@ import { Valor } from '../shared/valor';
 import { Painel } from '../core/painel';
 
 @Component({
-  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, PrivPipe, Donut, Linha, Icon, Avatar, Bloco, Valor],
+  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, PrivPipe, Donut, Linha, Icon, Avatar, Bloco, Mosaico, Valor],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="page">
+    <div class="page" mosaico>
       <section class="saldo">
         <div class="topo">
           <small>Saldo previsto do mês</small>
@@ -103,11 +104,15 @@ import { Painel } from '../core/painel';
 
       @if (recebimentos().length) {
         <section class="card" bloco="recebimento">
-          <div class="card-head"><h2>Por recebimento</h2><a routerLink="/contas" class="small">Contas</a></div>
+          <div class="card-head"><h2>Por recebimento</h2>
+            <span class="acoes">
+              @if (s.entradaMesSeguinte()) { <button type="button" class="btn ghost sm" (click)="s.trocarRecebimento()" title="Trocar visão">{{ s.recebimentoModo() === 'mes' ? 'No mês' : 'Competência' }}<app-icon name="swap_horiz" [size]="16" /></button> }
+              <a routerLink="/contas" class="small">Contas</a>
+            </span></div>
           <div class="recs">
-            @for (g of recebimentos(); track g.dia) {
+            @for (g of recebimentos(); track g.data) {
               <a class="rec" routerLink="/contas">
-                <span class="l"><b>{{ dm(g.dia) }}</b><span class="nm">{{ g.nome }}</span></span>
+                <span class="l"><b>{{ dm(g.data) }}</b><span class="nm">{{ nomeRec(g) }}</span></span>
                 <span class="lin"><span>Recebe</span><b class="num pos">{{ g.recebe | brl }}</b></span>
                 <span class="lin"><span>Contas</span><b class="num">{{ g.total | brl }}</b></span>
                 <span class="lin"><span>A pagar</span><b class="num neg">{{ g.aPagar | brl }}</b></span>
@@ -282,6 +287,7 @@ import { Painel } from '../core/painel';
     .saldo small { opacity: 0.8; font-weight: 600; }
     .topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .acoes-topo { display: flex; gap: 6px; }
+    .acoes { display: flex; align-items: center; gap: 8px; }
     .so-icone { padding: 4px 6px; }
     .topo small { white-space: nowrap; }
     .esqueleto.grande { height: 2.4rem; width: 60%; margin: 4px 0; opacity: 0.6; }
@@ -317,10 +323,10 @@ import { Painel } from '../core/painel';
     .fechado > :not(.card-head) { display: none; }
     .fechado .card-head { margin-bottom: 0; }
     .avisos { display: flex; flex-direction: column; gap: 8px; }
-    /* computador largo: blocos em duas colunas, saldo e avisos na largura toda */
+    /* computador largo: blocos em duas colunas em mosaico (diretiva mosaico); saldo e fechamento na largura toda */
     @media (min-width: 1200px) {
-      .page { max-width: 1240px; display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
-      .saldo, .fech, .avisos, .dica { grid-column: 1 / -1; }
+      .page { max-width: 1240px; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 4px; row-gap: 0; column-gap: 16px; align-items: start; }
+      .saldo, .fech, .page > .btn { grid-column: 1 / -1; }
     }
     .avisos .grow { flex: 1; min-width: 0; }
     .dispensar { border: 0; background: none; color: var(--ink-3); padding: 2px; margin: -2px -4px 0 0; cursor: pointer; display: grid; place-items: center; }
@@ -411,10 +417,11 @@ export default class Inicio {
   protected curva = computed(() => this.curvaDias().map((d) => d.saldo));
   protected menor = computed(() => this.curvaDias().reduce((m, d) => (d.saldo < m.saldo ? d : m), this.curvaDias()[0]));
   protected idxHoje = computed(() => (noMes(hoje(), this.s.mes()) ? Number(hoje().slice(8)) - 1 : null));
-  /** dia do recebimento no mês selecionado: 05/11 */
-  protected dm = (d: number) => diaNoMes(this.s.mes(), d).slice(8) + '/' + this.s.mes().slice(5, 7);
+  /** data do recebimento: 05/12 */
+  protected dm = (d: string) => d.slice(8) + '/' + d.slice(5, 7);
+  protected nomeRec = (g: Recebimento) => (g.util ? `${g.dia}º dia útil · ` : '') + g.nome + (g.mes !== this.s.mes() ? ` de ${nomeMes(g.mes, true)}` : '');
 
-  protected recebimentos = computed(() => porRecebimento(this.s.mes(), this.s.contasMes(), this.s.recorrencias(), this.s.pagamentos(), this.s.reservasDia()));
+  protected recebimentos = this.s.recebimentos;
   protected nomesReservas = (g: Recebimento) => g.reservas.map((r) => r.nome).join(', ');
   protected proxReceb = computed(() => (this.noMesAtual() ? proximoRecebimento(hoje(), this.s.recorrencias(), this.s.pagamentos()) : null));
   protected ritmo = computed(() => ritmoMes(this.s.mes(), hoje()));

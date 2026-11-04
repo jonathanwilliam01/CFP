@@ -21,9 +21,11 @@ import { Visor } from '../shared/visor';
 import { Ordenar } from '../shared/ordenar';
 import { Menus } from '../layout/menu';
 import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
+import { conviteGuardado, limparConvite, linkConvite } from '../core/convite';
+import { Compartilhar, TEXTO_APP } from '../shared/compartilhar';
 
 @Component({
-  imports: [FormsModule, Avatar, Icon, IconePicker, Sheet, Visor, Ordenar],
+  imports: [FormsModule, Avatar, Icon, IconePicker, Sheet, Visor, Ordenar, Compartilhar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -34,7 +36,9 @@ import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
         <p class="small muted">{{ auth.user()?.email }}</p>
         <label class="field"><span>Seu nome</span><input name="nome" [(ngModel)]="nome" /></label>
         <button class="btn ghost" [disabled]="ocupado()">Salvar nome</button>
+        <button class="btn ghost" type="button" (click)="indicando.set(true)"><app-icon name="share" [size]="18" />Indicar o CFP</button>
       </form>
+      <app-compartilhar [(open)]="indicando" titulo="Indicar o CFP" [url]="origem" [texto]="textoApp" />
 
       @if (s.carteira(); as c) {
         <div class="card form">
@@ -64,9 +68,11 @@ import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
               <span class="small muted">Código de convite</span>
               <div class="cod">{{ c.codigo }}</div>
             </div>
-            <button class="btn" type="button" (click)="compartilhar(c.codigo)"><app-icon name="share" [size]="18" />Convidar</button>
+            <button class="btn" type="button" (click)="convidando.set(true)"><app-icon name="share" [size]="18" />Convidar</button>
           </div>
-          <p class="small muted">Quem entrar com este código lança e vê tudo desta carteira.</p>
+          <p class="small muted">Quem entrar com este código lança e vê tudo desta carteira. O link do convite já abre com o código preenchido.</p>
+          <app-compartilhar [(open)]="convidando" titulo="Convidar para a carteira" [url]="linkConvite(c.codigo)"
+            [texto]="'Entra na nossa carteira ' + c.nome + ' no CFP para controlarmos as finanças juntos! Abra o link, crie sua conta e o código ' + c.codigo + ' já vem preenchido.'" />
           <label class="check">
             <input type="checkbox" [checked]="s.divisao()" (change)="alternarDivisao()" [disabled]="ocupado()" />
             Dividir gastos entre os membros
@@ -406,11 +412,21 @@ export default class Config {
   inicioUso = this.s.inicio()?.slice(0, 7) ?? '';
   metaSobra = String(this.s.carteira()?.meta_sobra ?? '').replace('.', ',');
   novaCarteira = '';
-  codigo = '';
+  /** convite aberto por link por quem já tem carteira: o código vem preenchido em Entrar com código */
+  codigo = conviteGuardado();
+  protected convidando = signal(false);
+  protected indicando = signal(false);
+  protected origem = location.origin;
+  protected textoApp = TEXTO_APP;
+  protected linkConvite = linkConvite;
   cat = { id: '', nome: '', icone: 'sell', cor: '#64748b', tipo: 'gasto' as 'gasto' | 'entrada', ordem: 50, dedutivel: false };
 
   constructor() {
     this.bloqueio.bioDisponivel().then((v) => this.bioOk.set(v));
+    if (this.codigo) {
+      limparConvite();
+      this.toast.ok(`Convite ${this.codigo} carregado em Carteiras: toque em Entrar`);
+    }
   }
 
   async ligarBloqueio() {
@@ -618,19 +634,6 @@ export default class Config {
       await this.s.iniciar();
       await this.s.carregarMes();
     }, 'Início do uso salvo');
-  }
-
-  async compartilhar(codigo: string) {
-    const texto = `Entre na nossa carteira no CFP com o código ${codigo}: ${location.origin}`;
-    try {
-      if (navigator.share) await navigator.share({ title: 'CFP', text: texto });
-      else {
-        await navigator.clipboard.writeText(texto);
-        this.toast.ok('Convite copiado');
-      }
-    } catch {
-      // compartilhamento cancelado
-    }
   }
 
   novaCategoria() {

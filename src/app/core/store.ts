@@ -4,7 +4,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Auth } from './auth';
 import { removerComprovante } from './comprovante';
 import { addMeses, fimMes, hoje, inicioMes, mesAtual } from './datas';
-import { GastoHist, Transferencia, acertoMes, metaSobra, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
+import { GastoHist, Transferencia, acertoMes, metaSobra, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, porRecebimento, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
 import {
   Acerto, Beneficio, Carteira, Cartao, Categoria, ContaBancaria, Cofrinho, CofrinhoMov, Dados, Desafio, Divida, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado,
@@ -71,7 +71,7 @@ export class Store {
   /** carregando os dados do mês (esqueleto nas telas) */
   readonly carregandoMes = signal(false);
 
-  /** Gastos com data no mês anterior/atual ou na fatura do mês */
+  /** Gastos com data no mês anterior/atual ou na fatura do mês anterior, do mês ou do seguinte */
   readonly gastos = signal<Gasto[]>([]);
   readonly entradas = signal<Entrada[]>([]);
   readonly pagamentos = signal<Pagamento[]>([]);
@@ -152,6 +152,27 @@ export class Store {
   /** Reservas dos orçamentos distribuídas pelos dias do mês (saldo dia a dia e recebimentos) */
   readonly reservasDia = computed(() => reservasPorDia(this.mes(), this.orcamentosStatus(), this.cartoes(), hoje()));
   readonly orcamentosStatus = computed(() => statusOrcamentos(this.orcamentosMes(), this.gastos(), this.mes(), this.catMap(), this.cartoes(), mesAtual()));
+
+  /** Por recebimento: 'mes' = o que cai no mês (salário do mês anterior pago neste); 'competencia' = entradas e contas do mês */
+  readonly recebimentoModo = signal<'mes' | 'competencia'>(localStorage.getItem('cfp.recebimento') === 'competencia' ? 'competencia' : 'mes');
+  /** alguma entrada do mês cai no mês seguinte: só aí as duas visões diferem */
+  readonly entradaMesSeguinte = computed(() => this.recorrencias().some((r) => r.tipo === 'entrada' && r.paga_mes_anterior && r.ativo));
+
+  readonly recebimentos = computed(() => {
+    const mes = this.mes();
+    const atual = porRecebimento(mes, this.contasMes(), this.recorrencias(), this.pagamentos(), this.reservasDia());
+    if (this.recebimentoModo() === 'competencia' || !this.entradaMesSeguinte()) return atual;
+    const ant = addMeses(mes, -1);
+    const orc = statusOrcamentos(orcamentosNoMes(this.orcamentos(), this.orcamentoValores(), ant, this.orcamentoFechados()), this.gastos(), ant, this.catMap(), this.cartoes(), mesAtual());
+    const anterior = porRecebimento(ant, contasDoMes(ant, this.recorrenciasPrev(), this.cartoes(), this.gastos(), this.pagamentos(), this.catMap()),
+      this.recorrencias(), this.pagamentos(), reservasPorDia(ant, orc, this.cartoes(), hoje()));
+    return [...anterior, ...atual].filter((g) => noMes(g.data, mes)).sort((a, b) => a.data.localeCompare(b.data));
+  });
+
+  trocarRecebimento() {
+    this.recebimentoModo.update((m) => (m === 'mes' ? 'competencia' : 'mes'));
+    localStorage.setItem('cfp.recebimento', this.recebimentoModo());
+  }
 
   readonly guardadoPorCofrinho = computed(() => {
     const m = new Map<string, number>();
@@ -283,11 +304,11 @@ export class Store {
     const [gastos, entradas, pagamentos, uso, recentes, valores, anteriores] = await Promise.all([
       q<Gasto[]>(
         supabase.from('gastos').select('*').eq('carteira_id', id)
-          .or(`and(data.gte.${ini},data.lte.${fim}),fatura_mes.in.(${mes},${addMeses(mes, 1)})`)
+          .or(`and(data.gte.${ini},data.lte.${fim}),fatura_mes.in.(${ini},${mes},${addMeses(mes, 1)})`)
           .order('data', { ascending: false }).order('criado_em', { ascending: false }),
       ),
       q<Entrada[]>(supabase.from('entradas').select('*').eq('carteira_id', id).gte('data', mes).lte('data', fim).order('data', { ascending: false })),
-      q<Pagamento[]>(supabase.from('pagamentos').select('*').eq('carteira_id', id).in('mes', [ini, mes, addMeses(mes, 1)])),
+      q<Pagamento[]>(supabase.from('pagamentos').select('*').eq('carteira_id', id).in('mes', [addMeses(mes, -2), ini, mes, addMeses(mes, 1)])),
       q<UsoBeneficio[]>(supabase.rpc('uso_beneficios', { p_carteira: id, p_ate: fim })),
       q<Recente[]>(
         supabase.from('gastos').select('descricao, categoria_id, forma, cartao_id, beneficio_id').eq('carteira_id', id).is('parcelamento_id', null)

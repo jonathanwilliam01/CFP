@@ -3,6 +3,7 @@ import { CanActivateFn, Router } from '@angular/router';
 import { inject } from '@angular/core';
 import type { Session } from '@supabase/supabase-js';
 import { Push } from './push';
+import { conviteGuardado } from './convite';
 import { linkRecuperacao, q, supabase } from './supabase';
 
 /** Foto de perfil: imagem original + enquadramento (zoom e deslocamento em % do círculo) */
@@ -105,7 +106,8 @@ export const logadoGuard: CanActivateFn = async () => {
   const auth = inject(Auth);
   const router = inject(Router);
   await auth.aguardar();
-  return auth.user() ? true : router.parseUrl('/apresentacao');
+  // link de convite vai direto para criar a conta
+  return auth.user() ? true : router.parseUrl(conviteGuardado() ? '/login' : '/apresentacao');
 };
 
 export const deslogadoGuard: CanActivateFn = async () => {

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, input, signal } fro
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Auth } from '../core/auth';
+import { conviteGuardado } from '../core/convite';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
 
@@ -19,6 +20,9 @@ import { Toast } from '../shared/toast';
         <p class="muted">Lance gastos em segundos e veja para onde o dinheiro vai.</p>
       </div>
 
+      @if (convite) {
+        <p class="aviso"><app-icon name="group_add" [size]="20" />Você foi convidado para uma carteira (código {{ convite }}). Crie sua conta ou entre: o código já vem preenchido.</p>
+      }
       <form class="card form" (ngSubmit)="enviar()">
         <div class="seg">
           <button type="button" [class.on]="modo() === 'entrar'" (click)="modo.set('entrar')">Entrar</button>
@@ -45,6 +49,7 @@ import { Toast } from '../shared/toast';
     .brand { display: flex; flex-direction: column; gap: 8px; }
     .logo { align-self: flex-start; font-weight: 800; letter-spacing: 0.04em; background: var(--primary); color: var(--primary-ink); border-radius: 12px; padding: 8px 12px; font-size: 1.2rem; }
     .voltar { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 0.88rem; align-self: flex-start; }
+    .aviso { display: flex; gap: 10px; align-items: flex-start; background: var(--primary-soft); border-radius: 14px; padding: 12px; margin: 0; font-size: 0.9rem; font-weight: 600; }
     .link { background: none; border: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; }
   `,
 })
@@ -55,12 +60,13 @@ export default class Login implements OnInit {
   private router = inject(Router);
   private toast = inject(Toast);
 
+  protected convite = conviteGuardado();
   protected modo = signal<'entrar' | 'cadastrar'>('entrar');
   protected enviando = signal(false);
   nome = '';
 
   ngOnInit() {
-    if (this.criar()) this.modo.set('cadastrar');
+    if (this.criar() || this.convite) this.modo.set('cadastrar');
   }
 
   email = '';

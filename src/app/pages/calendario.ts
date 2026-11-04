@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { diaNoMes, hoje, parse } from '../core/datas';
-import { ativaNoMes, noMes, saldoDiario } from '../core/financas';
+import { addMeses, hoje, parse } from '../core/datas';
+import { ativaNoMes, dataEntrada, noMes, saldoDiario } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, soma } from '../core/formato';
 import { ContaMes, Gasto } from '../core/models';
 import { Store } from '../core/store';
@@ -144,7 +144,10 @@ export default class Calendario {
   protected dias = computed<Dia[]>(() => {
     const mes = this.s.mes();
     const gastos = this.s.gastosMes();
-    const fixas = this.s.recorrencias().filter((r) => r.tipo === 'entrada' && ativaNoMes(r, mes));
+    // entrada que cai no mês seguinte: aparece no dia em que cai (a do mês anterior cai neste)
+    const fixas = [addMeses(mes, -1), mes].flatMap((m) =>
+      this.s.recorrencias().filter((r) => r.tipo === 'entrada' && ativaNoMes(r, m)).map((r) => ({ r, m, data: dataEntrada(r, m) })),
+    );
     const totais = this.saldo().map((d) => soma(gastos.filter((g) => g.data === d.data), (g) => g.valor));
     const nz = totais.filter((v) => v > 0).sort((a, b) => a - b);
     const q = (p: number) => nz[Math.min(nz.length - 1, Math.floor(p * nz.length))] ?? 0;
@@ -157,8 +160,8 @@ export default class Calendario {
       nivel: totais[i] <= 0 ? 0 : 1 + cortes.filter((c) => totais[i] > c).length,
       contas: this.s.contasMes().filter((c) => c.vencimento === d.data && c.tipo !== 'parcela'),
       entradas: [
-        ...fixas.filter((r) => diaNoMes(mes, r.dia) === d.data).map((r) => {
-          const p = this.s.pagamentos().find((x) => x.ref_id === r.id && x.mes === mes);
+        ...fixas.filter((f) => f.data === d.data).map(({ r, m }) => {
+          const p = this.s.pagamentos().find((x) => x.ref_id === r.id && x.mes === m);
           return { descricao: r.descricao, valor: p?.valor ?? r.valor, recebida: !!p };
         }),
         ...this.s.entradasMes().filter((e) => e.data === d.data).map((e) => ({ descricao: e.descricao, valor: e.valor, recebida: true })),

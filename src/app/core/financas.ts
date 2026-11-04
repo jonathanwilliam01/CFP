@@ -1,4 +1,4 @@
-import { addDias, addMeses, diaNoMes, diasNoMes, diffDias, fechamentoFatura, fimMes, inicioFatura, inicioMes, mesFatura, mesesEntre } from './datas';
+import { addDias, addMeses, diaNoMes, diaUtil, diasNoMes, diffDias, fechamentoFatura, fimMes, inicioFatura, inicioMes, mesFatura, mesesEntre } from './datas';
 import { pct, soma } from './formato';
 import { normalizar } from './texto';
 import {
@@ -9,6 +9,12 @@ export const ativaNoMes = (r: { ativo: boolean; inicio: string; fim: string | nu
   r.ativo && inicioMes(r.inicio) <= mes && (!r.fim || inicioMes(r.fim) >= mes);
 
 export const noMes = (data: string, mes: string) => data >= mes && data <= fimMes(mes);
+
+/** Data em que a entrada fixa do mês cai: dia fixo ou N-ésimo dia útil, no mês ou no seguinte */
+export function dataEntrada(r: Pick<Recorrencia, 'dia' | 'dia_util' | 'paga_mes_anterior'>, mes: string) {
+  const m = r.paga_mes_anterior ? addMeses(mes, 1) : mes;
+  return r.dia_util ? diaUtil(m, r.dia) : diaNoMes(m, r.dia);
+}
 
 /** Contas fixas no cartão: uma cobrança por fatura; inicio/fim são meses de fatura */
 export function fixasNaFatura(mes: string, cartao: Cartao, recorrencias: Recorrencia[]) {
@@ -102,7 +108,11 @@ export function contasDoMes(
 }
 
 export interface Recebimento {
+  /** data em que cai; mes = mês das entradas e das contas */
+  data: string;
+  mes: string;
   dia: number;
+  util: boolean;
   nome: string;
   recebe: number;
   contas: ContaMes[];
@@ -125,9 +135,9 @@ export interface ReservaDia {
 }
 
 /**
- * Contas por dia de recebimento das entradas fixas (ex.: vale dia 20 e salário dia 7).
- * Cada conta fica com o último recebimento até o dia do vencimento; antes do primeiro, com o último do mês.
- * Contas pagas com benefício ficam de fora. Menos de dois dias de recebimento: lista vazia.
+ * Contas por recebimento das entradas fixas (ex.: vale dia 20 e salário no 5º dia útil do mês seguinte).
+ * Cada conta fica com a entrada de maior `dia` até o dia do vencimento; antes da primeira, com a última.
+ * Contas pagas com benefício ficam de fora. Menos de duas datas de recebimento: lista vazia.
  */
 export function porRecebimento(
   mes: string,
@@ -136,22 +146,28 @@ export function porRecebimento(
   pagamentos: Pagamento[],
   reservas: ReservaDia[] = [],
 ): Recebimento[] {
-  const dias = new Map<number, Recorrencia[]>();
-  for (const r of recorrencias.filter((r) => r.tipo === 'entrada' && ativaNoMes(r, mes)))
-    dias.set(r.dia, [...(dias.get(r.dia) ?? []), r]);
-  if (dias.size < 2) return [];
-  const grupos = [...dias.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([dia, es]) => ({
-      dia,
+  const datas = new Map<string, Recorrencia[]>();
+  for (const r of recorrencias.filter((r) => r.tipo === 'entrada' && ativaNoMes(r, mes))) {
+    const d = dataEntrada(r, mes);
+    datas.set(d, [...(datas.get(d) ?? []), r]);
+  }
+  if (datas.size < 2) return [];
+  const grupos = [...datas.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([data, es]) => ({
+      data,
+      mes,
+      dia: es[0].dia,
+      util: !!es[0].dia_util,
       nome: es.map((e) => e.descricao).join(' + '),
       recebe: soma(es, (e) => pagamentos.find((p) => p.ref_id === e.id && p.mes === mes)?.valor ?? e.valor),
       contas: [] as ContaMes[],
       res: new Map<string, { nome: string; valor: number }>(),
     }));
+  const porDia = [...grupos].sort((a, b) => a.dia - b.dia);
   const grupo = (dia: number) => {
-    let g = grupos[grupos.length - 1];
-    for (const x of grupos) if (x.dia <= dia) g = x;
+    let g = porDia[porDia.length - 1];
+    for (const x of porDia) if (x.dia <= dia) g = x;
     return g;
   };
   for (const c of contas) if (!c.beneficio_id) grupo(+c.vencimento.slice(8)).contas.push(c);
@@ -177,21 +193,19 @@ export function metaSobra(entradas: number, saldo: number, meta: number | null |
   return { meta, alvo, prevista, falta: Math.max(0, alvo - saldo), ok: saldo >= alvo - 0.005, pct: Math.max(0, Math.min(100, Math.round((saldo / alvo) * 100))) };
 }
 
-/** Próxima entrada fixa a partir do dia (neste mês ou no seguinte); já recebida (com pagamento no mês) fica de fora */
+/** Próxima entrada fixa a partir do dia (do mês anterior, deste ou do seguinte); já recebida (com pagamento no mês dela) fica de fora */
 export function proximoRecebimento(dia: string, recorrencias: Recorrencia[], pagamentos: Pagamento[]) {
-  for (const mes of [inicioMes(dia), addMeses(inicioMes(dia), 1)]) {
-    const datas = new Map<string, Recorrencia[]>();
+  const datas = new Map<string, Recorrencia[]>();
+  for (const mes of [-1, 0, 1].map((n) => addMeses(inicioMes(dia), n)))
     for (const r of recorrencias) {
       if (r.tipo !== 'entrada' || !ativaNoMes(r, mes) || pagamentos.some((p) => p.ref_id === r.id && p.mes === mes)) continue;
-      const d = diaNoMes(mes, r.dia);
+      const d = dataEntrada(r, mes);
       if (d >= dia) datas.set(d, [...(datas.get(d) ?? []), r]);
     }
-    const data = [...datas.keys()].sort()[0];
-    if (!data) continue;
-    const es = datas.get(data)!;
-    return { data, dias: diffDias(dia, data), nome: es.map((e) => e.descricao).join(' + '), valor: soma(es, (e) => e.valor) };
-  }
-  return null;
+  const data = [...datas.keys()].sort()[0];
+  if (!data) return null;
+  const es = datas.get(data)!;
+  return { data, dias: diffDias(dia, data), nome: es.map((e) => e.descricao).join(' + '), valor: soma(es, (e) => e.valor) };
 }
 
 export interface ResumoMes {
@@ -502,7 +516,7 @@ export interface DiaSaldo {
 /**
  * Saldo acumulado dia a dia no mês; o último dia bate com o saldo do resumo.
  * Entradas fixas no dia previsto (ou no recebimento), avulsas e à vista na data, contas no vencimento (paga: no pagamento).
- * Conta que vence no mês seguinte (salário do mês anterior) cai no último dia.
+ * Conta que vence ou entrada que cai no mês seguinte fica no último dia.
  */
 export function saldoDiario(
   mes: string,
@@ -519,7 +533,8 @@ export function saldoDiario(
   const dia = (d: string) => Number(d.slice(8, 10));
   for (const r of recorrencias.filter((x) => x.tipo === 'entrada' && ativaNoMes(x, mes))) {
     const p = pagamentos.find((x) => x.ref_id === r.id && x.mes === mes);
-    entra[p?.pago_em && noMes(p.pago_em, mes) ? dia(p.pago_em) : Math.min(r.dia, n)] += p?.valor ?? r.valor;
+    const d = dataEntrada(r, mes);
+    entra[p?.pago_em && noMes(p.pago_em, mes) ? dia(p.pago_em) : noMes(d, mes) ? dia(d) : n] += p?.valor ?? r.valor;
   }
   for (const e of entradas) if (noMes(e.data, mes)) entra[dia(e.data)] += e.valor;
   for (const g of gastos) if (g.forma === 'debito' && noMes(g.data, mes)) sai[dia(g.data)] += g.valor;

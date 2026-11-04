@@ -1,14 +1,17 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, Routes } from '@angular/router';
 import { deslogadoGuard, logadoGuard } from './core/auth';
+import { conviteGuardado } from './core/convite';
 import { Store } from './core/store';
 import { Shell } from './layout/shell';
 
-const carteiraGuard: CanActivateFn = async () => {
+const carteiraGuard: CanActivateFn = async (_, state) => {
   const s = inject(Store);
   const router = inject(Router);
-  if (s.carteira()) return true;
-  return (await s.iniciar()) ? true : router.parseUrl('/bem-vindo');
+  const ok = s.carteira() || (await s.iniciar());
+  if (!ok) return router.parseUrl('/bem-vindo');
+  // convite aberto por quem já tem carteira: vai para Configurações com o código preenchido
+  return conviteGuardado() && !state.url.startsWith('/config') ? router.parseUrl('/config') : true;
 };
 
 export const routes: Routes = [
