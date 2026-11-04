@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { addMeses, mesAtual } from '../core/datas';
+import { addMeses, mesAtual, mesesEntre } from '../core/datas';
 import { historicoReajustes } from '../core/financas';
 import { BrlPipe, MesPipe, parseValor, pct, soma } from '../core/formato';
-import { Divida } from '../core/models';
+import { Divida, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
 import { Icon } from '../shared/icon';
@@ -95,6 +95,9 @@ interface FormDivida {
               </select>
             </label>
           }
+        } @else if (f.recorrencia_id) {
+          <label class="field"><span>Dia do vencimento</span><input name="dia" type="number" min="1" max="31" [(ngModel)]="f.dia" /></label>
+          <p class="small muted">Mudar a 1ª parcela, o nº de parcelas, o valor ou o dia acerta também a conta fixa ligada.</p>
         }
         <button class="btn block" [disabled]="salvando()">Salvar</button>
         @if (f.id) {
@@ -178,7 +181,8 @@ export default class Dividas {
   editar(d: Divida) {
     this.f = {
       id: d.id, descricao: d.descricao, credor: d.credor ?? '', valor_parcela: String(d.valor_parcela).replace('.', ','), num_parcelas: d.num_parcelas,
-      pagas: d.pagas, inicio: d.inicio.slice(0, 7), dia: 10, conta: false, recorrencia_id: d.recorrencia_id,
+      pagas: d.pagas, inicio: d.inicio.slice(0, 7), dia: this.cadeia(d.recorrencia_id).map((id) => this.s.recorrencias().find((r) => r.id === id)!).at(-1)?.dia ?? 10,
+      conta: false, recorrencia_id: d.recorrencia_id,
     };
     this.aberto.set(true);
   }
@@ -200,6 +204,8 @@ export default class Dividas {
           inicio: ini, fim: addMeses(inicio, n - 1), ativo: true, cartao_id: null, variavel: false, paga_mes_anterior: false, beneficio_id: null,
         });
       }
+      const antes = f.id ? this.s.dividas().find((d) => d.id === f.id) : undefined;
+      if (antes?.recorrencia_id) await this.acertarConta(antes, { inicio, n, valor, pagas: Math.max(0, Math.round(+f.pagas || 0)), descricao: f.descricao.trim(), dia: +f.dia });
       await this.s.salvar('dividas', {
         id: f.id, descricao: f.descricao.trim(), credor: f.credor.trim() || null, valor_parcela: valor, num_parcelas: n,
         pagas: Math.max(0, Math.round(+f.pagas || 0)), inicio, recorrencia_id: rec,
@@ -210,6 +216,34 @@ export default class Dividas {
       this.toast.erro(e);
     } finally {
       this.salvando.set(false);
+    }
+  }
+
+  /**
+   * Edição da dívida leva junto a conta fixa ligada. Criada pela dívida: início e fim recalculados; ligada a uma conta
+   * que já existia: o início anda o mesmo tanto que a 1ª parcela (e as já pagas),
+   * fim vai para a última parcela (se a conta tinha fim), valor e descrição só quando eram os da dívida.
+   * Com reajustes, o início vale para a primeira versão e o fim para a última.
+   */
+  private async acertarConta(antes: Divida, d: { inicio: string; n: number; valor: number; pagas: number; descricao: string; dia: number }) {
+    const porId = new Map(this.s.recorrencias().map((r) => [r.id, r]));
+    const cadeia = this.cadeia(antes.recorrencia_id).map((id) => porId.get(id)!).filter(Boolean);
+    if (!cadeia.length) return;
+    const desloca = mesesEntre(antes.inicio, d.inicio) + d.pagas - antes.pagas;
+    const fim = addMeses(d.inicio, d.n - 1);
+    const dia = Math.min(31, Math.max(1, d.dia || cadeia.at(-1)!.dia));
+    for (const [i, r] of cadeia.entries()) {
+      const mud: Partial<Recorrencia> = {};
+      // conta criada pela dívida (uma versão, com fim): início e fim saem direto da dívida, o que acerta também o que já ficou errado
+      const daDivida = cadeia.length === 1 && !!r.fim;
+      const inicio = daDivida ? addMeses(d.inicio, d.pagas) : addMeses(r.inicio, desloca);
+      if (i === 0 && inicio !== r.inicio) mud.inicio = inicio;
+      if (i === cadeia.length - 1 && r.fim && r.fim !== fim) mud.fim = fim;
+      if (r.descricao === antes.descricao && d.descricao !== antes.descricao) mud.descricao = d.descricao;
+      if (cadeia.length === 1 && !r.variavel && r.valor === antes.valor_parcela && d.valor !== antes.valor_parcela) mud.valor = d.valor;
+      if (r.dia !== dia) mud.dia = dia;
+      if ((mud.inicio ?? r.inicio) > (mud.fim ?? r.fim ?? '9999')) throw new Error('A conta fixa ficaria terminando antes de começar: confira a 1ª parcela e o nº de parcelas');
+      if (Object.keys(mud).length) await this.s.salvar('recorrencias', { id: r.id, ...mud });
     }
   }
 

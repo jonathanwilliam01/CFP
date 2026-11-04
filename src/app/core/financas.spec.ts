@@ -17,6 +17,23 @@ const gasto = (p: Partial<Gasto> = {}): Gasto => ({
 
 const pago = (p: Partial<Pagamento>): Pagamento => ({ id: 'p1', tipo: 'recorrencia', ref_id: 'r1', mes: '2026-10-01', valor: 0, pago_em: '2026-10-10', ...p });
 
+describe('parcela no boleto/débito', () => {
+  const mes = '2026-12-01';
+  const g = gasto({ id: 'p2', descricao: 'Emprestimo (2/2)', valor: 321.25, data: '2026-12-20', parcelamento_id: 'pp', parcela: 2 });
+  it('vira conta do mês no vencimento e conta no a pagar sem dobrar as saídas', () => {
+    const contas = contasDoMes(mes, [], [], [g], [], new Map());
+    expect(contas).toHaveLength(1);
+    expect(contas[0]).toMatchObject({ tipo: 'parcela', ref_id: 'p2', vencimento: '2026-12-20', valor: 321.25, pago: null });
+    const r = resumoMes(mes, [g], 0, [], contas, []);
+    expect(r.saidas).toBe(321.25);
+    expect(r.aPagar).toBe(321.25);
+    const pg = pago({ tipo: 'parcela', ref_id: 'p2', mes, valor: 321.25, pago_em: '2026-12-20' });
+    const pagas = contasDoMes(mes, [], [], [g], [pg], new Map());
+    expect(resumoMes(mes, [g], 0, [], pagas, [pg]).aPagar).toBe(0);
+    expect(saldoDiario(mes, [g], [], [], contas, []).at(-1)!.saldo).toBe(-321.25);
+  });
+});
+
 describe('contasDoMes', () => {
   const mes = '2026-10-01';
 

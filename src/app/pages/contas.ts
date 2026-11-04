@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { addMeses, diffDias, hoje, inicioMes, mesAtual, mesesEntre, nomeMes } from '../core/datas';
+import { addMeses, diaNoMes, diffDias, hoje, inicioMes, mesAtual, mesesEntre, nomeMes } from '../core/datas';
 import { ACIMA_MEDIA, CompraRecorrente, Recebimento, aporteMensal, fixasNaFatura, mediaContas, noMes, porRecebimento } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, parseValor, soma } from '../core/formato';
 import { Cartao, Cofrinho, ContaMes, Gasto, Recorrencia } from '../core/models';
@@ -35,7 +35,7 @@ import { taxas } from './calc/comum';
         <div class="stats">
           @for (g of recebimentos(); track g.dia) {
             <button type="button" class="stat rec" [class.on]="diaSel() === g.dia" (click)="diaSel.set(diaSel() === g.dia ? null : g.dia)">
-              <div class="l">Dia {{ g.dia }} · {{ g.nome }}</div>
+              <div class="l">{{ dm(g.dia) }} · {{ g.nome }}</div>
               <div class="lin"><span>Recebe</span><b class="pos">{{ g.recebe | brl }}</b></div>
               <div class="lin"><span>Contas</span><b>{{ g.total | brl }}</b></div>
               <div class="lin"><span>A pagar</span><b class="neg">{{ g.aPagar | brl }}</b></div>
@@ -274,6 +274,9 @@ export default class Contas {
   protected formAberto = signal(false);
   protected fixaSel = signal<Recorrencia | null>(null);
   protected sugestao = signal<CompraRecorrente | null>(null);
+
+  /** dia do recebimento no mês selecionado: 05/11 */
+  protected dm = (d: number) => diaNoMes(this.s.mes(), d).slice(8) + '/' + this.s.mes().slice(5, 7);
 
   protected recebimentos = computed(() => porRecebimento(this.s.mes(), this.s.contasMes(), this.s.recorrencias(), this.s.pagamentos(), this.s.reservasDia()));
   protected nomesReservas = (g: Recebimento) => g.reservas.map((r) => `${r.nome} ${moeda(r.valor)}`).join(', ');

@@ -155,7 +155,7 @@ export default class Calendario {
       saldo: d.saldo,
       gasto: totais[i],
       nivel: totais[i] <= 0 ? 0 : 1 + cortes.filter((c) => totais[i] > c).length,
-      contas: this.s.contasMes().filter((c) => c.vencimento === d.data),
+      contas: this.s.contasMes().filter((c) => c.vencimento === d.data && c.tipo !== 'parcela'),
       entradas: [
         ...fixas.filter((r) => diaNoMes(mes, r.dia) === d.data).map((r) => {
           const p = this.s.pagamentos().find((x) => x.ref_id === r.id && x.mes === mes);

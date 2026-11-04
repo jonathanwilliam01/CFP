@@ -134,7 +134,8 @@ export interface Recorrencia {
 
 export interface Pagamento {
   id: string;
-  tipo: 'recorrencia' | 'fatura';
+  /** parcela: parcela de parcelamento fora do cartão, ref_id = gasto (036) */
+  tipo: 'recorrencia' | 'fatura' | 'parcela';
   ref_id: string;
   mes: string;
   valor: number;
@@ -275,9 +276,9 @@ export interface Desafio {
   fim: string;
 }
 
-/** Item da aba Contas: conta fixa ou fatura de cartão no mês */
+/** Item da aba Contas: conta fixa, fatura de cartão ou parcela no boleto/débito no mês */
 export interface ContaMes {
-  tipo: 'recorrencia' | 'fatura';
+  tipo: 'recorrencia' | 'fatura' | 'parcela';
   ref_id: string;
   descricao: string;
   icone: string;

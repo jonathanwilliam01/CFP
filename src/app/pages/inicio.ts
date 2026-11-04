@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { addMeses, diffDias, hoje, mesAtual } from '../core/datas';
+import { addMeses, diaNoMes, diffDias, hoje, mesAtual } from '../core/datas';
 import { Recebimento, Transferencia, creditoBeneficios, noMes, parcelasDoMes, porCategoria, porRecebimento, proximoRecebimento, ritmoMes, saldoBeneficio, saldoDiario, variacaoGastos } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, pct, soma } from '../core/formato';
 import { Insights } from '../core/insights';
@@ -107,7 +107,7 @@ import { Painel } from '../core/painel';
           <div class="recs">
             @for (g of recebimentos(); track g.dia) {
               <a class="rec" routerLink="/contas">
-                <span class="l"><b>Dia {{ g.dia }}</b><span class="nm">{{ g.nome }}</span></span>
+                <span class="l"><b>{{ dm(g.dia) }}</b><span class="nm">{{ g.nome }}</span></span>
                 <span class="lin"><span>Recebe</span><b class="num pos">{{ g.recebe | brl }}</b></span>
                 <span class="lin"><span>Contas</span><b class="num">{{ g.total | brl }}</b></span>
                 <span class="lin"><span>A pagar</span><b class="num neg">{{ g.aPagar | brl }}</b></span>
@@ -410,6 +410,9 @@ export default class Inicio {
   protected curva = computed(() => this.curvaDias().map((d) => d.saldo));
   protected menor = computed(() => this.curvaDias().reduce((m, d) => (d.saldo < m.saldo ? d : m), this.curvaDias()[0]));
   protected idxHoje = computed(() => (noMes(hoje(), this.s.mes()) ? Number(hoje().slice(8)) - 1 : null));
+  /** dia do recebimento no mês selecionado: 05/11 */
+  protected dm = (d: number) => diaNoMes(this.s.mes(), d).slice(8) + '/' + this.s.mes().slice(5, 7);
+
   protected recebimentos = computed(() => porRecebimento(this.s.mes(), this.s.contasMes(), this.s.recorrencias(), this.s.pagamentos(), this.s.reservasDia()));
   protected nomesReservas = (g: Recebimento) => g.reservas.map((r) => r.nome).join(', ');
   protected proxReceb = computed(() => (this.noMesAtual() ? proximoRecebimento(hoje(), this.s.recorrencias(), this.s.pagamentos()) : null));

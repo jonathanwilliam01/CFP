@@ -408,7 +408,7 @@ export class Store {
 
   /** Registra a baixa e devolve o id do pagamento; sem pagoEm só grava o valor do mês */
   /** `resto`: fatura paga em parte, o que passa para a fatura seguinte */
-  async pagar(tipo: 'recorrencia' | 'fatura', refId: string, valor: number, pagoEm: string | null, mes = this.mes(), resto = 0) {
+  async pagar(tipo: Pagamento['tipo'], refId: string, valor: number, pagoEm: string | null, mes = this.mes(), resto = 0) {
     const { id } = await q<{ id: string }>(
       supabase.from('pagamentos').upsert(
         { carteira_id: this.carteiraId(), tipo, ref_id: refId, mes, valor, pago_em: pagoEm, ...(tipo === 'fatura' ? { resto } : {}) },

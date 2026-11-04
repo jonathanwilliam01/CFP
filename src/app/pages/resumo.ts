@@ -242,7 +242,7 @@ export default class Resumo {
       return ['Entrada fixa', csvData(diaNoMes(mes, r.dia)), csvTexto(r.descricao), cat(r.categoria_id), '', '', p ? 'Recebida' : 'Prevista', csvValor(p?.valor ?? r.valor)].join(';');
     });
     const contas = s.contasMes().map((c) =>
-      [c.tipo === 'fatura' ? 'Fatura' : 'Conta', csvData(c.vencimento), csvTexto(c.descricao), '', '', '', c.pago ? 'Paga' : 'Em aberto', csvValor(c.valor)].join(';'));
+      [c.tipo === 'fatura' ? 'Fatura' : c.tipo === 'parcela' ? 'Parcela' : 'Conta', csvData(c.vencimento), csvTexto(c.descricao), '', '', '', c.pago ? 'Paga' : 'Em aberto', csvValor(c.valor)].join(';'));
     baixarCsv(`cfp-${mes.slice(0, 7)}.csv`, 'Tipo;Data;Descrição;Categoria;Pagamento;Pessoa;Situação;Valor', [...gastos, ...avulsas, ...fixas, ...contas]);
   }
 

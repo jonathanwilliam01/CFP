@@ -80,7 +80,25 @@ export function contasDoMes(
     })
     .filter((f) => f.valor > 0);
 
-  return [...fixas, ...faturas].sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+  // parcela fora do cartão já é gasto à vista na data; aqui só aparece como conta a pagar no vencimento
+  const parcelas: ContaMes[] = gastos
+    .filter((g) => g.parcelamento_id && g.parcela != null && g.forma === 'debito' && noMes(g.data, mes))
+    .map((g) => {
+      const c = g.categoria_id ? categorias.get(g.categoria_id) : undefined;
+      return {
+        tipo: 'parcela' as const,
+        ref_id: g.id,
+        descricao: g.descricao,
+        icone: c?.icone ?? 'event_repeat',
+        cor: c?.cor ?? '#64748b',
+        vencimento: g.data,
+        mes,
+        valor: g.valor,
+        pago: pago('parcela', g.id),
+      };
+    });
+
+  return [...fixas, ...faturas, ...parcelas].sort((a, b) => a.vencimento.localeCompare(b.vencimento));
 }
 
 export interface Recebimento {
@@ -216,6 +234,8 @@ export function resumoMes(
   );
   const entradas = entradasFixas + entradasAvulsas;
   const saidas = avista + faturas + contasFixas + reservado;
+  // parcelas no boleto/débito já estão no à vista: só contam no a pagar
+  const parcelas = soma(contas.filter((c) => c.tipo === 'parcela'), (c) => c.valor);
   const pago = soma(contas.filter((c) => c.pago), (c) => c.valor);
   return {
     entradas,
@@ -230,7 +250,7 @@ export function resumoMes(
     consumo: soma(doMes, (g) => g.valor),
     saldo: entradas - saidas,
     pago,
-    aPagar: contasFixas + faturas - pago,
+    aPagar: contasFixas + faturas + parcelas - pago,
   };
 }
 
@@ -505,7 +525,7 @@ export function saldoDiario(
   for (const g of gastos) if (g.forma === 'debito' && noMes(g.data, mes)) sai[dia(g.data)] += g.valor;
   for (const r of reservas) sai[r.dia] += r.valor;
   for (const c of contas) {
-    if (c.beneficio_id) continue;
+    if (c.beneficio_id || c.tipo === 'parcela') continue;
     const pg = c.pago?.pago_em;
     sai[pg && noMes(pg, mes) ? dia(pg) : noMes(c.vencimento, mes) ? dia(c.vencimento) : n] += c.valor;
   }
