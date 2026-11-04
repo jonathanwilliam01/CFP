@@ -159,6 +159,8 @@ export class Store {
     return m;
   });
 
+  /** pagamentos de contas fixas (médias) já carregados: só voltam a ler quando pagamento ou fixa muda */
+  private valoresOk = false;
   private canal: RealtimeChannel | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private reqMes = 0;
@@ -169,6 +171,7 @@ export class Store {
       if (id) localStorage.setItem('cfp.carteira', id);
       untracked(() => {
         this.assinar(id);
+        this.valoresOk = false;
         if (id) this.carregarTudo();
       });
     });
@@ -228,6 +231,7 @@ export class Store {
   }
 
   private limpar() {
+    this.valoresOk = false;
     this.carteiras.set([]);
     this.membros.set([]);
     const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.orcamentoFechados, this.cofrinhos, this.cofrinhoMovs, this.registros, this.acertos, this.receber, this.dividas, this.desafios, this.contasBancarias, this.regras, this.viagens, this.desejos, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
@@ -289,9 +293,11 @@ export class Store {
         supabase.from('gastos').select('descricao, categoria_id, forma, cartao_id, beneficio_id').eq('carteira_id', id).is('parcelamento_id', null)
           .order('criado_em', { ascending: false }).limit(300),
       ),
-      q<Pick<Pagamento, 'id' | 'ref_id' | 'mes' | 'valor'>[]>(
-        supabase.from('pagamentos').select('id, ref_id, mes, valor').eq('carteira_id', id).eq('tipo', 'recorrencia').order('mes', { ascending: false }),
-      ),
+      this.valoresOk
+        ? Promise.resolve(null)
+        : q<Pick<Pagamento, 'id' | 'ref_id' | 'mes' | 'valor'>[]>(
+            supabase.from('pagamentos').select('id, ref_id, mes, valor').eq('carteira_id', id).eq('tipo', 'recorrencia').order('mes', { ascending: false }),
+          ),
       q<GastoHist[]>(
         supabase.from('gastos').select('descricao, valor, data, categoria_id, forma, cartao_id, fatura_mes, parcelamento_id').eq('carteira_id', id).gte('data', desde).lt('data', mes),
       ),
@@ -302,7 +308,10 @@ export class Store {
     this.entradas.set(entradas);
     this.pagamentos.set(pagamentos);
     this.usoBeneficios.set(uso);
-    this.valoresFixas.set(valores);
+    if (valores) {
+      this.valoresFixas.set(valores);
+      this.valoresOk = true;
+    }
     this.gastosAnteriores.set(anteriores);
     const vistos = new Set<string>();
     this.recentes.set(recentes.filter((r) => {
@@ -352,6 +361,14 @@ export class Store {
     );
   }
 
+  /** Puxar para atualizar: carteiras, cadastros e o mês, sem recarregar a página */
+  async atualizarTudo() {
+    await this.iniciar();
+    this.valoresOk = false;
+    await Promise.all([this.carregarTudo(), this.carregarMes()]);
+    this.mudou.update((n) => n + 1);
+  }
+
   /** Vários gastos de uma vez, com desfazer (seleção em Gastos) */
   excluirGastos(ids: string[], texto: string) {
     const sel = new Set(ids);
@@ -381,6 +398,7 @@ export class Store {
   }
 
   async depois(tabela: string) {
+    if (tabela === 'pagamentos' || tabela === 'recorrencias') this.valoresOk = false;
     if (eCadastro(tabela)) await this.recarregar(tabela);
     if (DO_MES.includes(tabela)) await this.carregarMes();
   }
@@ -415,6 +433,7 @@ export class Store {
         { onConflict: 'tipo,ref_id,mes' },
       ).select('id').single(),
     );
+    this.valoresOk = false;
     await this.carregarMes();
     return id;
   }
@@ -429,6 +448,7 @@ export class Store {
           { onConflict: 'tipo,ref_id,mes' },
         ),
       );
+    this.valoresOk = false;
     await this.carregarMes();
   }
 
@@ -438,6 +458,7 @@ export class Store {
    */
   async reajustar(r: Recorrencia, valor: number, mes: string) {
     await q(supabase.rpc('reajustar_recorrencia', { p_id: r.id, p_valor: valor, p_mes: mes }));
+    this.valoresOk = false;
     await Promise.all([this.recarregar('recorrencias'), this.carregarMes()]);
   }
 
@@ -480,10 +501,29 @@ export class Store {
     for (const t of TEMPO_REAL) {
       ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: t, filter: `carteira_id=eq.${id}` }, () => this.agendar(t));
       ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: t, filter: `carteira_id=eq.${id}` }, () => this.agendar(t));
-      ch.on('postgres_changes', { event: 'DELETE', schema: 'public', table: t }, () => this.agendar(t));
+      ch.on('postgres_changes', { event: 'DELETE', schema: 'public', table: t }, (p) => this.apagou(t, (p.old as { id?: string })?.id));
     }
     ch.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'carteiras', filter: `id=eq.${id}` }, () => this.agendar('carteiras'));
     this.canal = ch.subscribe();
+  }
+
+  /**
+   * DELETE chega de qualquer carteira (o Supabase não filtra): nos cadastros, que ficam inteiros na memória,
+   * só recarrega se o id era daqui. Gastos e afins podem ser de outro mês desta carteira: esses recarregam sempre.
+   */
+  private apagou(t: string, id: string | undefined) {
+    if (id && eCadastro(t) && !this.listaDe(t)().some((x: { id: string }) => x.id === id)) return;
+    this.agendar(t);
+  }
+
+  private listaDe(t: Cadastro): WritableSignal<{ id: string }[]> {
+    const m: Record<Cadastro, WritableSignal<any[]>> = {
+      categorias: this.categorias, cartoes: this.cartoes, beneficios: this.beneficios, recorrencias: this.recorrencias, orcamentos: this.orcamentos,
+      orcamento_valores: this.orcamentoValores, orcamento_fechados: this.orcamentoFechados, cofrinhos: this.cofrinhos, cofrinho_movs: this.cofrinhoMovs,
+      registros: this.registros, acertos: this.acertos, receber: this.receber, dividas: this.dividas, desafios: this.desafios,
+      contas_bancarias: this.contasBancarias, regras: this.regras, viagens: this.viagens, desejos: this.desejos,
+    };
+    return m[t];
   }
 
   private pendentes = new Set<string>();
@@ -503,6 +543,7 @@ export class Store {
         await this.recarregarMembros();
       }
       await Promise.all(ts.filter(eCadastro).map((x) => this.recarregar(x)));
+      if (ts.includes('pagamentos') || ts.includes('recorrencias')) this.valoresOk = false;
       if (ts.some((x) => DO_MES.includes(x))) await this.carregarMes();
       this.mudou.update((n) => n + 1);
     }, 600);

@@ -268,6 +268,16 @@ import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
               <input type="checkbox" [checked]="resumoMensal()" (change)="alternarResumo()" [disabled]="ocupado()" />
               Resumo do mês que fechou no dia 1
             </label>
+            <label class="check">
+              <input type="checkbox" [checked]="opcao('push_fatura')" (change)="alternarOpcao('push_fatura', 'Aviso de fatura fechada')" [disabled]="ocupado()" />
+              Quando a fatura do cartão fechar, com o total
+            </label>
+            @if (s.contasBancarias().length) {
+              <label class="check">
+                <input type="checkbox" [checked]="opcao('lembrete_saldos')" (change)="alternarOpcao('lembrete_saldos', 'Lembrete dos saldos')" [disabled]="ocupado()" />
+                Domingo, se algum saldo bancário estiver sem atualizar há mais de uma semana
+              </label>
+            }
           }
         }
       </div>
@@ -527,6 +537,19 @@ export default class Config {
       await q(supabase.from('carteira_membros').update({ resumo_mensal }).eq('carteira_id', this.s.carteiraId()!).eq('user_id', this.auth.user()!.id));
       await this.s.carregarTudo();
     }, resumo_mensal ? 'Resumo mensal ligado' : 'Resumo mensal desligado');
+  }
+
+  /** opção de aviso do membro (ligada por padrão) */
+  opcao(k: 'push_fatura' | 'lembrete_saldos') {
+    return this.s.membros().find((m) => m.user_id === this.auth.user()?.id)?.[k] !== false;
+  }
+
+  alternarOpcao(k: 'push_fatura' | 'lembrete_saldos', nome: string) {
+    const v = !this.opcao(k);
+    return this.exec(async () => {
+      await q(supabase.from('carteira_membros').update({ [k]: v }).eq('carteira_id', this.s.carteiraId()!).eq('user_id', this.auth.user()!.id));
+      await this.s.carregarTudo();
+    }, `${nome} ${v ? 'ligado' : 'desligado'}`);
   }
 
   protected buscaRegra = signal('');

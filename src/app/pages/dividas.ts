@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { addMeses, mesAtual, mesesEntre } from '../core/datas';
+import { RouterLink } from '@angular/router';
+import { addMeses, hoje, mesAtual, mesesEntre } from '../core/datas';
 import { historicoReajustes } from '../core/financas';
 import { BrlPipe, MesPipe, parseValor, pct, soma } from '../core/formato';
 import { Divida, Recorrencia } from '../core/models';
@@ -26,7 +27,7 @@ interface FormDivida {
 
 /** Dívidas e financiamentos: saldo devedor, quanto falta e quando termina */
 @Component({
-  imports: [FormsModule, BrlPipe, MesPipe, Icon, Sheet],
+  imports: [FormsModule, RouterLink, BrlPipe, MesPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -37,9 +38,23 @@ interface FormDivida {
       <p class="muted small">Financiamentos, empréstimos e acordos. Ligada a uma conta fixa, cada parcela paga em Contas avança aqui.</p>
 
       <div class="stats">
-        <div class="stat"><div class="l">Saldo devedor</div><div class="v neg">{{ saldo() | brl }}</div></div>
-        <div class="stat"><div class="l">Parcelas por mês</div><div class="v">{{ porMes() | brl }}</div></div>
+        <div class="stat"><div class="l">Saldo devedor</div><div class="v neg">{{ saldo() + boletoFalta() | brl }}</div></div>
+        <div class="stat"><div class="l">Parcelas por mês</div><div class="v">{{ porMes() + boletoMes() | brl }}</div></div>
       </div>
+
+      @if (boletos().length) {
+        <section class="card">
+          <div class="card-head"><h2>Parcelados no boleto/débito</h2><a routerLink="/parcelamentos" class="small">Parcelamentos</a></div>
+          <p class="small muted">Compras e empréstimos lançados como parcelado fora do cartão. Cada parcela aparece em Contas no dia dela; não precisa cadastrar de novo aqui.</p>
+          @for (b of boletos(); track b.id) {
+            <div class="row">
+              <span class="ico"><app-icon name="event_repeat" /></span>
+              <div class="grow"><div class="t">{{ b.descricao }}</div><div class="s">{{ b.faltam }} de {{ b.num }} parcelas a vencer · termina em {{ b.fim | mes }}</div></div>
+              <span class="v">{{ b.falta | brl }}</span>
+            </div>
+          }
+        </section>
+      }
 
       @for (d of lista(); track d.d.id) {
         <article class="card">
@@ -148,7 +163,39 @@ export default class Dividas {
     return id ? historicoReajustes(this.s.recorrencias(), id).map((r) => r.id) : [];
   }
 
+  /** parcelas futuras de parcelamentos fora do cartão (o mesmo empréstimo não precisa virar dívida) */
+  private parcBoleto = signal<{ parcelamento_id: string; descricao: string; valor: number; data: string }[]>([]);
+  protected boletos = computed(() => {
+    const m = new Map<string, { id: string; descricao: string; num: number; faltam: number; falta: number; fim: string; mes: number }>();
+    for (const g of this.parcBoleto()) {
+      const a = m.get(g.parcelamento_id) ?? { id: g.parcelamento_id, descricao: g.descricao.replace(/\s*\(\d+\/\d+\)$/, ''), num: 0, faltam: 0, falta: 0, fim: g.data, mes: g.valor };
+      a.faltam++;
+      a.falta += g.valor;
+      if (g.data > a.fim) a.fim = g.data;
+      a.num = Number(g.descricao.match(/\/(\d+)\)$/)?.[1] ?? a.faltam);
+      m.set(g.parcelamento_id, a);
+    }
+    return [...m.values()];
+  });
+  protected boletoFalta = computed(() => soma(this.boletos(), (b) => b.falta));
+  protected boletoMes = computed(() => soma(this.boletos(), (b) => b.mes));
+
+  private async carregarBoletos() {
+    try {
+      this.parcBoleto.set(await q(
+        supabase.from('gastos').select('parcelamento_id, descricao, valor, data').eq('carteira_id', this.s.carteiraId()!).eq('forma', 'debito')
+          .not('parcela', 'is', null).gte('data', hoje()).order('data'),
+      ));
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
+
   constructor() {
+    effect(() => {
+      this.s.mudou();
+      if (this.s.carteiraId()) untracked(() => this.carregarBoletos());
+    });
     effect(() => {
       const ids = this.s.dividas().flatMap((d) => this.cadeia(d.recorrencia_id));
       this.s.mudou();
@@ -237,7 +284,10 @@ export default class Dividas {
       // conta criada pela dívida (uma versão, com fim): início e fim saem direto da dívida, o que acerta também o que já ficou errado
       const daDivida = cadeia.length === 1 && !!r.fim;
       const inicio = daDivida ? addMeses(d.inicio, d.pagas) : addMeses(r.inicio, desloca);
-      if (i === 0 && inicio !== r.inicio) mud.inicio = inicio;
+      if (i === 0 && inicio !== r.inicio) {
+        mud.inicio = inicio;
+        await this.moverPagamentos(r.id, mesesEntre(r.inicio, inicio));
+      }
       if (i === cadeia.length - 1 && r.fim && r.fim !== fim) mud.fim = fim;
       if (r.descricao === antes.descricao && d.descricao !== antes.descricao) mud.descricao = d.descricao;
       if (cadeia.length === 1 && !r.variavel && r.valor === antes.valor_parcela && d.valor !== antes.valor_parcela) mud.valor = d.valor;
@@ -245,6 +295,14 @@ export default class Dividas {
       if ((mud.inicio ?? r.inicio) > (mud.fim ?? r.fim ?? '9999')) throw new Error('A conta fixa ficaria terminando antes de começar: confira a 1ª parcela e o nº de parcelas');
       if (Object.keys(mud).length) await this.s.salvar('recorrencias', { id: r.id, ...mud });
     }
+  }
+
+  /** Pagamentos marcados acompanham a conta que mudou de mês (do fim para o começo para não bater no mês ocupado) */
+  private async moverPagamentos(refId: string, meses: number) {
+    if (!meses) return;
+    const l = await q<{ id: string; mes: string }[]>(supabase.from('pagamentos').select('id, mes').eq('tipo', 'recorrencia').eq('ref_id', refId));
+    l.sort((a, b) => (meses > 0 ? b.mes.localeCompare(a.mes) : a.mes.localeCompare(b.mes)));
+    for (const p of l) await q(supabase.from('pagamentos').update({ mes: addMeses(p.mes, meses) }).eq('id', p.id));
   }
 
   pagarUma(d: Divida) {

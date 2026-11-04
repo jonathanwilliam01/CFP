@@ -28,6 +28,9 @@ export interface Membro {
   push_gastos?: boolean;
   /** push com o resumo do mês no dia 1 (035) */
   resumo_mensal?: boolean;
+  /** push no dia em que a fatura fecha e lembrete semanal dos saldos (037) */
+  push_fatura?: boolean;
+  lembrete_saldos?: boolean;
 }
 
 export interface Categoria {

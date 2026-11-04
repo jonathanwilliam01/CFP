@@ -1,0 +1,43 @@
+# Build de produção e testes a cada envio; telas (Playwright) só com a conta de teste nos secrets
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  telas:
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      CFP_EMAIL: ${{ secrets.CFP_EMAIL }}
+      CFP_SENHA: ${{ secrets.CFP_SENHA }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.CFP_EMAIL != ''
+      - uses: actions/setup-node@v4
+        if: env.CFP_EMAIL != ''
+        with: { node-version: 24, cache: npm }
+      - run: npm ci && npx playwright install --with-deps chromium && npm run env
+        if: env.CFP_EMAIL != ''
+      - run: npm run e2e
+        if: env.CFP_EMAIL != ''
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright, path: test-results }

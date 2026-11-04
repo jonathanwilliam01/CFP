@@ -6,7 +6,7 @@ import { BrlPipe, MesPipe, moeda, parseValor } from '../core/formato';
 import { Entrada, Forma, Gasto } from '../core/models';
 import { Chat } from '../core/chat';
 import { Recente, Store } from '../core/store';
-import { lerComprovante, lerTags, lerTexto, regraPara } from '../core/texto';
+import { lerComprovante, lerCupom, lerTags, lerTexto, regraPara } from '../core/texto';
 import { Auth } from '../core/auth';
 import { Fila, ItemFila, semRede } from '../core/fila';
 import { guardarArquivo } from '../core/arquivos';
@@ -218,8 +218,10 @@ export class LancarSheet {
         this.f.set(g ? this.deGasto(g) : e ? this.deEntrada(e) : (this.proxima ?? this.vazio()));
         this.proxima = null;
         this.estrangeiro.set('');
-        this.arquivo.set(this.l.arquivo());
+        const compartilhado = this.l.arquivo();
+        this.arquivo.set(compartilhado);
         this.l.arquivo.set(null);
+        if (compartilhado?.type.startsWith('image/') && !this.l.texto()) this.lerFoto(compartilhado);
         this.tirar.set(false);
         const t = this.l.texto();
         if (t) {
@@ -319,7 +321,7 @@ export class LancarSheet {
     if (modo === 'entrada') t.categoria_id = null;
     const f: FormLanc = {
       ...a,
-      valor: t.valor != null ? String(t.valor).replace('.', ',') : a.valor,
+      valor: t.valor != null ? (Number.isInteger(t.valor) ? String(t.valor) : t.valor.toFixed(2).replace('.', ',')) : a.valor,
       descricao: t.descricao || a.descricao,
       data: t.data ?? a.data,
       pagamento: t.pagamento ?? a.pagamento,
@@ -345,6 +347,26 @@ export class LancarSheet {
       this.arquivo.set(await prepararComprovante(arq));
     } catch (e) {
       this.toast.erro(e);
+    }
+  }
+
+  /** progresso da leitura da foto (null = parado) */
+  protected lendo = signal<number | null>(null);
+
+  /** Lê valor, data e loja da foto e aplica como o texto rápido; o que já foi digitado só muda no que a foto trouxe */
+  async lerFoto(img: Blob) {
+    this.lendo.set(0);
+    try {
+      const { lerImagem } = await import('../core/ocr');
+      const t = lerCupom(await lerImagem(img, (p) => this.lendo.set(Math.round(p * 100))));
+      if (!t) return this.toast.erro('Não achei o valor na foto. Preencha à mão.');
+      this.rapido.set(t);
+      this.aplicarTexto();
+      this.toast.ok('Lido da foto: confira antes de salvar');
+    } catch (e) {
+      this.toast.erro('Não deu para ler a foto: ' + (e instanceof Error ? e.message : e));
+    } finally {
+      this.lendo.set(null);
     }
   }
 
@@ -409,7 +431,7 @@ export class LancarSheet {
         dados: {
           id: crypto.randomUUID(), tipo: entrada ? 'entrada' : 'conta', descricao, categoria_id: f.categoria_id, valor, dia: this.diaFixa(),
           inicio, fim: f.fim ? `${f.fim}-01` : null, ativo: true, cartao_id: cartao?.id ?? null,
-          variavel: !entrada && f.variavel, paga_mes_anterior: !entrada && !cartao && !benef && f.anterior, beneficio_id: benef,
+          variavel: f.variavel, paga_mes_anterior: !entrada && !cartao && !benef && f.anterior, beneficio_id: benef,
         },
         pago: this.podeJaPago() && f.jaPago ? { mes: inicio, valor, pago_em: f.data } : null,
       };

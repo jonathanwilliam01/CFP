@@ -308,19 +308,19 @@ const VAO = 6;
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (d(); as x) {
-      <svg [attr.viewBox]="'0 0 ' + larg + ' ' + (alt + 26)" role="img" [attr.aria-label]="'Fluxo do mês: ' + (x.total | brl)">
+      <svg [attr.viewBox]="'0 0 ' + larg + ' ' + (x.alt + 26)" role="img" [attr.aria-label]="'Fluxo do mês: ' + (x.total | brl)">
         <g transform="translate(0, 22)">
           @for (b of x.faixas; track $index) {
             <path class="faixa" [attr.d]="b.d" [attr.fill]="b.cor"><title>{{ b.nome }}: {{ b.valor | brl }}</title></path>
           }
           @for (n of x.esq; track n.nome) {
             <rect x="0" [attr.y]="n.y" width="8" [attr.height]="n.h" [attr.fill]="n.cor" rx="2" />
-            <text x="12" [attr.y]="n.y + n.h / 2" dominant-baseline="middle"><tspan class="n">{{ n.nome }}</tspan> <tspan class="v">{{ n.valor | brl }}</tspan></text>
+            <text x="12" [attr.y]="n.y + n.h / 2" dominant-baseline="middle"><tspan class="n">{{ n.nome }}</tspan><tspan class="v" dx="4">{{ n.valor | brl }}</tspan></text>
           }
           <rect [attr.x]="larg / 2 - 4" [attr.y]="x.meio.y" width="8" [attr.height]="x.meio.h" fill="var(--ink-3)" rx="2" />
           @for (n of x.dir; track n.nome) {
             <rect [attr.x]="larg - 8" [attr.y]="n.y" width="8" [attr.height]="n.h" [attr.fill]="n.cor" rx="2" />
-            <text [attr.x]="larg - 12" [attr.y]="n.y + n.h / 2" dominant-baseline="middle" text-anchor="end"><tspan class="n">{{ n.nome }}</tspan> <tspan class="v">{{ n.valor | brl }}</tspan></text>
+            <text [attr.x]="larg - 12" [attr.y]="n.y + n.h / 2" dominant-baseline="middle" text-anchor="end"><tspan class="n">{{ n.nome }}</tspan><tspan class="v" dx="4">{{ n.valor | brl }}</tspan></text>
           }
         </g>
         <text class="topo" [attr.x]="larg / 2" y="10" text-anchor="middle">{{ x.total | brl }}</text>
@@ -354,14 +354,16 @@ export class Fluxo {
     const total = Math.max(te, ts);
     const n = Math.max(esq.length, dir.length);
     const k = (ALT - VAO * (n - 1)) / total;
+    // nó pequeno ocupa ao menos a altura do rótulo, para os nomes não se sobreporem
+    const vaga = (f: Fatia) => Math.max(f.valor * k, 13);
     const coluna = (l: Fatia[]) => {
       // centraliza a coluna com menos nós
-      const usado = soma(l) * k + VAO * (l.length - 1);
-      let y = (ALT - usado) / 2;
+      const usado = l.reduce((a, f) => a + vaga(f), 0) + VAO * (l.length - 1);
+      let y = Math.max(0, (ALT - usado) / 2);
       return l.map((f): No => {
         const h = Math.max(f.valor * k, 1.5);
-        const no = { ...f, y, h };
-        y += h + VAO;
+        const no = { ...f, y: y + (vaga(f) - h) / 2, h };
+        y += vaga(f) + VAO;
         return no;
       });
     };
@@ -386,7 +388,8 @@ export class Fluxo {
       faixas.push({ d: faixa(m + 4, y, LARG - 8, n.y, h), cor: n.cor, nome: n.nome, valor: n.valor });
       y += h;
     }
-    return { esq: ne, dir: nd, meio, faixas, total: te };
+    const alt = Math.max(ALT, ...[...ne, ...nd].map((n) => n.y + n.h));
+    return { esq: ne, dir: nd, meio, faixas, total: te, alt };
   });
 }
 

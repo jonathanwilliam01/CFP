@@ -53,7 +53,8 @@ export class Bloqueio {
         this.voltou.update((n) => n + 1);
       }
     });
-    addEventListener('pagehide', () => this.cfg() && this.marcarSaida());
+    // recarregar com a tela à vista conta como agora; descarregado em segundo plano fica a hora em que saiu
+    addEventListener('pagehide', () => this.cfg() && !document.hidden && this.marcarSaida());
     // blur chega antes do print da prévia em alguns celulares
     addEventListener('blur', () => this.cfg() && this.coberto.set(true));
     addEventListener('focus', () => !document.hidden && this.coberto.set(false));

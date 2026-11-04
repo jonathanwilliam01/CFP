@@ -25,8 +25,8 @@ import { Painel } from '../core/painel';
             @if (temBenef()) {
               <button type="button" class="modo" (click)="alternarBenef()">{{ comBenef() ? 'Com benefícios' : 'Só dinheiro' }}<span aria-hidden="true">⇄</span></button>
             }
-            <button type="button" class="modo" (click)="painel.alternarCompacto()" [attr.aria-pressed]="compacto()" [title]="compacto() ? 'Mostrar todos os blocos' : 'Só o resumo'">
-              <app-icon [name]="compacto() ? 'unfold_more' : 'unfold_less'" [size]="14" />{{ compacto() ? 'Completo' : 'Compacto' }}
+            <button type="button" class="modo so-icone" (click)="painel.alternarCompacto()" [attr.aria-pressed]="compacto()" [attr.aria-label]="compacto() ? 'Mostrar todos os blocos' : 'Só o resumo'" [title]="compacto() ? 'Mostrar todos os blocos' : 'Só o resumo'">
+              <app-icon [name]="compacto() ? 'unfold_more' : 'unfold_less'" [size]="16" />
             </button>
           </span>
         </div>
@@ -282,7 +282,8 @@ import { Painel } from '../core/painel';
     .saldo small { opacity: 0.8; font-weight: 600; }
     .topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .acoes-topo { display: flex; gap: 6px; }
-    .modo app-icon { margin-right: -2px; }
+    .so-icone { padding: 4px 6px; }
+    .topo small { white-space: nowrap; }
     .esqueleto.grande { height: 2.4rem; width: 60%; margin: 4px 0; opacity: 0.6; }
     .modo {
       border: 0; background: var(--hero-glass); color: inherit; font: inherit; font-size: 0.72rem; font-weight: 700;

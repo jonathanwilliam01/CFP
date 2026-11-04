@@ -21,6 +21,7 @@ interface FormFixa {
   inicio: string;
   fim: string;
   ativo: boolean;
+  variavel: boolean;
 }
 
 @Component({
@@ -44,7 +45,7 @@ interface FormFixa {
             <span class="ico"><app-icon [name]="s.catMap().get(r.categoria_id ?? '')?.icone ?? 'work'" /></span>
             <button class="grow txt" (click)="editar(r)">
               <div class="t">{{ r.descricao }}</div>
-              <div class="s">Dia {{ r.dia }} · {{ recebido(r) ? 'recebida' : 'prevista' }}</div>
+              <div class="s">Dia {{ r.dia }} · {{ recebido(r) ? 'recebida' : r.variavel ? (s.medias().has(r.id) ? 'prevista pela média' : 'variável, prevista') : 'prevista' }}</div>
             </button>
             <span class="v pos">{{ (recebido(r)?.valor ?? r.valor) | brl }}</span>
             <button class="tog" [class.on]="recebido(r)" (click)="alternar(r)" [attr.aria-label]="recebido(r) ? 'Desmarcar' : 'Marcar recebida'">
@@ -74,7 +75,7 @@ interface FormFixa {
       <form class="form" (ngSubmit)="salvar()">
         <label class="field"><span>Descrição</span><input name="d" [(ngModel)]="form.descricao" placeholder="Ex.: Salário" /></label>
         <div class="grid2">
-          <label class="field"><span>Valor</span><input name="v" inputmode="decimal" [(ngModel)]="form.valor" /></label>
+          <label class="field"><span>{{ form.variavel ? 'Valor estimado' : 'Valor' }}</span><input name="v" inputmode="decimal" [(ngModel)]="form.valor" /></label>
           <label class="field"><span>Dia que cai</span><input name="dia" type="number" min="1" max="31" [(ngModel)]="form.dia" /></label>
         </div>
         @if (form.id) {
@@ -90,6 +91,10 @@ interface FormFixa {
           <label class="field"><span>A partir de</span><input name="i" type="month" [(ngModel)]="form.inicio" /></label>
           <label class="field"><span>Até (opcional)</span><input name="f" type="month" [(ngModel)]="form.fim" /></label>
         </div>
+        <label class="check"><input name="var" type="checkbox" [(ngModel)]="form.variavel" />Valor variável (comissão, freela, hora extra)</label>
+        @if (form.variavel) {
+          <p class="small muted">Ao marcar como recebida você informa quanto veio. Com 3 meses ou mais, a previsão passa a ser a média dos últimos 12.</p>
+        }
         <label class="check"><input name="a" type="checkbox" [(ngModel)]="form.ativo" />Ativa</label>
         @if (editando(); as r) {
           <app-reajuste [rec]="r" (feito)="aberto.set(false)" />
@@ -99,6 +104,16 @@ interface FormFixa {
           <button class="btn danger block" type="button" (click)="excluir()">Excluir</button>
         }
       </form>
+    </app-sheet>
+
+    <app-sheet [open]="!!recebendo()" (openChange)="recebendo.set(null)" [titulo]="'Quanto veio de ' + (recebendo()?.descricao ?? '')">
+      @if (recebendo(); as r) {
+        <form class="form" (ngSubmit)="receber(r)">
+          <label class="field"><span>Valor recebido</span><input name="vr" inputmode="decimal" [(ngModel)]="valorRecebido" /></label>
+          @if (s.medias().get(r.id); as m) { <p class="small muted">Média dos últimos meses: {{ m | brl }}</p> }
+          <button class="btn block">Marcar como recebida</button>
+        </form>
+      }
     </app-sheet>
   `,
   styles: `
@@ -123,7 +138,10 @@ export default class Entradas {
   protected form: FormFixa = this.vazio();
   protected editando = signal<Recorrencia | null>(null);
 
-  protected fixas = computed(() => this.s.recorrencias().filter((r) => r.tipo === 'entrada' && ativaNoMes(r, this.s.mes())));
+  /** com a média no lugar do valor nas variáveis */
+  protected fixas = computed(() => this.s.recorrenciasPrev().filter((r) => r.tipo === 'entrada' && ativaNoMes(r, this.s.mes())));
+  protected recebendo = signal<Recorrencia | null>(null);
+  protected valorRecebido = '';
 
   recebido(r: Recorrencia) {
     return this.s.pagamentos().find((p) => p.tipo === 'recorrencia' && p.ref_id === r.id && p.mes === this.s.mes()) ?? null;
@@ -133,18 +151,29 @@ export default class Entradas {
     try {
       const p = this.recebido(r);
       if (p) await this.s.desfazerPagamento(p.id);
-      else {
-        const dia = diaNoMes(this.s.mes(), r.dia);
-        const id = await this.s.pagar('recorrencia', r.id, r.valor, dia < hoje() ? dia : hoje());
-        this.toast.feito(`${r.descricao} recebida`, () => this.s.desfazerPagamento(id));
-      }
+      else if (r.variavel) {
+        this.valorRecebido = String(r.valor).replace('.', ',');
+        this.recebendo.set(r);
+      } else await this.receber(r, r.valor);
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
+
+  async receber(r: Recorrencia, valor = parseValor(this.valorRecebido)) {
+    if (!valor) return this.toast.erro('Informe o valor');
+    try {
+      const dia = diaNoMes(this.s.mes(), r.dia);
+      const id = await this.s.pagar('recorrencia', r.id, valor, dia < hoje() ? dia : hoje());
+      this.recebendo.set(null);
+      this.toast.feito(`${r.descricao} recebida`, () => this.s.desfazerPagamento(id));
     } catch (e) {
       this.toast.erro(e);
     }
   }
 
   private vazio(): FormFixa {
-    return { descricao: '', valor: '', dia: 5, categoria_id: this.s.catEntrada()[0]?.id ?? null, inicio: mesAtual().slice(0, 7), fim: '', ativo: true };
+    return { descricao: '', valor: '', dia: 5, categoria_id: this.s.catEntrada()[0]?.id ?? null, inicio: mesAtual().slice(0, 7), fim: '', ativo: true, variavel: false };
   }
 
   nova() {
@@ -154,10 +183,12 @@ export default class Entradas {
   }
 
   editar(r: Recorrencia) {
+    // cadastro cru (a lista mostra a média no valor das variáveis)
+    r = this.s.recorrencias().find((x) => x.id === r.id) ?? r;
     this.editando.set(r);
     this.form = {
       id: r.id, descricao: r.descricao, valor: String(r.valor).replace('.', ','), dia: r.dia, categoria_id: r.categoria_id,
-      inicio: r.inicio.slice(0, 7), fim: r.fim?.slice(0, 7) ?? '', ativo: r.ativo,
+      inicio: r.inicio.slice(0, 7), fim: r.fim?.slice(0, 7) ?? '', ativo: r.ativo, variavel: r.variavel,
     };
     this.aberto.set(true);
   }
@@ -168,7 +199,7 @@ export default class Entradas {
     try {
       await this.s.salvar('recorrencias', {
         id: f.id, tipo: 'entrada', descricao: f.descricao.trim(), valor: parseValor(f.valor), dia: f.dia || 1,
-        categoria_id: f.categoria_id, inicio: `${f.inicio || mesAtual().slice(0, 7)}-01`, fim: f.fim ? `${f.fim}-01` : null, ativo: f.ativo,
+        categoria_id: f.categoria_id, inicio: `${f.inicio || mesAtual().slice(0, 7)}-01`, fim: f.fim ? `${f.fim}-01` : null, ativo: f.ativo, variavel: f.variavel,
       });
       this.toast.ok('Entrada fixa salva');
       this.aberto.set(false);

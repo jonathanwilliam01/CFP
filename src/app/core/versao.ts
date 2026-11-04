@@ -8,6 +8,23 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.5',
+    data: '2026-11-04',
+    itens: [
+      'Comprovante: "Ler da foto" lê valor, data e loja do cupom fiscal ou do comprovante de Pix no próprio aparelho; foto compartilhada com o app já é lida sozinha',
+      'Aviso no celular quando a fatura do cartão fecha, com o total e o vencimento; toque abre os gastos da fatura (migration 037 e nova versão da função push)',
+      'Entrada fixa com valor variável (comissão, freela, hora extra): ao marcar como recebida informa quanto veio e, com 3 meses ou mais, a previsão vira a média',
+      'Lembrete aos domingos (e aviso no app) quando algum saldo bancário está sem atualizar há mais de uma semana, desligável em Configurações → Notificações (migration 037)',
+      'Puxar a tela para baixo atualiza só os dados, sem recarregar o app inteiro',
+      'Bloqueio: o app descarregado pelo celular em segundo plano respeita o tempo contado desde que você saiu',
+      'Dívidas mostra os parcelados no boleto/débito e soma no saldo devedor; mudar o mês da dívida leva junto os pagamentos já marcados; parcela no boleto avisa quando vence',
+      'Pagamento some junto com o gasto da parcela ou a conta fixa excluída (migration 037)',
+      'Menos carga ao trocar de mês (médias das contas variáveis só recarregam quando um pagamento muda) e exclusões de outras carteiras não recarregam mais a tela',
+      'Início: botão Compacto só com ícone no topo; Fluxo do mês sem nomes sobrepostos; valor lido do texto rápido sai com centavos (49,80)',
+      'Build confere no Supabase se as migrations usadas pelo código foram aplicadas e para o deploy se faltar alguma; testes de tela com Playwright e CI no GitHub',
+    ],
+  },
+  {
     versao: 'v1.26.11.4',
     data: '2026-11-04',
     itens: [

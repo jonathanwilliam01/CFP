@@ -7,6 +7,7 @@ import { Chat } from '../core/chat';
 import { Fila } from '../core/fila';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
+import { Atualizacao } from '../shared/atualizar';
 import { Patrimonios } from '../core/patrimonio';
 import { Tema } from '../core/tema';
 import { VERSAO } from '../core/versao';
@@ -118,7 +119,12 @@ import { Menus, PRINCIPAIS } from './menu';
       <span class="tip" [style.top.px]="t.y">{{ t.texto }}</span>
     }
 
-    <main (touchstart)="toque($event)" (touchend)="arrastou($event)"><router-outlet /></main>
+    @if (puxado() || atualizando()) {
+      <div class="puxar" [style.--p]="atualizando() ? 1 : puxado() / 70" aria-live="polite">
+        <app-icon name="refresh" [size]="22" [class.gira]="atualizando()" [style.transform]="atualizando() ? null : 'rotate(' + puxado() * 4 + 'deg)'" />
+      </div>
+    }
+    <main (touchstart)="toque($event)" (touchmove)="puxando($event)" (touchend)="arrastou($event)"><router-outlet /></main>
 
     <button class="fab" type="button" aria-label="Lançar (segure para escolher o tipo)" (click)="tocarFab()"
       (pointerdown)="pressionar()" (pointerup)="soltar()" (pointerleave)="soltar()" (pointercancel)="soltar()" (contextmenu)="$event.preventDefault()">
@@ -166,6 +172,13 @@ import { Menus, PRINCIPAIS } from './menu';
     <app-conta [(open)]="conta" />
   `,
   styles: `
+    .puxar {
+      position: fixed; z-index: 25; left: 50%; top: calc(64px + env(safe-area-inset-top, 0px)); transform: translate(-50%, calc(var(--p) * 30px - 20px));
+      width: 40px; height: 40px; border-radius: 50%; background: var(--card); box-shadow: var(--shadow), 0 2px 10px rgb(0 0 0 / 0.15);
+      display: grid; place-items: center; color: var(--primary); opacity: min(1, var(--p));
+    }
+    .puxar .gira { animation: gira 0.8s linear infinite; }
+    @keyframes gira { to { transform: rotate(360deg); } }
     .top {
       position: sticky; top: 0; z-index: 20;
       display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px;
@@ -448,15 +461,43 @@ export class Shell {
     this.y0 = y;
   }
 
+  // puxar para baixo no topo da tela recarrega só os dados (o recarregar do navegador está desligado no CSS)
+  protected puxado = signal(0);
+  protected atualizando = signal(false);
+  private puxar0: number | null = null;
+  private atualizacao = inject(Atualizacao);
+
+  puxando(e: TouchEvent) {
+    if (this.puxar0 === null || e.touches.length !== 1) return;
+    const dy = e.touches[0].clientY - this.puxar0;
+    this.puxado.set(dy > 0 && window.scrollY <= 0 ? Math.min(dy * 0.5, 90) : 0);
+  }
+
+  private async atualizarDados() {
+    this.atualizando.set(true);
+    try {
+      await this.s.atualizarTudo();
+      this.atualizacao.verificar();
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.atualizando.set(false);
+    }
+  }
+
   // arrastar para o lado em área vazia troca o mês
   toque(e: TouchEvent) {
     this.toque0 = null;
+    this.puxar0 = e.touches.length === 1 && window.scrollY <= 0 && !document.querySelector('[role="dialog"]') ? e.touches[0].clientY : null;
     if (e.touches.length !== 1 || this.url() === '/chat' || this.rolaDeLado(e.target as HTMLElement)) return;
     const t = e.touches[0];
     this.toque0 = { x: t.clientX, y: t.clientY, t: e.timeStamp };
   }
 
   arrastou(e: TouchEvent) {
+    if (this.puxado() >= 70 && !this.atualizando()) this.atualizarDados();
+    this.puxado.set(0);
+    this.puxar0 = null;
     const i = this.toque0;
     this.toque0 = null;
     if (!i || e.timeStamp - i.t > 600) return;

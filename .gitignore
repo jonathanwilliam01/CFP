@@ -45,3 +45,8 @@ Thumbs.db
 
 .env
 src/environments/environment.ts
+
+# Playwright
+/e2e/.auth/
+/test-results/
+/playwright-report/

@@ -123,6 +123,8 @@ $cores: (
 html,
 body {
   margin: 0;
+  /* sem o puxar para recarregar do navegador: o app atualiza só os dados (Shell) */
+  overscroll-behavior-y: contain;
   background: var(--bg);
   color: var(--ink);
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;

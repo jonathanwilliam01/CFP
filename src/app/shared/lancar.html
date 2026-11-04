@@ -52,6 +52,9 @@
         </div>
       </div>
       <p class="hint num">{{ f().parcelas }}x de <b>{{ valorParcela() | brl }}</b></p>
+      @if (f().pagamento === 'debito') {
+        <p class="hint">No boleto/débito cada parcela aparece em Contas no dia dela (para marcar como paga) e em Dívidas. Não precisa cadastrar como dívida.</p>
+      }
     }
 
     <label class="field">
@@ -134,6 +137,11 @@
         <div class="comp">
           @if (arquivo(); as a) {
             <span class="anexo"><app-icon [name]="a.type === 'application/pdf' ? 'picture_as_pdf' : 'image'" [size]="18" />{{ a.type === 'application/pdf' ? 'PDF' : 'Foto' }} pronto para salvar</span>
+            @if (a.type.startsWith('image/')) {
+              <button type="button" class="btn ghost sm" [disabled]="lendo() !== null" (click)="lerFoto(a)">
+                <app-icon name="document_scanner" [size]="18" />{{ lendo() !== null ? 'Lendo ' + lendo() + '%' : 'Ler da foto' }}
+              </button>
+            }
             <button type="button" class="btn ghost sm" (click)="arquivo.set(null)">Tirar</button>
           } @else if (comprovante(); as c) {
             <button type="button" class="btn ghost sm" (click)="verComprovante(c)"><app-icon name="receipt_long" [size]="18" />Ver</button>
@@ -163,6 +171,9 @@
       <div class="fixa" [class.on]="repete()">
         <label class="check"><input name="rep" type="checkbox" [ngModel]="f().repete" (ngModelChange)="set('repete', $event)" />Repete todo mês</label>
         @if (repete()) {
+          @if (l.modo() === 'entrada') {
+            <label class="check"><input name="var" type="checkbox" [ngModel]="f().variavel" (ngModelChange)="set('variavel', $event)" />Valor variável (comissão, freela, hora extra)</label>
+          }
           @if (l.modo() === 'gasto') {
             <label class="check"><input name="var" type="checkbox" [ngModel]="f().variavel" (ngModelChange)="set('variavel', $event)" />Valor variável (ex.: luz, água)</label>
             @if (f().pagamento === 'debito') {

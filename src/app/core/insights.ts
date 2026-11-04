@@ -68,6 +68,13 @@ export class Insights {
         l.push({ id: `avencer-${c.ref_id}-${mes}`, nivel: 'alerta', icone: 'alarm', titulo: `${c.descricao} vence ${d === 0 ? 'hoje' : `em ${d} dia(s)`}`, texto: `Valor: ${moeda(c.valor)}.`, link: '/contas' });
     }
 
+    const velhas = s.contasBancarias().filter((c) => c.ativo && diffDias(c.atualizado_em, h) > 7);
+    if (velhas.length)
+      l.push({
+        id: `saldos-${mes}`, nivel: 'info', icone: 'account_balance', titulo: 'Atualize os saldos dos bancos',
+        texto: `${velhas.map((c) => c.nome).join(', ')} sem atualizar há mais de uma semana.`, link: '/saldos',
+      });
+
     for (const c of s.cartoesAtivos()) {
       const aberta = mesFatura(h, c);
       const fechou = inicioFatura(aberta, c);

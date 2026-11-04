@@ -1,5 +1,5 @@
 // Envia Web Push: mensagem nova do chat (trigger em mensagens), gasto lançado (triggers em gastos/parcelamentos e importação),
-// contas vencendo, lembrete da noite e resumo do mês no dia 1 (pg_cron).
+// contas vencendo, lembrete da noite, resumo do mês no dia 1, fatura que fechou e saldos desatualizados (pg_cron).
 // Chamada só pelo banco via push_enviar, com o segredo de push_config.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
@@ -22,14 +22,15 @@ Deno.serve(async (req) => {
   if (!segredo || req.headers.get('Authorization') !== `Bearer ${segredo}`) return new Response('não autorizado', { status: 401 });
   const ev = await req.json();
   const envios = ev.tipo === 'chat' ? await chat(ev) : ev.tipo === 'gasto' || ev.tipo === 'importacao' ? await gasto(ev)
-    : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : ev.tipo === 'resumo' ? await resumo() : [];
+    : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : ev.tipo === 'resumo' ? await resumo()
+    : ev.tipo === 'fatura' ? await faturas() : ev.tipo === 'saldos' ? await saldos() : [];
   let n = 0;
   for (const e of envios) n += await enviar(e);
   return Response.json({ enviados: n });
 });
 
 async function membros(carteira: string) {
-  const { data, error } = await db.from('carteira_membros').select('user_id, nome, push_gastos, resumo_mensal').eq('carteira_id', carteira);
+  const { data, error } = await db.from('carteira_membros').select('user_id, nome, push_gastos, resumo_mensal, push_fatura').eq('carteira_id', carteira);
   if (error) throw error;
   return data;
 }
@@ -113,6 +114,43 @@ async function resumo(): Promise<Envio[]> {
     });
   }
   return envios;
+}
+
+const dm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+
+/** Fatura que fechou hoje: total e vencimento */
+async function faturas(): Promise<Envio[]> {
+  const { data, error } = await db.rpc('faturas_fechadas');
+  if (error) throw error;
+  const envios: Envio[] = [];
+  for (const f of data as { carteira_id: string; cartao_id: string; nome: string; mes: string; total: number; vencimento: string }[]) {
+    if (Number(f.total) <= 0) continue;
+    const l = await membros(f.carteira_id);
+    // Gastos abre por fatura: 0 = vence no mês atual, 1 = no seguinte
+    const agora = new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7);
+    const idx = (Number(f.mes.slice(0, 4)) - Number(agora.slice(0, 4))) * 12 + Number(f.mes.slice(5, 7)) - Number(agora.slice(5, 7));
+    envios.push({
+      usuarios: l.filter((m) => m.push_fatura !== false).map((m) => m.user_id),
+      titulo: `Fatura ${f.nome} fechou`,
+      texto: `${brl.format(Number(f.total))}, vence ${dm(f.vencimento)}. Toque para conferir.`,
+      tag: `fatura-${f.cartao_id}-${f.mes}`,
+      url: `/gastos?cartao=${f.cartao_id}&fatura=${Math.min(1, Math.max(0, idx))}`,
+    });
+  }
+  return envios;
+}
+
+/** Domingo: contas bancárias sem atualizar há mais de 7 dias */
+async function saldos(): Promise<Envio[]> {
+  const { data, error } = await db.rpc('saldos_desatualizados');
+  if (error) throw error;
+  return (data as { user_id: string; qtd: number }[]).map((x) => ({
+    usuarios: [x.user_id],
+    titulo: 'Atualize os saldos dos bancos',
+    texto: `${x.qtd} conta(s) sem atualizar há mais de uma semana. O patrimônio e o previsto do mês dependem disso.`,
+    tag: 'saldos',
+    url: '/saldos',
+  }));
 }
 
 async function enviar(e: Envio) {

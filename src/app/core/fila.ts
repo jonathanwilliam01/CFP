@@ -74,8 +74,8 @@ export class Fila {
         ));
     }
     if (carteira !== this.s.carteiraId()) return;
-    if (item.tipo === 'fixa') await this.s.recarregar('recorrencias');
-    await this.s.carregarMes();
+    if (item.tipo === 'fixa') await this.s.depois('recorrencias');
+    else await this.s.carregarMes();
   }
 
   /** Sobe o comprovante guardado e liga ao gasto; sem rede o item fica e tenta de novo */

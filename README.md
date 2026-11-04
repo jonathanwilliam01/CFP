@@ -38,7 +38,24 @@ Envia mensagem nova do chat (trigger em `mensagens`), gasto lançado por outro m
 
 ## Testes
 
-`npm test` (Vitest): regras de `datas.ts`, `financas.ts` e `extrato.ts`.
+`npm test` (Vitest): regras de `datas.ts`, `financas.ts`, `extrato.ts` e `texto.ts`.
+
+`npm run e2e` (Playwright, pasta `e2e/`): abre todas as telas no celular e no computador (sem erro no console e sem rolar de lado),
+seleção em massa, 13º, bloqueio ao recarregar, puxar para atualizar, trocar o mês deslizando e leitura do cupom pela foto.
+Precisa de `CFP_EMAIL` e `CFP_SENHA` no ambiente (de preferência uma conta só de teste, com carteira própria).
+Os testes não salvam nada na carteira: o que mexem fica no navegador do teste. `npm run e2e:ver` abre a interface do Playwright.
+Primeira vez: `npx playwright install chromium`.
+
+## Checagem do banco no build
+
+`npm run build` roda antes `scripts/checar-banco.mjs`: pergunta ao Supabase (função `colunas_faltando`, migration 037) se as tabelas
+e colunas que o código usa existem. Faltou migration → o build para com a lista (na Vercel, o deploy não sobe).
+Ao criar migration nova, acrescente uma marca dela em `MARCAS` no script. `CHECAR_BANCO=0` pula a checagem.
+
+## CI
+
+`.github/workflows/ci.yml`: build e testes a cada envio. As telas (Playwright) rodam só com os secrets
+`CFP_EMAIL`, `CFP_SENHA`, `SUPABASE_URL` e `SUPABASE_ANON_KEY` cadastrados no GitHub.
 
 ## Vercel
 

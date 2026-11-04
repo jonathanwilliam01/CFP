@@ -1,4 +1,4 @@
-import { lerComprovante, lerTags, lerTexto, regraPara } from './texto';
+import { lerComprovante, lerCupom, lerTags, lerTexto, regraPara } from './texto';
 import { Beneficio, Cartao, Categoria } from './models';
 
 const cartoes = [
@@ -62,5 +62,18 @@ describe('regraPara', () => {
     expect(regraPara('Uber trip', regras)?.termo).toBe('uber');
     expect(regraPara('Pádaria do Zé', regras)?.termo).toBe('padaria');
     expect(regraPara('mercado', regras)).toBeUndefined();
+  });
+});
+
+describe('lerCupom', () => {
+  it('cupom fiscal: total (sem subtotal e tributos), data e loja', () => {
+    const t = 'SUPERMERCADO BOM PRECO LTDA\nCNPJ 12.345.678/0001-90\nARROZ 5KG 24,90\nSUBTOTAL 49,80\nDESCONTO 1,00\nTOTAL R$ 48,80\nVal aprox tributos 9,10\n30/11/26 18:22';
+    expect(lerCupom(t)).toBe('48,80 30/11/2026 SUPERMERCADO BOM PRECO LTDA');
+  });
+  it('total com o número na linha de baixo', () => {
+    expect(lerCupom('PADARIA SOL\nVALOR TOTAL\n12,50')).toBe('12,50 PADARIA SOL');
+  });
+  it('sem total: null', () => {
+    expect(lerCupom('foto qualquer')).toBeNull();
   });
 });

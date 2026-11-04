@@ -110,6 +110,33 @@ export function lerComprovante(texto: string) {
   return [valor, data, /\bpix\b/i.test(texto) ? 'pix' : '', desc].filter(Boolean).join(' ');
 }
 
+/**
+ * Texto de foto de comprovante ou cupom fiscal → "valor data loja" para o lançamento rápido.
+ * Pix/transferência vai pelo lerComprovante; cupom pela linha do total e pela primeira linha com nome.
+ */
+export function lerCupom(texto: string) {
+  if (/\bpix\b|transfer|comprovante/i.test(texto)) {
+    const pix = lerComprovante(texto);
+    if (pix) return pix;
+  }
+  const linhas = texto.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const num = /(\d{1,3}(?:\.\d{3})*,\d{2})/;
+  let valor = '';
+  linhas.forEach((l, i) => {
+    const n = normalizar(l);
+    if (!/total|a pagar|valor pago/.test(n) || /sub ?total|troco|desconto|tribut|imposto|itens/.test(n)) return;
+    // OCR às vezes joga o número na linha de baixo
+    const m = l.match(num) ?? linhas[i + 1]?.match(num);
+    if (m) valor = m[1];
+  });
+  if (!valor) return lerComprovante(texto);
+  const d = texto.match(/\b(\d{2})\/(\d{2})\/(\d{4}|\d{2})\b/);
+  const data = d ? `${d[1]}/${d[2]}/${d[3].length === 2 ? '20' + d[3] : d[3]}` : '';
+  const loja = (linhas.find((l) => /[a-z]{3}/i.test(l) && !/cnpj|cpf|cupom|nota|danfe|documento|extrato|endere|^rua|^av/.test(normalizar(l))) ?? '')
+    .replace(/[^\p{L}\p{N}\s&.-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+  return [valor, data, loja].filter(Boolean).join(' ');
+}
+
 /** Regra cujo termo aparece no texto; o termo mais longo vence */
 export function regraPara<T extends { termo: string }>(texto: string, regras: T[]) {
   const t = normalizar(texto);
