@@ -7,7 +7,7 @@ import { ItemExtrato, Origem, lerExtrato, palpiteCategoria } from '../core/extra
 import { BrlPipe, DiaPipe, MesPipe, soma } from '../core/formato';
 import { Recorrencia } from '../core/models';
 import { Store } from '../core/store';
-import { lerTags, normalizar } from '../core/texto';
+import { lerTags, normalizar, regraPara } from '../core/texto';
 import { q, supabase } from '../core/supabase';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
@@ -24,6 +24,7 @@ interface Linha extends ItemExtrato {
 }
 
 type Memoria = Record<string, { descricao: string; categoria_id: string | null }>;
+/** memória antiga, só no aparelho: vai para as regras da carteira na primeira importação */
 const MEMORIA = 'cfp.nubank';
 const DEBITO = 'debito';
 
@@ -210,11 +211,13 @@ export default class Importar {
     try {
       const { itens, ignorados, origem } = lerExtrato(await f.text());
       if (!itens.length) throw new Error('Nenhum gasto encontrado no arquivo');
+      await this.migrarMemoria();
+      const regras = this.s.regras();
       const mem: Memoria = JSON.parse(localStorage.getItem(MEMORIA) ?? '{}');
       const historico = new Map(this.s.recentes().map((r) => [r.descricao.trim().toLowerCase(), r.categoria_id]));
       this.linhas.set(
         itens.map((x) => {
-          const m = mem[x.chave];
+          const m = regras.find((r) => r.termo === x.chave) ?? mem[x.chave] ?? regraPara(x.titulo, regras);
           const descricao = m?.descricao ?? x.descricao;
           const categoria_id = m ? m.categoria_id : (historico.get(descricao.toLowerCase()) ?? palpiteCategoria(x.descricao, this.s.catGasto()) ?? palpiteCategoria(x.titulo, this.s.catGasto()));
           return { ...x, descricao, categoria_id, ok: true, dup: false, proximas: true, fixa: null };
@@ -366,13 +369,26 @@ export default class Importar {
     }
   }
 
-  /** Guarda descrição e categoria escolhidas para as próximas importações */
-  private lembrar(sel: Linha[]) {
-    const mem: Memoria = JSON.parse(localStorage.getItem(MEMORIA) ?? '{}');
-    for (const x of sel) {
-      delete mem[x.chave];
-      mem[x.chave] = { descricao: x.descricao.trim() || x.titulo, categoria_id: x.categoria_id };
+  /** Guarda descrição e categoria escolhidas nas regras da carteira (valem para os dois e no lançamento) */
+  private async lembrar(sel: Linha[]) {
+    const m = new Map(sel.map((x) => [x.chave, { termo: x.chave, descricao: x.descricao.trim() || x.titulo, categoria_id: x.categoria_id }]));
+    await this.gravarRegras([...m.values()]).catch(() => undefined);
+  }
+
+  private async gravarRegras(l: { termo: string; descricao: string; categoria_id: string | null }[]) {
+    if (!l.length) return;
+    await q(supabase.from('regras').upsert(l.map((r) => ({ ...r, carteira_id: this.s.carteiraId() })), { onConflict: 'carteira_id,termo' }));
+    await this.s.recarregar('regras');
+  }
+
+  private async migrarMemoria() {
+    const mem: Memoria = JSON.parse(localStorage.getItem(MEMORIA) ?? 'null');
+    if (!mem) return;
+    try {
+      await this.gravarRegras(Object.entries(mem).map(([termo, v]) => ({ termo, ...v })));
+      localStorage.removeItem(MEMORIA);
+    } catch {
+      // sem a migration 035: segue com a memória antiga até ela existir
     }
-    localStorage.setItem(MEMORIA, JSON.stringify(Object.fromEntries(Object.entries(mem).slice(-500))));
   }
 }

@@ -8,6 +8,28 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.4',
+    data: '2026-11-04',
+    itens: [
+      'Calculadoras → 13º salário: em duas parcelas (a 1ª sem desconto, a 2ª com todo o INSS e o IR) ou parcela única, com meses trabalhados, dependentes e média de extras; põe no Planejamento todo ano',
+      'Resumo mensal: Fluxo do mês, de onde vem o dinheiro (cada entrada) e para onde vai (faturas, contas fixas, à vista e sobra)',
+      'Saldos e patrimônio: bancos + cofrinhos + a receber − dívidas − parcelas futuras, com uma foto por mês e o gráfico da evolução (migration 035)',
+      'Parcelamentos: Parcelas liberando, com uma cor por compra nos próximos 12 meses',
+      'Cartões: gráfico da fatura aberta dia a dia, o real até hoje e a prevista até o fechamento',
+      'Relatórios: Comparar meses por categoria (contra o mês anterior ou a média) e Onde mais gastam (ranking das lojas)',
+      'Gastos: segurar uma linha (ou Selecionar) escolhe vários para trocar a categoria, pôr ou tirar marcador e excluir de uma vez',
+      'Gastos: Revisar, um gasto por vez, os sem categoria e os lançados pelo outro membro, com opção de virar regra',
+      'Regras de categoria da carteira em Configurações (texto da descrição → categoria), usadas no lançamento, na revisão e na importação; a memória da importação, antes só no aparelho, passa para elas (migration 035)',
+      'Gastos por fatura: Conferir marca item a item o que bate com a fatura do banco, para os dois verem (migration 035)',
+      'Telas com esqueleto enquanto carregam o mês; atalhos no computador: N lança gasto, / abre a busca, ← e → trocam o mês',
+      'Viagens (modo viagem): com uma viagem ativa os gastos lançados ganham o marcador dela e o lançamento converte da moeda de lá com cotação e IOF; total, por dia, orçamento e categorias da viagem (migration 035)',
+      'Lista de desejos: prioridade, preço, link e cofrinho; mostra em quantos meses junta com a sobra prevista, abre o Posso comprar? e lança o gasto ao comprar (migration 035)',
+      'Aviso no celular no dia 1 com o total do mês que fechou e a categoria que mais pesou, desligável em Configurações → Notificações (migration 035 e nova versão da função push)',
+      'Fechamento em PDF; o PDF sai sempre em cores claras',
+      'Início: modo Compacto (só o resumo e os avisos), saldo que corre até o valor novo e aviso do modo viagem; valores alinhados em coluna e cor da categoria nas listas de gastos, busca e calendário',
+    ],
+  },
+  {
     versao: 'v1.26.11.3',
     data: '2026-11-03',
     itens: [

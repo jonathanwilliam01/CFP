@@ -31,7 +31,7 @@ const LIMITE = 100;
           <section class="list">
             @for (g of gastos(); track g.id) {
               <button class="row" (click)="lancar.editarGasto(g); fechar.emit()">
-                <span class="ico"><app-icon [name]="s.catMap().get(g.categoria_id ?? '')?.icone ?? 'help'" /></span>
+                <span class="ico" [style.background]="(s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8') + '22'" [style.color]="s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8'"><app-icon [name]="s.catMap().get(g.categoria_id ?? '')?.icone ?? 'help'" /></span>
                 <div class="grow"><div class="t">{{ g.descricao }}@for (t of g.tags ?? []; track t) {<span class="tag">#{{ t }}</span>}</div>
                   <div class="s">{{ g.data | dia }} · {{ s.catMap().get(g.categoria_id ?? '')?.nome ?? 'Sem categoria' }}</div></div>
                 <span class="v">{{ g.valor | brl }}</span>

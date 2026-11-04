@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { addMeses, fimMes, hoje, mesAtual, mesFatura, mesesEntre, nomeMes } from '../core/datas';
 import { contasDoMes, faturaDoMes, noMes, orcamentosNoMes, proximosMeses, resumoMes, statusOrcamentos } from '../core/financas';
 import { BrlPipe, MesPipe, parseValor, soma } from '../core/formato';
@@ -341,6 +341,12 @@ export default class Planejamento {
       untracked(() => this.carregar(ms[0], ms[ms.length - 1]));
     });
     effect(() => localStorage.setItem('cfp.plan.estimar', this.estimar() ? '1' : '0'));
+    // vindo da lista de desejos: ?comprar=<valor>
+    const v = inject(ActivatedRoute).snapshot.queryParamMap.get('comprar');
+    if (v) {
+      this.simValor = v.replace('.', ',');
+      this.simular();
+    }
   }
 
   private async carregar(ini: string, ultimo: string) {

@@ -12,6 +12,7 @@ import { CalcHoras } from './calc/horas';
 import { CalcRende } from './calc/rende';
 import { CalcReserva } from './calc/reserva';
 import { CalcSalario } from './calc/salario';
+import { CalcDecimo } from './calc/decimo';
 
 const GRUPOS = [
   {
@@ -33,6 +34,7 @@ const GRUPOS = [
     nome: 'Renda e reserva',
     itens: [
       { k: 'salario', nome: 'Salário líquido', icone: 'payments', desc: 'INSS, IR, 13º e férias' },
+      { k: 'decimo', nome: '13º salário', icone: 'redeem', desc: 'Em uma ou duas parcelas, com os descontos na segunda' },
       { k: 'reserva', nome: 'Reserva de emergência', icone: 'shield', desc: 'Quanto guardar e quando chega lá' },
     ],
   },
@@ -48,7 +50,7 @@ const ABAS = GRUPOS.flatMap((g) => g.itens);
 
 
 @Component({
-  imports: [FormsModule, BrlPipe, Icon, Sheet, FonteBcb, CalcCredito, CalcDivida, CalcHoras, CalcRende, CalcReserva, CalcSalario],
+  imports: [FormsModule, BrlPipe, Icon, Sheet, FonteBcb, CalcCredito, CalcDivida, CalcHoras, CalcRende, CalcReserva, CalcSalario, CalcDecimo],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -150,6 +152,9 @@ const ABAS = GRUPOS.flatMap((g) => g.itens);
         @case ('salario') {
           <app-calc-salario />
         }
+        @case ('decimo') {
+          <app-calc-decimo />
+        }
         @case ('rende') {
           <app-calc-rende />
         }
@@ -205,7 +210,7 @@ const ABAS = GRUPOS.flatMap((g) => g.itens);
     .opcao.on .t { color: var(--primary); }
     .opcao > app-icon { color: var(--primary); }
   `,
-    ':host app-calc-credito, :host app-calc-divida, :host app-calc-horas, :host app-calc-salario, :host app-calc-rende, :host app-calc-reserva { display: contents; }'],
+    ':host app-calc-credito, :host app-calc-divida, :host app-calc-horas, :host app-calc-salario, :host app-calc-decimo, :host app-calc-rende, :host app-calc-reserva { display: contents; }'],
 })
 export default class Calculadoras {
   protected grupos = GRUPOS;

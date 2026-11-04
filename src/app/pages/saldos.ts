@@ -1,11 +1,14 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { diffDias, hoje, mesAtual } from '../core/datas';
 import { ativaNoMes } from '../core/financas';
 import { BrlPipe, DiaPipe, parseValor, soma } from '../core/formato';
 import { ContaBancaria } from '../core/models';
 import { Store } from '../core/store';
+import { Curvas, Serie } from '../shared/graficos';
 import { Icon } from '../shared/icon';
+import { Patrimonio, Patrimonios, liquido } from '../core/patrimonio';
+import { nomeMes } from '../core/datas';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 
@@ -19,7 +22,7 @@ interface FormConta {
 
 /** Saldo real nos bancos e quanto deve sobrar no fim do mês pelo que falta pagar e receber */
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
+  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Curvas],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -50,6 +53,23 @@ interface FormConta {
         </section>
       } @else if (!doMesAtual()) {
         <p class="small muted">A previsão do fim do mês aparece no mês atual.</p>
+      }
+
+      @if (pat(); as p) {
+        <section class="card">
+          <div class="card-head"><h2>Patrimônio</h2><b class="num" [class.neg]="liquido(p) < 0">{{ liquido(p) | brl }}</b></div>
+          <div class="lin"><span>Nos bancos</span><b class="num">{{ p.bancos | brl }}</b></div>
+          <div class="lin"><span>Nos cofrinhos</span><b class="num">{{ p.cofrinhos | brl }}</b></div>
+          @if (p.receber) { <div class="lin"><span>A receber</span><b class="num pos">+{{ p.receber | brl }}</b></div> }
+          @if (p.dividas) { <div class="lin"><span>Dívidas e financiamentos</span><b class="num neg">−{{ p.dividas | brl }}</b></div> }
+          @if (p.parcelas) { <div class="lin"><span>Parcelas futuras</span><b class="num neg">−{{ p.parcelas | brl }}</b></div> }
+          @if (serie().rotulos.length > 1) {
+            <h3 class="sub">Mês a mês</h3>
+            <app-curvas [series]="serie().series" [rotulos]="serie().rotulos" rotulo="Patrimônio mês a mês" />
+          } @else {
+            <p class="small muted">O CFP guarda uma foto por mês. A partir do próximo mês aparece a evolução.</p>
+          }
+        </section>
       }
 
       <section class="card list">
@@ -91,11 +111,46 @@ interface FormConta {
     .row.off { opacity: 0.55; }
     .s.alerta { color: var(--warn, #d97706); }
     .vazio { padding: 12px 0; margin: 0; }
+    .sub { font-size: 0.8rem; font-weight: 800; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 6px; }
   `,
 })
 export default class Saldos {
   protected s = inject(Store);
   private toast = inject(Toast);
+  private patrimonios = inject(Patrimonios);
+  protected pat = signal<Patrimonio | null>(null);
+  protected liquido = liquido;
+
+  /** fotos dos meses passados + o valor de agora no mês atual */
+  protected serie = computed(() => {
+    const atual = this.pat();
+    const l = [...this.patrimonios.fotos().filter((f) => f.mes !== atual?.mes), ...(atual ? [atual] : [])].sort((a, b) => a.mes.localeCompare(b.mes));
+    const series: Serie[] = [
+      { nome: 'Líquido', cor: 'var(--primary)', valores: l.map(liquido) },
+      { nome: 'Bens', cor: 'var(--ok)', valores: l.map((p) => p.bancos + p.cofrinhos + p.receber), tracejada: true },
+      { nome: 'Dívidas', cor: 'var(--danger)', valores: l.map((p) => p.dividas + p.parcelas), tracejada: true },
+    ];
+    return { rotulos: l.map((p) => nomeMes(p.mes, true)), series };
+  });
+
+  constructor() {
+    effect(() => {
+      this.s.contasBancarias();
+      this.s.cofrinhoMovs();
+      this.s.dividas();
+      this.s.receber();
+      if (this.s.carteiraId()) untracked(() => this.calcular());
+    });
+  }
+
+  private async calcular() {
+    try {
+      const [p] = await Promise.all([this.patrimonios.atual(), this.patrimonios.carregar()]);
+      this.pat.set(p);
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
 
   protected aberto = signal(false);
   protected salvando = signal(false);
@@ -139,6 +194,7 @@ export default class Saldos {
       await this.s.salvar('contas_bancarias', { id: this.f.id, nome: this.f.nome.trim(), saldo: parseValor(this.f.saldo), cor: this.f.cor, ativo: this.f.ativo, atualizado_em: hoje() });
       this.aberto.set(false);
       this.toast.ok('Saldo atualizado');
+      this.patrimonios.fotografar();
     } catch (e) {
       this.toast.erro(e);
     } finally {

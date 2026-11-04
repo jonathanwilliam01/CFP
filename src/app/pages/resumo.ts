@@ -9,9 +9,10 @@ import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
 import { Abas, RELATORIOS } from '../shared/abas';
+import { Fatia, Fluxo } from '../shared/graficos';
 
 @Component({
-  imports: [Abas, BrlPipe, PrivPipe, DiaPipe, MesPipe, Icon, RouterLink],
+  imports: [Abas, BrlPipe, PrivPipe, DiaPipe, MesPipe, Icon, RouterLink, Fluxo],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -20,7 +21,7 @@ import { Abas, RELATORIOS } from '../shared/abas';
         <button class="btn ghost sm" type="button" (click)="imprimir()" aria-label="PDF" title="PDF"><app-icon name="picture_as_pdf" [size]="16" /><span class="rot">PDF</span></button>
         <button class="btn ghost sm" type="button" (click)="compartilhar()" aria-label="Compartilhar" title="Compartilhar"><app-icon name="share" [size]="16" /><span class="rot">Compartilhar</span></button>
       </app-abas>
-      <h2 class="cap mes">{{ s.mes() | mes }}</h2>
+      <h2 class="cap mes">{{ s.mes() | mes }}<span class="so-print"> · {{ s.carteira()?.nome }}</span></h2>
 
       <section class="card hero">
         <span class="muted small">Saldo previsto do mês</span>
@@ -36,6 +37,13 @@ import { Abas, RELATORIOS } from '../shared/abas';
           <span class="small muted">Sobra de <b>{{ sobra() }}%</b> das entradas</span>
         }
       </section>
+
+      @if (r().entradas || r().saidas) {
+        <section class="card">
+          <div class="card-head"><h2>Fluxo do mês</h2><span class="muted small">de onde vem e para onde vai</span></div>
+          <app-fluxo [entradas]="fluxo().entradas" [saidas]="fluxo().saidas" />
+        </section>
+      }
 
       <div class="stats">
         <div class="stat"><div class="l">À vista</div><div class="v">{{ r().avista | brl }}</div></div>
@@ -189,6 +197,28 @@ export default class Resumo {
     let pico: { data: string; total: number } | null = null;
     for (const [data, total] of m) if (!pico || total > pico.total) pico = { data, total };
     return pico;
+  });
+
+  /** entradas fixas por nome + avulsas → faturas por cartão, contas fixas, à vista e reservas */
+  protected fluxo = computed(() => {
+    const mes = this.s.mes();
+    const r = this.r();
+    const verdes = ['#138a4f', '#0e9f6e', '#0b7f9c', '#65a30d', '#0d9488'];
+    const fixas = this.s.recorrenciasPrev().filter((x) => x.tipo === 'entrada' && ativaNoMes(x, mes));
+    const entradas: Fatia[] = fixas.map((x, i) => ({
+      nome: x.descricao,
+      valor: this.s.pagamentos().find((p) => p.ref_id === x.id && p.mes === mes)?.valor ?? x.valor,
+      cor: verdes[i % verdes.length],
+    }));
+    entradas.push({ nome: 'Avulsas', valor: r.entradasAvulsas, cor: '#84cc16' });
+    const contas = this.s.contasMes().filter((c) => !c.beneficio_id);
+    const saidas: Fatia[] = [
+      ...contas.filter((c) => c.tipo === 'fatura').map((c) => ({ nome: c.descricao, valor: c.valor, cor: c.cor })),
+      { nome: 'Contas fixas', valor: r.contasFixas, cor: '#d97706' },
+      { nome: 'À vista', valor: r.avista, cor: '#1d5bd8' },
+      { nome: 'Reservado', valor: r.reservado, cor: '#94a3b8' },
+    ];
+    return { entradas: entradas.sort((a, b) => b.valor - a.valor), saidas };
   });
 
   protected pagas = computed(() => this.s.contasMes().filter((c) => c.pago).length);

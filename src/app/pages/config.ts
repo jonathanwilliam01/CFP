@@ -4,7 +4,8 @@ import { Router } from '@angular/router';
 import { Auth } from '../core/auth';
 import { Bloqueio } from '../core/bloqueio';
 import { Insights } from '../core/insights';
-import { Categoria, Membro } from '../core/models';
+import { Categoria, Membro, Regra } from '../core/models';
+import { normalizar } from '../core/texto';
 import { Painel } from '../core/painel';
 import { Push } from '../core/push';
 import { Store } from '../core/store';
@@ -123,6 +124,44 @@ import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
         </div>
       </div>
 
+      <div class="card" [class.fechado]="!aberto('regras')">
+        <div class="card-head">
+          <button type="button" class="tit" (click)="alternar('regras')" [attr.aria-expanded]="aberto('regras')"><h2>Regras de categoria</h2><app-icon [name]="aberto('regras') ? 'expand_less' : 'expand_more'" /></button>
+          <button class="btn sm" type="button" (click)="novaRegra()"><app-icon name="add" [size]="16" />Nova</button>
+        </div>
+        <p class="small muted">Descrição que contém o texto ganha a categoria no lançamento, na revisão e na importação. Valem para todos da carteira; a importação cria as suas sozinha.</p>
+        @if (s.regras().length > 8) {
+          <input class="busca-regra" placeholder="Buscar regra" [ngModel]="buscaRegra()" (ngModelChange)="buscaRegra.set($event)" />
+        }
+        <div class="list">
+          @for (r of regrasVisiveis(); track r.id) {
+            <button class="row" type="button" (click)="editarRegra(r)">
+              <span class="ico" [style.background]="(s.catMap().get(r.categoria_id ?? '')?.cor ?? '#94a3b8') + '22'" [style.color]="s.catMap().get(r.categoria_id ?? '')?.cor ?? '#94a3b8'">
+                <app-icon [name]="s.catMap().get(r.categoria_id ?? '')?.icone ?? 'rule'" />
+              </span>
+              <div class="grow"><div class="t">"{{ r.termo }}"</div><div class="s">{{ s.catMap().get(r.categoria_id ?? '')?.nome ?? 'Sem categoria' }}@if (r.descricao) { · vira "{{ r.descricao }}"}</div></div>
+            </button>
+          } @empty {
+            <p class="small muted">Nenhuma regra ainda.</p>
+          }
+        </div>
+      </div>
+
+      <app-sheet [(open)]="regraAberta" [titulo]="regra.id ? 'Editar regra' : 'Nova regra'">
+        <form class="form" (ngSubmit)="salvarRegra()">
+          <label class="field"><span>Quando a descrição contém</span><input name="t" autocomplete="off" placeholder="Ex.: uber, ifood, posto" [(ngModel)]="regra.termo" /></label>
+          <label class="field"><span>Categoria</span>
+            <select name="c" [(ngModel)]="regra.categoria_id">
+              <option [ngValue]="null">Sem categoria</option>
+              @for (c of s.catGasto(); track c.id) { <option [ngValue]="c.id">{{ c.nome }}</option> }
+            </select>
+          </label>
+          <label class="field"><span>Nome na importação (opcional)</span><input name="d" autocomplete="off" placeholder="Ex.: Uber" [(ngModel)]="regra.descricao" /></label>
+          <button class="btn block" [disabled]="ocupado()">Salvar</button>
+          @if (regra.id) { <button class="btn danger block" type="button" (click)="excluirRegra()">Excluir</button> }
+        </form>
+      </app-sheet>
+
       <div class="card form">
         <h2>Carteiras</h2>
         <div class="list">
@@ -225,6 +264,10 @@ import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
                 Avisar quando outro membro lançar gasto
               </label>
             }
+            <label class="check">
+              <input type="checkbox" [checked]="resumoMensal()" (change)="alternarResumo()" [disabled]="ocupado()" />
+              Resumo do mês que fechou no dia 1
+            </label>
           }
         }
       </div>
@@ -474,6 +517,51 @@ export default class Config {
       await q(supabase.from('carteira_membros').update({ push_gastos }).eq('carteira_id', this.s.carteiraId()!).eq('user_id', this.auth.user()!.id));
       await this.s.carregarTudo();
     }, push_gastos ? 'Aviso de gastos ligado' : 'Aviso de gastos desligado');
+  }
+
+  protected resumoMensal = computed(() => this.s.membros().find((m) => m.user_id === this.auth.user()?.id)?.resumo_mensal !== false);
+
+  alternarResumo() {
+    const resumo_mensal = !this.resumoMensal();
+    return this.exec(async () => {
+      await q(supabase.from('carteira_membros').update({ resumo_mensal }).eq('carteira_id', this.s.carteiraId()!).eq('user_id', this.auth.user()!.id));
+      await this.s.carregarTudo();
+    }, resumo_mensal ? 'Resumo mensal ligado' : 'Resumo mensal desligado');
+  }
+
+  protected buscaRegra = signal('');
+  protected regrasVisiveis = computed(() => {
+    const b = normalizar(this.buscaRegra());
+    const cats = this.s.catMap();
+    return this.s.regras().filter((r) => !b || normalizar(r.termo).includes(b) || normalizar(cats.get(r.categoria_id ?? '')?.nome ?? '').includes(b)).slice(0, 100);
+  });
+  protected regraAberta = signal(false);
+  regra: { id?: string; termo: string; categoria_id: string | null; descricao: string } = { termo: '', categoria_id: null, descricao: '' };
+
+  novaRegra() {
+    this.regra = { termo: '', categoria_id: null, descricao: '' };
+    this.regraAberta.set(true);
+  }
+
+  editarRegra(r: Regra) {
+    this.regra = { id: r.id, termo: r.termo, categoria_id: r.categoria_id, descricao: r.descricao ?? '' };
+    this.regraAberta.set(true);
+  }
+
+  salvarRegra() {
+    const termo = normalizar(this.regra.termo);
+    if (!termo) return this.toast.erro('Informe o texto');
+    const { id, categoria_id } = this.regra;
+    return this.exec(async () => {
+      await this.s.salvar('regras', { id, termo, categoria_id, descricao: this.regra.descricao.trim() || null });
+      this.regraAberta.set(false);
+    }, 'Regra salva');
+  }
+
+  excluirRegra() {
+    if (!this.regra.id) return;
+    this.s.excluirAdiado('regras', this.regra.id, 'Regra excluída');
+    this.regraAberta.set(false);
   }
 
   alternarLembrete() {

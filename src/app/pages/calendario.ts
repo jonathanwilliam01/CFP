@@ -80,7 +80,7 @@ interface Dia {
             }
             @for (g of d.gastos; track g.id) {
               <button class="row" type="button" (click)="lancar.editarGasto(g)">
-                <span class="ico"><app-icon [name]="s.catMap().get(g.categoria_id ?? '')?.icone ?? 'help'" /></span>
+                <span class="ico" [style.background]="(s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8') + '22'" [style.color]="s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8'"><app-icon [name]="s.catMap().get(g.categoria_id ?? '')?.icone ?? 'help'" /></span>
                 <div class="grow"><div class="t">{{ g.descricao }}</div><div class="s">{{ s.catMap().get(g.categoria_id ?? '')?.nome ?? 'Sem categoria' }}</div></div>
                 <span class="v">{{ g.valor | brl }}</span>
               </button>

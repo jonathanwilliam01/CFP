@@ -109,3 +109,18 @@ export function lerComprovante(texto: string) {
   desc = desc.replace(/R\$.*$/, '').replace(/[*#]/g, ' ').replace(/\s+/g, ' ').trim();
   return [valor, data, /\bpix\b/i.test(texto) ? 'pix' : '', desc].filter(Boolean).join(' ');
 }
+
+/** Regra cujo termo aparece no texto; o termo mais longo vence */
+export function regraPara<T extends { termo: string }>(texto: string, regras: T[]) {
+  const t = normalizar(texto);
+  let melhor: T | undefined;
+  let tam = 0;
+  for (const r of regras) {
+    const k = normalizar(r.termo);
+    if (k.length > tam && t.includes(k)) {
+      melhor = r;
+      tam = k.length;
+    }
+  }
+  return melhor;
+}

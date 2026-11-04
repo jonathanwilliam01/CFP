@@ -52,6 +52,8 @@ export const routes: Routes = [
       { path: 'calculadoras', loadComponent: () => import('./pages/calculadoras'), title: 'Calculadoras · Controle Financeiro Pessoal' },
       { path: 'retrospectiva', loadComponent: () => import('./pages/retrospectiva'), title: 'Retrospectiva · Controle Financeiro Pessoal' },
       { path: 'inflacao', loadComponent: () => import('./pages/inflacao'), title: 'Inflação do casal · Controle Financeiro Pessoal' },
+      { path: 'desejos', loadComponent: () => import('./pages/desejos'), title: 'Lista de desejos · Controle Financeiro Pessoal' },
+      { path: 'viagens', loadComponent: () => import('./pages/viagens'), title: 'Viagens · Controle Financeiro Pessoal' },
       { path: 'imposto', loadComponent: () => import('./pages/imposto'), title: 'Imposto de Renda · Controle Financeiro Pessoal' },
     ],
   },

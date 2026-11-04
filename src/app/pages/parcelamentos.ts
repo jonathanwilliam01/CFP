@@ -30,7 +30,7 @@ import { Toast } from '../shared/toast';
 
       @if (ativos().length) {
         <section class="card">
-          <div class="card-head"><h2>Parcelas nos próximos meses</h2></div>
+          <div class="card-head"><h2>Parcelas liberando</h2><span class="muted small">próximos 12 meses</span></div>
           <app-empilhadas [colunas]="linhaTempo()" />
           @if (libera().length) {
             <div class="libera">
@@ -162,13 +162,24 @@ export default class Parcelamentos {
 
   private meses = computed(() => Array.from({ length: 12 }, (_, i) => addMeses(mesAtual(), i)));
 
-  protected linhaTempo = computed<Pilha[]>(() =>
-    this.meses().map((mes, i) => ({
-      rotulo: nomeMes(mes, true),
-      destaque: i === 0,
-      partes: [{ nome: 'Parcelas', cor: 'var(--primary)', valor: soma(this.parcelas().filter((g) => (g.fatura_mes ?? inicioMes(g.data)) === mes), (g) => g.valor) }],
-    })),
-  );
+  /** Uma cor por compra (as 6 maiores, o resto em Outras): dá para ver qual parcela some em cada mês */
+  protected linhaTempo = computed<Pilha[]>(() => {
+    const cores = ['#1d5bd8', '#7c3aed', '#db2777', '#d97706', '#0e9f6e', '#0b7f9c'];
+    const top = [...this.ativos()].sort((a, b) => b.p.valor_parcela - a.p.valor_parcela).slice(0, 6);
+    const ids = new Set(top.map((x) => x.p.id));
+    const mesDe = (g: Parcela) => g.fatura_mes ?? inicioMes(g.data);
+    return this.meses().map((mes, i) => {
+      const doMes = this.parcelas().filter((g) => mesDe(g) === mes);
+      return {
+        rotulo: nomeMes(mes, true),
+        destaque: i === 0,
+        partes: [
+          ...top.map((x, j) => ({ nome: x.p.descricao, cor: cores[j], valor: soma(doMes.filter((g) => g.parcelamento_id === x.p.id), (g) => g.valor) })),
+          { nome: 'Outras', cor: '#94a3b8', valor: soma(doMes.filter((g) => !ids.has(g.parcelamento_id ?? '')), (g) => g.valor) },
+        ],
+      };
+    });
+  });
 
   /** Mês seguinte à última parcela: quanto deixa de sair por mês */
   protected libera = computed(() => {

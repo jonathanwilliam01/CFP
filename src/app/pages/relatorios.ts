@@ -8,6 +8,7 @@ import { Barras, Calor, Coluna, Donut, Empilhadas, Pilha } from '../shared/grafi
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
 import { Abas, RELATORIOS } from '../shared/abas';
+import { normalizar } from '../core/texto';
 
 interface Grupo {
   nome: string;
@@ -53,6 +54,49 @@ interface Grupo {
           <div class="card-head"><h2>Categorias mês a mês</h2><span class="muted small">consumo</span></div>
           <app-empilhadas [colunas]="pilhas()" [tendencia]="true" />
         </section>
+
+        @if (comparar().length) {
+          <section class="card">
+            <div class="card-head"><h2>Comparar meses</h2><span class="muted small cap">{{ s.mes() | mes: true }} x {{ anterior() | mes: true }} x média</span></div>
+            <div class="seg mini">
+              <button type="button" [class.on]="base() === 'anterior'" (click)="base.set('anterior')">Contra o mês anterior</button>
+              <button type="button" [class.on]="base() === 'media'" (click)="base.set('media')">Contra a média</button>
+            </div>
+            @for (c of comparar(); track c.id) {
+              <div class="cmp">
+                <div class="l">
+                  <span class="tit"><app-icon [name]="c.icone" [size]="16" [style.color]="c.cor" />{{ c.nome }}</span>
+                  <span class="num small">{{ c.atual | brl }}
+                    @if (c.var !== null) { <b [class.neg]="c.var > 0" [class.pos]="c.var < 0">{{ c.var > 0 ? '▲' : '▼' }}{{ c.var > 0 ? c.var : -c.var }}%</b> } @else { <b>novo</b> }
+                  </span>
+                </div>
+                <div class="par">
+                  <i [style.width.%]="(c.atual / maxCmp()) * 100" [style.background]="c.cor"></i>
+                  <i class="ref" [style.width.%]="(c.ref / maxCmp()) * 100" [title]="(base() === 'media' ? 'Média: ' : 'Mês anterior: ') + (c.ref | brl)"></i>
+                </div>
+              </div>
+            }
+            <p class="small muted">Barra colorida: {{ s.mes() | mes }}. Cinza: {{ base() === 'media' ? 'média dos outros meses do período' : 'mês anterior' }}.</p>
+          </section>
+        }
+
+        @if (lojas().length) {
+          <section class="card">
+            <div class="card-head"><h2>Onde mais gastam</h2><span class="muted small">no período</span></div>
+            <div class="list">
+              @for (l of lojas(); track l.nome; let i = $index) {
+                <div class="row">
+                  <span class="pos-n">{{ i + 1 }}</span>
+                  <div class="grow">
+                    <div class="t">{{ l.nome }}</div>
+                    <div class="s">{{ l.qtd }}x · média {{ l.total / l.qtd | brl }}@if (l.cat) { · {{ l.cat }}}</div>
+                  </div>
+                  <div class="v">{{ l.total | brl }}<div class="s">{{ l.pct }}%</div></div>
+                </div>
+              }
+            </div>
+          </section>
+        }
 
         <section class="card">
           <div class="card-head"><h2>Gastos por dia</h2><span class="muted small">{{ calorDe() | mes }} até hoje</span></div>
@@ -120,6 +164,14 @@ interface Grupo {
     .bar { margin-top: 6px; height: 6px; }
     .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
     .cap { text-transform: capitalize; }
+    .mini { margin-bottom: 6px; }
+    .cmp { display: flex; flex-direction: column; gap: 5px; padding: 8px 0; }
+    .cmp .l { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+    .cmp .l b { font-size: 0.75rem; margin-left: 4px; }
+    .par { display: flex; flex-direction: column; gap: 2px; }
+    .par i { display: block; height: 7px; border-radius: 4px; min-width: 2px; transition: width 0.4s; }
+    .par i.ref { height: 4px; background: var(--ink-3); opacity: 0.5; }
+    .pos-n { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--card-2); font-weight: 800; font-size: 0.78rem; color: var(--ink-2); flex-shrink: 0; }
   `,
 })
 export default class Relatorios {
@@ -219,6 +271,57 @@ export default class Relatorios {
         ],
       };
     });
+  });
+
+  protected base = signal<'anterior' | 'media'>('anterior');
+  protected anterior = computed(() => addMeses(this.s.mes(), -1));
+
+  /** Categorias do mês selecionado contra o anterior ou a média dos outros meses do período */
+  protected comparar = computed(() => {
+    const mes = this.s.mes();
+    const outros = this.lista().filter((m) => m !== mes);
+    if (!outros.length) return [];
+    const doMes = (m: string) => new Map(porCategoria(this.consumo().filter((g) => noMes(g.data, m)), this.s.catMap()).map((c) => [c.id ?? '', c]));
+    const atual = doMes(mes);
+    const ref = new Map<string, number>();
+    const meses = this.base() === 'media' ? outros : [this.anterior()].filter((m) => outros.includes(m));
+    for (const m of meses) for (const [id, c] of doMes(m)) ref.set(id, (ref.get(id) ?? 0) + c.total / meses.length);
+    const ids = new Set([...atual.keys(), ...ref.keys()]);
+    const cats = this.s.catMap();
+    return [...ids]
+      .map((id) => {
+        const a = atual.get(id)?.total ?? 0;
+        const r = ref.get(id) ?? 0;
+        const c = cats.get(id);
+        return { id, nome: c?.nome ?? 'Sem categoria', icone: c?.icone ?? 'help', cor: c?.cor ?? '#94a3b8', atual: a, ref: r, var: r > 0 ? Math.round((a / r - 1) * 100) : null };
+      })
+      .sort((x, y) => Math.max(y.atual, y.ref) - Math.max(x.atual, x.ref))
+      .slice(0, 8);
+  });
+  protected maxCmp = computed(() => Math.max(1, ...this.comparar().flatMap((c) => [c.atual, c.ref])));
+
+  /** Estabelecimentos pela descrição (sem acento e número de parcela), do maior total para o menor */
+  protected lojas = computed(() => {
+    const m = new Map<string, { nome: string; total: number; qtd: number; cats: Map<string, number> }>();
+    for (const g of this.consumo()) {
+      if (g.valor <= 0) continue;
+      const k = normalizar(g.descricao).replace(/\s*\(?\d+\s*\/\s*\d+\)?$/, '');
+      if (!k) continue;
+      const a = m.get(k) ?? { nome: g.descricao, total: 0, qtd: 0, cats: new Map() };
+      a.total += g.valor;
+      a.qtd++;
+      if (g.categoria_id) a.cats.set(g.categoria_id, (a.cats.get(g.categoria_id) ?? 0) + 1);
+      m.set(k, a);
+    }
+    const total = soma(this.consumo().filter((g) => g.valor > 0), (g) => g.valor);
+    const cats = this.s.catMap();
+    return [...m.values()]
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10)
+      .map((a) => {
+        const cat = [...a.cats.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
+        return { nome: a.nome, total: a.total, qtd: a.qtd, pct: pct(a.total, total), cat: cat ? cats.get(cat)?.nome : undefined };
+      });
   });
 
   /** até 6 meses: com mais semanas os quadradinhos ficam pequenos demais no celular */

@@ -1,4 +1,4 @@
-import { avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, precosRepetidos, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
+import { curvaFatura, decimoTerceiro, avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, precosRepetidos, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -343,6 +343,23 @@ describe('categoriasAcima', () => {
   });
 });
 
+describe('curvaFatura', () => {
+  it('acumula o real até hoje e projeta até a véspera do fechamento', () => {
+    const c = cartao({ fechamento_dia: 25, vencimento_dia: 5 });
+    const g = [
+      { cartao_id: 'c1', valor: 100, data: '2026-09-28', fatura_mes: '2026-11-01', parcelamento_id: null },
+      { cartao_id: 'c1', valor: 50, data: '2026-10-01', fatura_mes: '2026-11-01', parcelamento_id: 'p' },
+    ];
+    const r = curvaFatura(c, g, [], '2026-10-04');
+    expect(r.dias[0]).toBe('2026-09-25');
+    expect(r.real[0]).toBe(50);
+    expect(r.real[r.hoje]).toBe(150);
+    expect(r.real[r.hoje + 1]).toBeNull();
+    expect(r.prevista[r.hoje]).toBe(150);
+    expect(r.prevista[r.dias.length - 1]).toBeCloseTo(r.projetada, 2);
+  });
+});
+
 describe('faturaProjetada', () => {
   const c = cartao({ fechamento_dia: 25, vencimento_dia: 5 });
   it('projeta as compras avulsas pelo ritmo do ciclo', () => {
@@ -491,6 +508,17 @@ describe('calculadoras de crédito e salário', () => {
     const s10 = salarioLiquido(10000)!;
     expect(s10.inss).toBeCloseTo(988.09, 1);
     expect(s10.ir).toBeCloseTo((10000 - 988.09) * 0.275 - 908.73, 1);
+  });
+
+  it('13º: 1ª sem desconto, 2ª com INSS e IR do total', () => {
+    const d = decimoTerceiro(10000)!;
+    expect(d.total).toBe(10000);
+    expect(d.primeira).toBe(5000);
+    expect(d.inss).toBe(inss(10000));
+    expect(d.ir).toBeCloseTo((10000 - d.inss) * 0.275 - 908.73, 1);
+    expect(d.primeira + d.segunda).toBeCloseTo(d.liquido, 2);
+    expect(decimoTerceiro(6000, 6)!.total).toBe(3000);
+    expect(decimoTerceiro(4000)!.ir).toBe(0);
   });
 
   it('rendimento com IR por depósito', () => {

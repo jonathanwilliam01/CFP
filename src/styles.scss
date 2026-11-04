@@ -160,6 +160,24 @@ a {
   &.fill { font-variation-settings: 'FILL' 1, 'wght' 450, 'opsz' 24; }
 }
 
+/* valores alinhados em coluna em todo lugar */
+body, input, select, button { font-variant-numeric: tabular-nums; }
+
+.so-print { display: none; }
+
+/* esqueleto enquanto carrega */
+.esqueleto {
+  display: block; border-radius: 10px; min-height: 14px;
+  background: linear-gradient(90deg, var(--card-2) 25%, color-mix(in srgb, var(--line) 70%, var(--card-2)) 50%, var(--card-2) 75%);
+  background-size: 200% 100%;
+  animation: esqueleto 1.2s ease-in-out infinite;
+}
+@keyframes esqueleto { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .esqueleto { animation: none; } }
+
+/* seleção em massa */
+.selecionado { background: color-mix(in srgb, var(--primary) 10%, var(--card)) !important; }
+
 .num {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
@@ -506,7 +524,10 @@ input[type='color'] {
 
 // Resumo → PDF: só o conteúdo da página, fundo branco
 @media print {
-  app-shell > :not(main), app-toast, .no-print { display: none !important; }
+  /* tema escuro ou colorido sai claro no papel */
+  :root, :root * { --bg: #fff; --card: #fff; --card-2: #f6f8fb; --ink: #141b2b; --ink-2: #59647a; --ink-3: #8a94a8; --line: #e1e6ef; --hero: #fff; --hero-ink: #141b2b; }
+  app-shell > :not(main), app-toast, .no-print, app-lancar, .fab { display: none !important; }
+  .so-print { display: block !important; }
   app-shell > main { margin: 0 !important; }
   body { background: #fff; }
   .page { max-width: none; padding: 0; }

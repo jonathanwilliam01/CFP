@@ -1,5 +1,5 @@
 // Envia Web Push: mensagem nova do chat (trigger em mensagens), gasto lançado (triggers em gastos/parcelamentos e importação),
-// contas vencendo e lembrete da noite (pg_cron).
+// contas vencendo, lembrete da noite e resumo do mês no dia 1 (pg_cron).
 // Chamada só pelo banco via push_enviar, com o segredo de push_config.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
@@ -22,14 +22,14 @@ Deno.serve(async (req) => {
   if (!segredo || req.headers.get('Authorization') !== `Bearer ${segredo}`) return new Response('não autorizado', { status: 401 });
   const ev = await req.json();
   const envios = ev.tipo === 'chat' ? await chat(ev) : ev.tipo === 'gasto' || ev.tipo === 'importacao' ? await gasto(ev)
-    : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : [];
+    : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : ev.tipo === 'resumo' ? await resumo() : [];
   let n = 0;
   for (const e of envios) n += await enviar(e);
   return Response.json({ enviados: n });
 });
 
 async function membros(carteira: string) {
-  const { data, error } = await db.from('carteira_membros').select('user_id, nome, push_gastos').eq('carteira_id', carteira);
+  const { data, error } = await db.from('carteira_membros').select('user_id, nome, push_gastos, resumo_mensal').eq('carteira_id', carteira);
   if (error) throw error;
   return data;
 }
@@ -92,6 +92,27 @@ async function lembrete(): Promise<Envio[]> {
   if (error) throw error;
   const usuarios = (data as { user_id: string }[]).map((x) => x.user_id);
   return [{ usuarios, titulo: 'Lançou os gastos de hoje?', texto: 'Nenhum gasto lançado hoje. Toque para lançar.', tag: 'lembrete', url: '/?lancar=gasto' }];
+}
+
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+/** Dia 1: quanto saiu no mês que fechou e a categoria que mais pesou */
+async function resumo(): Promise<Envio[]> {
+  const { data, error } = await db.rpc('resumos_mensais');
+  if (error) throw error;
+  const envios: Envio[] = [];
+  for (const r of data as { carteira_id: string; mes: string; total: number; categoria: string; valor_categoria: number }[]) {
+    const l = await membros(r.carteira_id);
+    const mes = MESES[Number(r.mes.slice(5, 7)) - 1];
+    envios.push({
+      usuarios: l.filter((m) => m.resumo_mensal !== false).map((m) => m.user_id),
+      titulo: `${mes[0].toUpperCase()}${mes.slice(1)} fechou`,
+      texto: `${brl.format(Number(r.total))} em gastos. Mais em ${r.categoria}: ${brl.format(Number(r.valor_categoria))}. Toque para ver o balanço.`,
+      tag: `resumo-${r.carteira_id}-${r.mes}`,
+      url: '/fechamento',
+    });
+  }
+  return envios;
 }
 
 async function enviar(e: Envio) {

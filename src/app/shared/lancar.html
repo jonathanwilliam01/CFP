@@ -29,6 +29,12 @@
       <input name="valor" inputmode="decimal" placeholder="0,00" autocomplete="off" autofocus
         [ngModel]="f().valor" (ngModelChange)="set('valor', $event)" />
     </label>
+    @if (cambio(); as v) {
+      <label class="field">
+        <span>Valor em {{ v.moeda }} ({{ v.nome }}: cotação {{ v.cotacao }} + IOF {{ v.iof }}%)</span>
+        <input name="estrangeiro" inputmode="decimal" placeholder="0,00" autocomplete="off" [ngModel]="estrangeiro()" (ngModelChange)="converter($event)" />
+      </label>
+    }
 
     @if (l.modo() === 'parcelado') {
       <div class="grid2">

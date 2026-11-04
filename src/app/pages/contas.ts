@@ -76,7 +76,9 @@ import { taxas } from './calc/comum';
             </a>
           </app-deslizar>
         }
-        @if (!contasLista().length && !reservasLista().length) {
+        @if (!contasLista().length && !reservasLista().length && s.carregandoMes()) {
+          @for (i of [1, 2, 3]; track i) { <span class="esqueleto" style="height: 44px; margin: 8px 0"></span> }
+        } @else if (!contasLista().length && !reservasLista().length) {
           <div class="empty"><app-icon class="big" name="calendar_month" [size]="40" />Nenhuma conta neste mês.<br />
             <span class="small">Cadastre contas fixas (aluguel, luz, internet) e as faturas dos cartões aparecem aqui sozinhas.</span>
           </div>

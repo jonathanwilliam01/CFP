@@ -14,7 +14,11 @@ import { Toast } from '../shared/toast';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
-      <div class="page-head"><h1>Fechamento</h1><span class="badge cap">{{ mes() | mes }}</span></div>
+      <div class="page-head"><h1>Fechamento</h1>
+        <span class="acts"><span class="badge cap">{{ mes() | mes }}</span>
+          <button class="btn ghost sm no-print" type="button" (click)="imprimir()" [disabled]="!f()"><app-icon name="picture_as_pdf" [size]="16" />PDF</button></span>
+      </div>
+      <p class="so-print small">{{ s.carteira()?.nome }} · gerado em {{ hojeTxt }}</p>
 
       @if (antes()) {
         <div class="card empty"><span class="big">🗓️</span>O primeiro fechamento sai quando {{ s.inicio()! | mes }} terminar.</div>
@@ -102,6 +106,8 @@ import { Toast } from '../shared/toast';
     </div>
   `,
   styles: `
+    .acts { display: flex; align-items: center; gap: 8px; }
+    .acts app-icon { margin-right: 4px; }
     .sobra { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
     .sobra .linha { display: flex; gap: 8px; }
     .sobra select { flex: 1; }
@@ -116,6 +122,13 @@ import { Toast } from '../shared/toast';
   `,
 })
 export default class Fechamento {
+  protected hojeTxt = new Date().toLocaleDateString('pt-BR');
+
+  /** "Salvar como PDF" na janela de impressão do navegador */
+  imprimir() {
+    print();
+  }
+
   protected s = inject(Store);
   private toast = inject(Toast);
 

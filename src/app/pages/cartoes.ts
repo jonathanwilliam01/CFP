@@ -3,10 +3,11 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { addMeses, fechamentoFatura, hoje, mesAtual, mesFatura } from '../core/datas';
 import { BrlPipe, DiaPipe, MesPipe, parseValor, pct, soma } from '../core/formato';
-import { duplicados, faturaDoMes, faturaProjetada, fixasNaFatura } from '../core/financas';
+import { curvaFatura, duplicados, faturaDoMes, fixasNaFatura } from '../core/financas';
 import { Cartao, Gasto, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
+import { Curvas } from '../shared/graficos';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
@@ -15,7 +16,7 @@ type Futuro = { cartao_id: string; valor: number; fatura_mes: string; data: stri
 
 /** Só mostra quando o ritmo muda o valor da fatura aberta */
 function projetar(c: Cartao, gastos: Futuro[], rec: Recorrencia[]) {
-  const p = faturaProjetada(c, gastos, rec, hoje());
+  const p = curvaFatura(c, gastos, rec, hoje());
   return p.projetada > p.atual + 1 ? p : null;
 }
 
@@ -33,7 +34,7 @@ interface FormCartao {
 }
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet],
+  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet, Curvas],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -84,6 +85,8 @@ interface FormCartao {
                 <app-icon name="trending_up" [size]="18" />
                 <span>Fatura de <b class="cap">{{ p.mes | mes: true }}</b> tem <b class="num">{{ p.atual | brl }}</b>; no ritmo atual fecha em <b class="num">{{ p.projetada | brl }}</b> (dia {{ p.fecha.slice(8) }})</span>
               </div>
+              <app-curvas [series]="[{ nome: 'Real', cor: c.cartao.cor, valores: p.real }, { nome: 'Prevista', cor: 'var(--ink-3)', valores: p.prevista, tracejada: true }]"
+                [rotulos]="rotulosCiclo(p.dias)" [marca]="p.hoje" rotulo="Fatura real e prevista no ciclo" />
             }
 
             <h3 class="sub">Próximas faturas</h3>
@@ -259,6 +262,8 @@ export default class Cartoes {
     const l = this.gastosConf();
     return new Set([...l.filter((g) => Math.abs(Math.abs(g.valor) - d) < 0.01).map((g) => g.id), ...duplicados(l).flat().map((g) => g.id)]);
   });
+
+  protected rotulosCiclo = (dias: string[]) => dias.map((d) => d.slice(8) + '/' + d.slice(5, 7));
 
   protected lista = computed(() => {
     const atual = mesAtual();

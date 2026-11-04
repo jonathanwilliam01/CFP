@@ -1,4 +1,4 @@
-import { lerComprovante, lerTags, lerTexto } from './texto';
+import { lerComprovante, lerTags, lerTexto, regraPara } from './texto';
 import { Beneficio, Cartao, Categoria } from './models';
 
 const cartoes = [
@@ -52,5 +52,15 @@ describe('lerComprovante', () => {
   });
   it('sem valor devolve null', () => {
     expect(lerComprovante('mercado 120 nubank')).toBeNull();
+  });
+});
+
+describe('regraPara', () => {
+  it('acha o termo na descrição, sem acento, e o mais longo vence', () => {
+    const regras = [{ termo: 'uber' }, { termo: 'uber eats' }, { termo: 'padaria' }];
+    expect(regraPara('UBER EATS *pedido', regras)?.termo).toBe('uber eats');
+    expect(regraPara('Uber trip', regras)?.termo).toBe('uber');
+    expect(regraPara('Pádaria do Zé', regras)?.termo).toBe('padaria');
+    expect(regraPara('mercado', regras)).toBeUndefined();
   });
 });

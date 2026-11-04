@@ -288,3 +288,204 @@ export class Calor {
     return l;
   });
 }
+
+interface No {
+  nome: string;
+  valor: number;
+  cor: string;
+  y: number;
+  h: number;
+}
+
+const LARG = 340;
+const ALT = 240;
+const VAO = 6;
+
+/** Fluxo do mês (Sankey de 3 colunas): entradas → total → destinos; sobra ou falta fecham a conta */
+@Component({
+  selector: 'app-fluxo',
+  imports: [BrlPipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (d(); as x) {
+      <svg [attr.viewBox]="'0 0 ' + larg + ' ' + (alt + 26)" role="img" [attr.aria-label]="'Fluxo do mês: ' + (x.total | brl)">
+        <g transform="translate(0, 22)">
+          @for (b of x.faixas; track $index) {
+            <path class="faixa" [attr.d]="b.d" [attr.fill]="b.cor"><title>{{ b.nome }}: {{ b.valor | brl }}</title></path>
+          }
+          @for (n of x.esq; track n.nome) {
+            <rect x="0" [attr.y]="n.y" width="8" [attr.height]="n.h" [attr.fill]="n.cor" rx="2" />
+            <text x="12" [attr.y]="n.y + n.h / 2" dominant-baseline="middle"><tspan class="n">{{ n.nome }}</tspan> <tspan class="v">{{ n.valor | brl }}</tspan></text>
+          }
+          <rect [attr.x]="larg / 2 - 4" [attr.y]="x.meio.y" width="8" [attr.height]="x.meio.h" fill="var(--ink-3)" rx="2" />
+          @for (n of x.dir; track n.nome) {
+            <rect [attr.x]="larg - 8" [attr.y]="n.y" width="8" [attr.height]="n.h" [attr.fill]="n.cor" rx="2" />
+            <text [attr.x]="larg - 12" [attr.y]="n.y + n.h / 2" dominant-baseline="middle" text-anchor="end"><tspan class="n">{{ n.nome }}</tspan> <tspan class="v">{{ n.valor | brl }}</tspan></text>
+          }
+        </g>
+        <text class="topo" [attr.x]="larg / 2" y="10" text-anchor="middle">{{ x.total | brl }}</text>
+      </svg>
+    }
+  `,
+  styles: `
+    svg { width: 100%; height: auto; display: block; }
+    .faixa { opacity: 0.32; transition: opacity 0.2s; }
+    .faixa:hover { opacity: 0.6; }
+    text { font-size: 9.5px; fill: var(--ink); paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; }
+    .n { font-weight: 700; }
+    .v { fill: var(--ink-2); font-variant-numeric: tabular-nums; }
+    .topo { font-weight: 800; font-size: 11px; }
+  `,
+})
+export class Fluxo {
+  readonly entradas = input<Fatia[]>([]);
+  readonly saidas = input<Fatia[]>([]);
+  protected larg = LARG;
+  protected alt = ALT;
+
+  protected d = computed(() => {
+    const esq = this.entradas().filter((f) => f.valor > 0);
+    const dir = this.saidas().filter((f) => f.valor > 0);
+    const te = soma(esq);
+    const ts = soma(dir);
+    if (!te && !ts) return null;
+    if (te > ts) dir.push({ nome: 'Sobra', valor: te - ts, cor: 'var(--ok)' });
+    else if (ts > te) esq.push({ nome: 'Faltou', valor: ts - te, cor: 'var(--danger)' });
+    const total = Math.max(te, ts);
+    const n = Math.max(esq.length, dir.length);
+    const k = (ALT - VAO * (n - 1)) / total;
+    const coluna = (l: Fatia[]) => {
+      // centraliza a coluna com menos nós
+      const usado = soma(l) * k + VAO * (l.length - 1);
+      let y = (ALT - usado) / 2;
+      return l.map((f): No => {
+        const h = Math.max(f.valor * k, 1.5);
+        const no = { ...f, y, h };
+        y += h + VAO;
+        return no;
+      });
+    };
+    const ne = coluna(esq);
+    const nd = coluna(dir);
+    const meio = { y: (ALT - total * k) / 2, h: total * k };
+    const m = LARG / 2;
+    const faixa = (x0: number, a: number, x1: number, b: number, h: number) => {
+      const c = (x0 + x1) / 2;
+      return `M${x0},${a}C${c},${a} ${c},${b} ${x1},${b}L${x1},${b + h}C${c},${b + h} ${c},${a + h} ${x0},${a + h}Z`;
+    };
+    const faixas: { d: string; cor: string; nome: string; valor: number }[] = [];
+    let y = meio.y;
+    for (const n of ne) {
+      const h = n.valor * k;
+      faixas.push({ d: faixa(8, n.y, m - 4, y, h), cor: n.cor, nome: n.nome, valor: n.valor });
+      y += h;
+    }
+    y = meio.y;
+    for (const n of nd) {
+      const h = n.valor * k;
+      faixas.push({ d: faixa(m + 4, y, LARG - 8, n.y, h), cor: n.cor, nome: n.nome, valor: n.valor });
+      y += h;
+    }
+    return { esq: ne, dir: nd, meio, faixas, total: te };
+  });
+}
+
+const soma = (l: Fatia[]) => l.reduce((a, f) => a + f.valor, 0);
+
+export interface Serie {
+  nome: string;
+  cor: string;
+  /** null = sem ponto (linha interrompida) */
+  valores: (number | null)[];
+  tracejada?: boolean;
+}
+
+/** Linhas sobrepostas com rótulos no eixo x (primeiro, último e marcados) */
+@Component({
+  selector: 'app-curvas',
+  imports: [BrlPipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="g">
+      <svg viewBox="0 0 300 100" preserveAspectRatio="none" role="img" [attr.aria-label]="rotulo()">
+        @if (zero() !== null) { <line class="zero" x1="0" x2="300" [attr.y1]="zero()" [attr.y2]="zero()" /> }
+        @if (marca() !== null) { <line class="marca" [attr.x1]="x(marca()!)" [attr.x2]="x(marca()!)" y1="0" y2="100" /> }
+        @for (s of linhas(); track s.nome) {
+          <path class="linha" [attr.d]="s.d" [attr.stroke]="s.cor" [class.trac]="s.tracejada" />
+        }
+      </svg>
+      @for (s of linhas(); track s.nome) {
+        @if (s.fim; as f) { <i class="ponto" [style.left.%]="f.x / 3" [style.top.%]="f.y" [style.border-color]="s.cor"></i> }
+      }
+    </div>
+    <div class="eixo">@for (r of eixo(); track $index) {<span>{{ r }}</span>}</div>
+    <div class="leg">
+      @for (s of series(); track s.nome) {
+        <span><i [style.border-color]="s.cor" [class.trac]="s.tracejada"></i>{{ s.nome }}@if (ultimo(s) !== null) { <b class="num">{{ ultimo(s) | brl }}</b>}</span>
+      }
+    </div>
+  `,
+  styles: `
+    .g { position: relative; height: 130px; }
+    svg { width: 100%; height: 100%; display: block; overflow: visible; }
+    .linha { fill: none; stroke-width: 2.2; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+    .linha.trac { stroke-dasharray: 5 4; }
+    .zero { stroke: var(--danger); stroke-dasharray: 4 4; stroke-width: 1; vector-effect: non-scaling-stroke; opacity: 0.6; }
+    .marca { stroke: var(--ink-3); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 2 3; }
+    .ponto { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--card); border: 2px solid; }
+    .eixo { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--ink-3); font-weight: 600; margin-top: 4px; text-transform: capitalize; }
+    .leg { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; margin-top: 10px; font-size: 0.78rem; color: var(--ink-2); }
+    .leg i { display: inline-block; width: 14px; border-top: 2.5px solid; margin-right: 5px; vertical-align: 3px; }
+    .leg i.trac { border-top-style: dashed; }
+    .leg b { margin-left: 4px; color: var(--ink); }
+  `,
+})
+export class Curvas {
+  readonly series = input<Serie[]>([]);
+  /** rótulos do eixo x: só o primeiro, o do meio e o último aparecem */
+  readonly rotulos = input<string[]>([]);
+  readonly marca = input<number | null>(null);
+  readonly rotulo = input('Gráfico de linhas');
+
+  private n = computed(() => Math.max(1, ...this.series().map((s) => s.valores.length)));
+  private faixa = computed(() => {
+    const v = this.series().flatMap((s) => s.valores.filter((x): x is number => x !== null));
+    const lo = Math.min(0, ...v);
+    const hi = Math.max(0, ...v);
+    return { lo, hi: hi === lo ? lo + 1 : hi };
+  });
+  protected zero = computed(() => (this.faixa().lo < 0 ? this.y(0) : null));
+  protected eixo = computed(() => {
+    const r = this.rotulos();
+    return r.length > 2 ? [r[0], r[Math.floor((r.length - 1) / 2)], r[r.length - 1]] : r;
+  });
+
+  x(i: number) {
+    return (i / Math.max(1, this.n() - 1)) * 300;
+  }
+
+  y(v: number) {
+    const { lo, hi } = this.faixa();
+    return 4 + (1 - (v - lo) / (hi - lo)) * 92;
+  }
+
+  ultimo(s: Serie) {
+    for (let i = s.valores.length - 1; i >= 0; i--) if (s.valores[i] !== null) return s.valores[i];
+    return null;
+  }
+
+  protected linhas = computed(() =>
+    this.series().map((s) => {
+      let d = '';
+      let novo = true;
+      let fim: { x: number; y: number } | null = null;
+      s.valores.forEach((v, i) => {
+        if (v === null) return void (novo = true);
+        d += `${novo ? 'M' : 'L'}${this.x(i).toFixed(1)},${this.y(v).toFixed(1)}`;
+        novo = false;
+        fim = { x: this.x(i), y: this.y(v) };
+      });
+      return { ...s, d, fim: fim as { x: number; y: number } | null };
+    }),
+  );
+}

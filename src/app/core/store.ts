@@ -8,14 +8,14 @@ import { GastoHist, Transferencia, acertoMes, metaSobra, cobrancasBeneficio, com
 import { soma } from './formato';
 import {
   Acerto, Beneficio, Carteira, Cartao, Categoria, ContaBancaria, Cofrinho, CofrinhoMov, Dados, Desafio, Divida, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado,
-  OrcamentoValor, Pagamento, Receber, Recorrencia, Registro, Tabela, UsoBeneficio,
+  OrcamentoValor, Pagamento, Receber, Recorrencia, Registro, Regra, Tabela, UsoBeneficio, Viagem, Desejo,
 } from './models';
 import { Toast } from '../shared/toast';
 import { q, supabase } from './supabase';
 
 const CADASTROS = [
   'categorias', 'cartoes', 'beneficios', 'recorrencias', 'orcamentos', 'orcamento_valores', 'orcamento_fechados', 'cofrinhos', 'cofrinho_movs', 'registros',
-  'acertos', 'receber', 'dividas', 'desafios', 'contas_bancarias',
+  'acertos', 'receber', 'dividas', 'desafios', 'contas_bancarias', 'regras', 'viagens', 'desejos',
 ] as const;
 type Cadastro = (typeof CADASTROS)[number];
 const eCadastro = (t: string): t is Cadastro => (CADASTROS as readonly string[]).includes(t);
@@ -63,6 +63,13 @@ export class Store {
   readonly dividas = signal<Divida[]>([]);
   readonly desafios = signal<Desafio[]>([]);
   readonly contasBancarias = signal<ContaBancaria[]>([]);
+  readonly regras = signal<Regra[]>([]);
+  readonly viagens = signal<Viagem[]>([]);
+  readonly desejos = signal<Desejo[]>([]);
+  /** viagem ligada: gastos novos ganham o marcador dela */
+  readonly viagemAtiva = computed(() => this.viagens().find((v) => v.ativa) ?? null);
+  /** carregando os dados do mês (esqueleto nas telas) */
+  readonly carregandoMes = signal(false);
 
   /** Gastos com data no mês anterior/atual ou na fatura do mês */
   readonly gastos = signal<Gasto[]>([]);
@@ -223,7 +230,7 @@ export class Store {
   private limpar() {
     this.carteiras.set([]);
     this.membros.set([]);
-    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.orcamentoFechados, this.cofrinhos, this.cofrinhoMovs, this.registros, this.acertos, this.receber, this.dividas, this.desafios, this.contasBancarias, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
+    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.orcamentoFechados, this.cofrinhos, this.cofrinhoMovs, this.registros, this.acertos, this.receber, this.dividas, this.desafios, this.contasBancarias, this.regras, this.viagens, this.desejos, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
     for (const s of listas) s.set([]);
   }
 
@@ -248,13 +255,17 @@ export class Store {
     const ordem: Record<Cadastro, string> = {
       categorias: 'ordem', cartoes: 'nome', beneficios: 'nome', recorrencias: 'dia', orcamentos: 'valor', orcamento_valores: 'mes', orcamento_fechados: 'mes',
       cofrinhos: 'criado_em', cofrinho_movs: 'data', registros: 'criado_em', acertos: 'criado_em', receber: 'data', dividas: 'criado_em', desafios: 'inicio', contas_bancarias: 'nome',
+      regras: 'termo', viagens: 'inicio', desejos: 'prioridade',
     };
     const alvo: Record<Cadastro, WritableSignal<any[]>> = {
       categorias: this.categorias, cartoes: this.cartoes, beneficios: this.beneficios, recorrencias: this.recorrencias,
       orcamentos: this.orcamentos, orcamento_valores: this.orcamentoValores, orcamento_fechados: this.orcamentoFechados, cofrinhos: this.cofrinhos, cofrinho_movs: this.cofrinhoMovs, registros: this.registros,
       acertos: this.acertos, receber: this.receber, dividas: this.dividas, desafios: this.desafios, contas_bancarias: this.contasBancarias,
+      regras: this.regras, viagens: this.viagens, desejos: this.desejos,
     };
-    alvo[t].set(await this.sel(t, ordem[t]));
+    // tabelas da migration 035: sem ela o resto do app segue funcionando
+    const nova = t === 'regras' || t === 'viagens' || t === 'desejos';
+    alvo[t].set(await (nova ? this.sel(t, ordem[t]).catch(() => []) : this.sel(t, ordem[t])));
   }
 
   async carregarMes() {
@@ -264,6 +275,7 @@ export class Store {
     const ini = addMeses(mes, -1);
     const fim = fimMes(mes);
     const desde = [addMeses(mes, -3), this.inicio() ?? ''].sort()[1];
+    this.carregandoMes.set(true);
     const [gastos, entradas, pagamentos, uso, recentes, valores, anteriores] = await Promise.all([
       q<Gasto[]>(
         supabase.from('gastos').select('*').eq('carteira_id', id)
@@ -283,7 +295,7 @@ export class Store {
       q<GastoHist[]>(
         supabase.from('gastos').select('descricao, valor, data, categoria_id, forma, cartao_id, fatura_mes, parcelamento_id').eq('carteira_id', id).gte('data', desde).lt('data', mes),
       ),
-    ]);
+    ]).finally(() => req === this.reqMes && this.carregandoMes.set(false));
     // troca rápida de mês: descarta a resposta que chegou depois da mais nova
     if (req !== this.reqMes) return;
     this.gastos.set(gastos);
@@ -320,6 +332,7 @@ export class Store {
       gastos: this.gastos, entradas: this.entradas, pagamentos: this.pagamentos, categorias: this.categorias, cartoes: this.cartoes,
       beneficios: this.beneficios, recorrencias: this.recorrencias, orcamentos: this.orcamentos, cofrinhos: this.cofrinhos,
       cofrinho_movs: this.cofrinhoMovs, registros: this.registros, receber: this.receber, dividas: this.dividas, desafios: this.desafios, contas_bancarias: this.contasBancarias,
+      regras: this.regras, viagens: this.viagens, desejos: this.desejos,
     };
     // arquivos dos comprovantes saem junto com o gasto (o banco não apaga do storage)
     const arquivos = this.gastos().filter((g) => g.comprovante && (tabela === 'gastos' ? g.id === id : tabela === 'parcelamentos' && g.parcelamento_id === id)).map((g) => g.comprovante!);
@@ -337,6 +350,34 @@ export class Store {
         await recarregar?.();
       },
     );
+  }
+
+  /** Vários gastos de uma vez, com desfazer (seleção em Gastos) */
+  excluirGastos(ids: string[], texto: string) {
+    const sel = new Set(ids);
+    const arquivos = this.gastos().filter((g) => sel.has(g.id) && g.comprovante).map((g) => g.comprovante!);
+    this.gastos.update((l) => l.filter((g) => !sel.has(g.id)));
+    this.toast.adiar(
+      texto,
+      async () => {
+        await q(supabase.from('gastos').delete().in('id', ids));
+        await Promise.all(arquivos.map((a) => removerComprovante(a).catch(() => undefined)));
+        await this.depois('gastos');
+      },
+      () => this.depois('gastos'),
+    );
+  }
+
+  /** Muda os mesmos campos em vários gastos; a tela já mostra antes de gravar */
+  async atualizarGastos(ids: string[], dados: Partial<Gasto>) {
+    const sel = new Set(ids);
+    this.gastos.update((l) => l.map((g) => (sel.has(g.id) ? { ...g, ...dados } : g)));
+    try {
+      await q(supabase.from('gastos').update(dados).in('id', ids));
+    } catch (e) {
+      await this.carregarMes();
+      throw e;
+    }
   }
 
   async depois(tabela: string) {

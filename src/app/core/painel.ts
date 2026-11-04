@@ -25,13 +25,15 @@ export interface Prefs {
   ordem: Bloco[];
   ocultos: Bloco[];
   fechados: Bloco[];
+  /** Início só com o resumo do topo e os avisos */
+  compacto?: boolean;
 }
 
 const validos = (l: unknown) => (Array.isArray(l) ? l.filter((id): id is Bloco => PADRAO.includes(id)) : []);
 
 function normalizar(p: Partial<Prefs> | null | undefined): Prefs {
   const ordem = validos(p?.ordem);
-  return { ordem: [...ordem, ...PADRAO.filter((id) => !ordem.includes(id))], ocultos: validos(p?.ocultos), fechados: validos(p?.fechados) };
+  return { ordem: [...ordem, ...PADRAO.filter((id) => !ordem.includes(id))], ocultos: validos(p?.ocultos), fechados: validos(p?.fechados), compacto: !!p?.compacto };
 }
 
 function ler(): Prefs {
@@ -71,7 +73,11 @@ export class Painel {
   }
 
   oculto(id: Bloco) {
-    return this.prefs().ocultos.includes(id);
+    return this.prefs().ocultos.includes(id) || (!!this.prefs().compacto && id !== 'avisos');
+  }
+
+  alternarCompacto() {
+    this.gravar({ ...this.prefs(), compacto: !this.prefs().compacto });
   }
 
   fechado(id: Bloco) {

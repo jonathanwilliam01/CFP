@@ -6,7 +6,7 @@ import { BrlPipe, MesPipe, moeda, parseValor } from '../core/formato';
 import { Entrada, Forma, Gasto } from '../core/models';
 import { Chat } from '../core/chat';
 import { Recente, Store } from '../core/store';
-import { lerComprovante, lerTags, lerTexto } from '../core/texto';
+import { lerComprovante, lerTags, lerTexto, regraPara } from '../core/texto';
 import { Auth } from '../core/auth';
 import { Fila, ItemFila, semRede } from '../core/fila';
 import { guardarArquivo } from '../core/arquivos';
@@ -170,6 +170,19 @@ export class LancarSheet {
   });
   protected parseValor = parseValor;
 
+  /** viagem ativa com moeda: digita no valor de lá e converte com cotação + IOF */
+  protected estrangeiro = signal('');
+  protected cambio = computed(() => {
+    const v = this.s.viagemAtiva();
+    return v?.moeda && v.cotacao && this.l.modo() !== 'entrada' && !this.editando() ? v : null;
+  });
+  converter(t: string) {
+    this.estrangeiro.set(t);
+    const v = this.cambio();
+    const x = parseValor(t);
+    if (v && x > 0) this.set('valor', (Math.round(x * v.cotacao! * (1 + v.iof / 100) * 100) / 100).toFixed(2).replace('.', ','));
+  }
+
   /** Fatura em que a compra (ou 1ª parcela) vai cair */
   protected fatura = computed(() => {
     const f = this.f();
@@ -204,6 +217,7 @@ export class LancarSheet {
       untracked(() => {
         this.f.set(g ? this.deGasto(g) : e ? this.deEntrada(e) : (this.proxima ?? this.vazio()));
         this.proxima = null;
+        this.estrangeiro.set('');
         this.arquivo.set(this.l.arquivo());
         this.l.arquivo.set(null);
         this.tirar.set(false);
@@ -224,7 +238,7 @@ export class LancarSheet {
   private vazio(): FormLanc {
     return {
       valor: '', descricao: '', categoria_id: null, data: hoje(), pagamento: this.pagamentoPadrao(), parcelas: 2, valorEhTotal: true,
-      repete: this.l.fixa(), variavel: false, anterior: false, fim: '', jaPago: true, tags: '',
+      repete: this.l.fixa(), variavel: false, anterior: false, fim: '', jaPago: true, tags: this.l.modo() !== 'entrada' ? (this.s.viagemAtiva()?.tag ?? '') : '',
       pagoPor: this.auth.user()?.id ?? '', dividido: true, estorno: false,
     };
   }
@@ -260,7 +274,11 @@ export class LancarSheet {
     this.set('descricao', desc);
     if (this.l.modo() === 'entrada') return;
     const r = this.recente(desc);
-    if (!r) return;
+    if (!r) {
+      const regra = regraPara(desc, this.s.regras());
+      if (regra?.categoria_id && !this.f().categoria_id) this.set('categoria_id', regra.categoria_id);
+      return;
+    }
     if (r.categoria_id) this.set('categoria_id', r.categoria_id);
     const pg = this.editando() ? null : this.pagamentoDe(r);
     if (pg) this.set('pagamento', pg);

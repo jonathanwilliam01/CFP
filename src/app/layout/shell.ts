@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -7,6 +7,7 @@ import { Chat } from '../core/chat';
 import { Fila } from '../core/fila';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
+import { Patrimonios } from '../core/patrimonio';
 import { Tema } from '../core/tema';
 import { VERSAO } from '../core/versao';
 import { addMeses } from '../core/datas';
@@ -367,6 +368,11 @@ export class Shell {
       this.router.navigate([], { queryParams: {}, replaceUrl: true });
     });
     const nav = this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => this.pop.set(null));
+    // foto do patrimônio uma vez por dia, depois dos cadastros carregados
+    const pat = inject(Patrimonios);
+    effect(() => {
+      if (this.s.carteiraId() && !this.s.carregando() && this.s.contasBancarias().length + this.s.cofrinhos().length) untracked(() => pat.diaria());
+    });
     inject(DestroyRef).onDestroy(() => (sub.unsubscribe(), nav.unsubscribe()));
   }
 
@@ -420,14 +426,19 @@ export class Shell {
     this.lancar.novo(modo, fixa);
   }
 
-  /** N abre um novo lançamento (fora de campos e painéis) */
+  /** Fora de campos e painéis: N lança gasto, / abre a busca, ← e → trocam o mês */
   atalho(e: KeyboardEvent) {
     if (e.key === 'Escape' && this.pop()) return this.pop.set(null);
-    if (e.key.toLowerCase() !== 'n' || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    const k = e.key === '/' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' ? e.key : e.key.toLowerCase();
+    if (k !== 'n' && k !== '/' && k !== 'ArrowLeft' && k !== 'ArrowRight') return;
     const alvo = e.target as HTMLElement;
-    if (alvo.closest?.('input, textarea, select, [contenteditable]') || document.querySelector('[role="dialog"]')) return;
+    if (alvo.closest?.('input, textarea, select, [contenteditable], app-deslizar') || document.querySelector('[role="dialog"]')) return;
     e.preventDefault();
-    this.lancar.novo();
+    if (k === 'n') return this.lancar.novo();
+    if (k === '/') return this.pop.set('busca');
+    if (k === 'ArrowLeft' && this.s.mes() === this.s.inicio()) return;
+    this.s.mes.update((m) => addMeses(m, k === 'ArrowLeft' ? -1 : 1));
   }
 
   rolou() {

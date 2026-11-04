@@ -26,6 +26,8 @@ export interface Membro {
   lembrete?: boolean;
   /** push quando outro membro lança gasto (034) */
   push_gastos?: boolean;
+  /** push com o resumo do mês no dia 1 (035) */
+  resumo_mensal?: boolean;
 }
 
 export interface Categoria {
@@ -86,6 +88,9 @@ export interface Gasto {
   nao_duplicado?: boolean;
   /** caminho no bucket comprovantes (033) */
   comprovante?: string | null;
+  /** conferido na fatura (035) */
+  conferido?: boolean;
+  criado_em?: string;
 }
 
 export interface Parcelamento {
@@ -310,6 +315,50 @@ export interface UsoBeneficio {
   total: number;
 }
 
+/** Texto contido na descrição → categoria; `descricao` renomeia na importação (035) */
+export interface Regra {
+  id: string;
+  termo: string;
+  descricao: string | null;
+  categoria_id: string | null;
+}
+
+/** Modo viagem (035): com `ativa`, gastos novos ganham o marcador `tag` */
+export interface Viagem {
+  id: string;
+  nome: string;
+  tag: string;
+  inicio: string;
+  fim: string | null;
+  orcamento: number | null;
+  moeda: string | null;
+  cotacao: number | null;
+  iof: number;
+  ativa: boolean;
+}
+
+/** Lista de desejos (035); prioridade 1 alta, 2 média, 3 baixa */
+export interface Desejo {
+  id: string;
+  descricao: string;
+  valor: number;
+  prioridade: 1 | 2 | 3;
+  link: string | null;
+  cofrinho_id: string | null;
+  comprado_em: string | null;
+}
+
+/** Foto mensal do patrimônio (035) */
+export interface FotoPatrimonio {
+  id: string;
+  mes: string;
+  bancos: number;
+  cofrinhos: number;
+  receber: number;
+  dividas: number;
+  parcelas: number;
+}
+
 /** Tabelas gravadas pelo Store.salvar/excluir */
 export interface Tabelas {
   categorias: Categoria;
@@ -333,6 +382,10 @@ export interface Tabelas {
   dividas: Divida;
   desafios: Desafio;
   contas_bancarias: ContaBancaria;
+  regras: Regra;
+  viagens: Viagem;
+  desejos: Desejo;
+  patrimonio: FotoPatrimonio;
 }
 
 export type Tabela = keyof Tabelas;

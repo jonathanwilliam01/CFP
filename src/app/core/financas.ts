@@ -577,6 +577,40 @@ export function faturaProjetada(
   return { mes, fecha, atual, projetada: Math.round(projetada * 100) / 100 };
 }
 
+/**
+ * Fatura aberta dia a dia: `real` acumula as compras avulsas sobre parcelas e fixas até hoje;
+ * `prevista` segue de hoje até a véspera do fechamento no ritmo diário (mesma conta de faturaProjetada).
+ */
+export function curvaFatura(
+  c: Cartao,
+  gastos: Pick<Gasto, 'cartao_id' | 'valor' | 'data' | 'fatura_mes' | 'parcelamento_id'>[],
+  recorrencias: Recorrencia[],
+  hoje: string,
+) {
+  const p = faturaProjetada(c, gastos, recorrencias, hoje);
+  const abriu = inicioFatura(p.mes, c);
+  const dela = gastos.filter((g) => g.cartao_id === c.id && g.fatura_mes === p.mes);
+  const avulsa = (g: (typeof dela)[number]) => !g.parcelamento_id && g.data >= abriu && g.data <= hoje;
+  const base = p.atual - soma(dela.filter(avulsa), (g) => g.valor);
+  const n = diffDias(abriu, p.fecha);
+  const iHoje = diffDias(abriu, hoje);
+  const ritmo = iHoje >= 2 && n - 1 > iHoje ? (p.projetada - p.atual) / (n - 1 - iHoje) : 0;
+  const dias: string[] = [];
+  const real: (number | null)[] = [];
+  const prevista: (number | null)[] = [];
+  let acc = base;
+  for (let i = 0; i < n; i++) {
+    const d = addDias(abriu, i);
+    dias.push(d);
+    if (i <= iHoje) {
+      acc += soma(dela.filter((g) => avulsa(g) && g.data === d), (g) => g.valor);
+      real.push(Math.round(acc * 100) / 100);
+    } else real.push(null);
+    prevista.push(i >= iHoje && ritmo > 0 ? Math.round((p.atual + ritmo * (i - iHoje)) * 100) / 100 : null);
+  }
+  return { ...p, dias, real, prevista, hoje: iHoje };
+}
+
 const PASSO: Record<Frequencia, (d: string, i: number) => string> = {
   semana: (d, i) => addDias(d, 7 * i),
   quinzena: (d, i) => addDias(d, 15 * i),
@@ -802,8 +836,9 @@ export function inss(bruto: number) {
  * IR na fonte de 2026: usa o desconto simplificado (R$ 607,20) quando ele é maior que INSS + dependentes,
  * e aplica a redução da Lei 15.270/2025 (zera até R$ 5.000 de rendimento e diminui até R$ 7.350).
  */
-export function irFonte(bruto: number, inssPago: number, dependentes = 0) {
-  const base = bruto - Math.max(inssPago + dependentes * 189.59, 607.2);
+export function irFonte(bruto: number, inssPago: number, dependentes = 0, simplificado = true) {
+  const deducoes = inssPago + dependentes * 189.59;
+  const base = bruto - (simplificado ? Math.max(deducoes, 607.2) : deducoes);
   const [, a, d] = IR.find(([lim]) => base <= lim)!;
   const ir = Math.max(base * a - d, 0);
   const reducao = bruto <= 5000 ? ir : bruto <= 7350 ? 978.62 - 0.133145 * bruto : 0;
@@ -815,6 +850,21 @@ export function salarioLiquido(bruto: number, dependentes = 0, outros = 0) {
   const i = inss(bruto);
   const ir = irFonte(bruto, i, dependentes);
   return { inss: i, ir, outros: r2(outros), liquido: r2(bruto - i - ir - outros), fgts: r2(bruto * 0.08) };
+}
+
+/**
+ * 13º salário: (bruto + média de adicionais) × meses trabalhados / 12.
+ * Em duas parcelas, a 1ª (até 30/11) é metade sem desconto e a 2ª (até 20/12) leva todo o INSS e o IR.
+ * IR do 13º é tributação exclusiva: deduz INSS e dependentes, sem o desconto simplificado.
+ */
+export function decimoTerceiro(bruto: number, meses = 12, dependentes = 0, adicionais = 0) {
+  if (bruto <= 0 || meses < 1) return null;
+  const total = r2(((bruto + adicionais) * Math.min(meses, 12)) / 12);
+  const i = inss(total);
+  const ir = irFonte(total, i, dependentes, false);
+  const primeira = r2(total / 2);
+  const liquido = r2(total - i - ir);
+  return { total, inss: i, ir, liquido, primeira, segunda: r2(liquido - primeira) };
 }
 
 /**

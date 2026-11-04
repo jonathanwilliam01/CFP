@@ -10,20 +10,31 @@ import { Bloco } from '../shared/bloco';
 import { Donut, Linha } from '../shared/graficos';
 import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
+import { Valor } from '../shared/valor';
+import { Painel } from '../core/painel';
 
 @Component({
-  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, PrivPipe, Donut, Linha, Icon, Avatar, Bloco],
+  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, PrivPipe, Donut, Linha, Icon, Avatar, Bloco, Valor],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <section class="saldo">
         <div class="topo">
           <small>Saldo previsto do mês</small>
-          @if (temBenef()) {
-            <button type="button" class="modo" (click)="alternarBenef()">{{ comBenef() ? 'Com benefícios' : 'Só dinheiro' }}<span aria-hidden="true">⇄</span></button>
-          }
+          <span class="acoes-topo">
+            @if (temBenef()) {
+              <button type="button" class="modo" (click)="alternarBenef()">{{ comBenef() ? 'Com benefícios' : 'Só dinheiro' }}<span aria-hidden="true">⇄</span></button>
+            }
+            <button type="button" class="modo" (click)="painel.alternarCompacto()" [attr.aria-pressed]="compacto()" [title]="compacto() ? 'Mostrar todos os blocos' : 'Só o resumo'">
+              <app-icon [name]="compacto() ? 'unfold_more' : 'unfold_less'" [size]="14" />{{ compacto() ? 'Completo' : 'Compacto' }}
+            </button>
+          </span>
         </div>
-        <strong class="num" [class.sobe]="saldo().saldo >= 0" [class.desce]="saldo().saldo < 0">{{ saldo().saldo | brl }}</strong>
+        @if (s.carregandoMes() && !s.gastos().length && !r().entradas) {
+          <span class="esqueleto grande"></span>
+        } @else {
+          <strong class="num" [class.sobe]="saldo().saldo >= 0" [class.desce]="saldo().saldo < 0"><app-valor [v]="saldo().saldo" /></strong>
+        }
         <div class="es">
           <a routerLink="/entradas"><span><i class="sobe">↑</i> Entradas</span><b class="num sobe">{{ saldo().entradas | brl }}</b></a>
           <a routerLink="/contas"><span><i class="desce">↓</i> Saídas</span><b class="num desce">{{ saldo().saidas | brl }}</b></a>
@@ -32,6 +43,9 @@ import { Lancar } from '../shared/lancar';
           <a class="receb" routerLink="/entradas"><app-icon name="payments" [size]="16" />
             <span>{{ p.nome }} {{ p.dias === 0 ? 'hoje' : p.dias === 1 ? 'amanhã' : 'em ' + p.dias + ' dias' }}<small> · dia {{ +p.data.slice(8) }}</small></span>
             <b class="num">{{ p.valor | brl }}</b></a>
+        }
+        @if (s.viagemAtiva(); as v) {
+          <a class="receb" routerLink="/viagens"><app-icon name="flight" [size]="16" /><span>Modo viagem: {{ v.nome }}<small> · gastos com #{{ v.tag }}</small></span></a>
         }
         @if (r().reservado > 0) {
           <a class="compara reserva" routerLink="/orcamentos">Saídas incluem {{ r().reservado | brl }} reservados em orçamentos</a>
@@ -237,7 +251,7 @@ import { Lancar } from '../shared/lancar';
         <div class="list">
           @for (g of s.gastosMes().slice(0, 5); track g.id) {
             <button class="row" (click)="lancar.editarGasto(g)">
-              <span class="ico"><app-icon [name]="s.catMap().get(g.categoria_id ?? '')?.icone ?? 'help'" /></span>
+              <span class="ico" [style.background]="(s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8') + '22'" [style.color]="s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8'"><app-icon [name]="s.catMap().get(g.categoria_id ?? '')?.icone ?? 'help'" /></span>
               <div class="grow"><div class="t">{{ g.descricao }}</div><div class="s">{{ g.data | dia }}</div></div>
               <span class="v">{{ g.valor | brl }}</span>
             </button>
@@ -246,6 +260,10 @@ import { Lancar } from '../shared/lancar';
           }
         </div>
       </section>
+
+      @if (compacto()) {
+        <button type="button" class="btn ghost block" (click)="painel.alternarCompacto()"><app-icon name="unfold_more" [size]="18" />Mostrar o painel completo</button>
+      }
 
       @if (insights.dicas()[0]; as d) {
         <a class="card dica" routerLink="/resumo" bloco="dica">
@@ -263,6 +281,9 @@ import { Lancar } from '../shared/lancar';
     }
     .saldo small { opacity: 0.8; font-weight: 600; }
     .topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .acoes-topo { display: flex; gap: 6px; }
+    .modo app-icon { margin-right: -2px; }
+    .esqueleto.grande { height: 2.4rem; width: 60%; margin: 4px 0; opacity: 0.6; }
     .modo {
       border: 0; background: var(--hero-glass); color: inherit; font: inherit; font-size: 0.72rem; font-weight: 700;
       padding: 4px 10px; border-radius: 999px; cursor: pointer; display: inline-flex; gap: 6px;
@@ -346,6 +367,8 @@ export default class Inicio {
   protected s = inject(Store);
   protected insights = inject(Insights);
   protected lancar = inject(Lancar);
+  protected painel = inject(Painel);
+  protected compacto = computed(() => !!this.painel.prefs().compacto);
 
   protected r = this.s.resumo;
   private credito = computed(() => creditoBeneficios(this.s.beneficios(), this.s.mes()));
