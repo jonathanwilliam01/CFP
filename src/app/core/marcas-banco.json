@@ -7,5 +7,6 @@
   "038": ["recorrencias.dia_util"],
   "039": ["suspensos.user_id"],
   "040": ["acessos.dia", "erros_app.id"],
-  "041": ["funcoes_status.chave", "comunicados.id"]
+  "041": ["funcoes_status.chave", "comunicados.id"],
+  "042": ["check:admin_log_acao_check:length"]
 }

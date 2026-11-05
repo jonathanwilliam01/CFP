@@ -399,3 +399,17 @@ export type Tabela = keyof Tabelas;
 
 /** Sem id insere, com id atualiza só os campos informados */
 export type Dados<T extends Tabela> = Partial<Omit<Tabelas[T], 'id'>> & { id?: string };
+
+/** Painel admin: só contagens e datas, nunca descrição ou valor. SerieDia evita conflito com Serie de shared/graficos */
+export interface SerieDia { dia: string; n: number }
+export interface AdminUsuario { id: string; email: string; nome: string | null; criado_em: string; ultimo_uso: string | null; versao: string | null; aparelho: string | null;
+  carteira: string | null; membros: number; papel: 'dono' | 'membro' | null; lancamentos: number; ultimo_lancamento: string | null; push: boolean; status: 'ativo' | 'suspenso' | 'parado' }
+export interface AdminMetricas { usuarios: number; carteiras: number; casais: number; novos: number; dau: number; wau: number; mau: number; parados: number; erros_24h: number;
+  push_aparelhos: number; telemetria_desde: string | null; ativos_dia: SerieDia[]; lancamentos_dia: SerieDia[]; cadastros_semana: SerieDia[];
+  retencao: { coorte: string; usuarios: number; m1: number | null; m2: number | null; m3: number | null }[]; uso_funcoes: { chave: string; carteiras: number }[]; versoes: { versao: string; n: number }[] }
+export interface AdminErros { por_dia: SerieDia[]; frequentes: { mensagem: string; n: number; ultima: string; versoes: string[]; rotas: string[] }[] }
+export interface FuncaoStatus { chave: string; ativa: boolean; mensagem: string | null; desde: string | null }
+export interface ComunicadoTag { id: string; nome: string; cor: string; arquivada: boolean }
+export interface Comunicado { id: string; titulo: string; texto: string; tag_id: string | null; inicio: string; fim: string; link: string | null; push: boolean;
+  destaque: boolean; publicado: boolean; push_enviado_em: string | null; criado_em: string; lidos?: number; total_usuarios?: number }
+export interface AdminLog { id: number; admin_id: string | null; acao: string; alvo: string | null; detalhe: unknown; criado_em: string }
