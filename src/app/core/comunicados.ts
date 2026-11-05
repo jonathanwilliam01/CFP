@@ -15,6 +15,10 @@ export function noAr(l: Comunicado[], agora: Date): Comunicado[] {
   return l.filter((c) => statusComunicado(c, agora) === 'no_ar').sort((a, b) => b.inicio.localeCompare(a.inicio));
 }
 
+export function itensPopover<T extends { id: string }>(lista: T[], naoLidos: Set<string>, max: number) {
+  return lista.slice(0, max).map((c) => ({ ...c, novo: naoLidos.has(c.id) }));
+}
+
 @Injectable({ providedIn: 'root' })
 export class Comunicados {
   private auth = inject(Auth);

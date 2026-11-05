@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { describe, expect, it, vi } from 'vitest';
 import { Auth } from './auth';
 import { supabase } from './supabase';
-import { Comunicados, noAr, statusComunicado } from './comunicados';
+import { Comunicados, itensPopover, noAr, statusComunicado } from './comunicados';
 import { Comunicado } from './models';
 
 const agora = new Date('2026-12-25T12:00:00-03:00');
@@ -43,5 +43,13 @@ describe('Comunicados.marcarLidos', () => {
     expect(s.naoLidos().length).toBe(1);
     await s.marcarLidos(['z']);
     expect(s.naoLidos().length).toBe(0);
+  });
+});
+
+describe('itensPopover', () => {
+  it('mostra os vivos até o máximo e marca os novos da abertura', () => {
+    const l = ['a', 'b', 'c', 'd'].map((id) => ({ id }));
+    const r = itensPopover(l, new Set(['a', 'd']), 3);
+    expect(r.map((x) => [x.id, x.novo])).toEqual([['a', true], ['b', false], ['c', false]]);
   });
 });

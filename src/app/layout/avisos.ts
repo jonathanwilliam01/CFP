@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, output, u
 import { RouterLink } from '@angular/router';
 import { mesAtual } from '../core/datas';
 import { PrivPipe } from '../core/formato';
-import { Comunicados } from '../core/comunicados';
+import { Comunicados, itensPopover } from '../core/comunicados';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
@@ -23,7 +23,7 @@ const MAX = 6;
       <p class="small muted">Avisos só do mês atual. <button type="button" class="lk" (click)="s.mes.set(atual)">Ir para o mês atual</button></p>
     }
     @for (a of comunicados(); track a.id) {
-      <a class="aviso info" routerLink="/notificacoes" [queryParams]="{ aba: 'app' }" (click)="fechar.emit()">
+      <a class="aviso info" [class.lido]="!a.novo" routerLink="/notificacoes" [queryParams]="{ aba: 'app' }" (click)="fechar.emit()">
         <app-icon class="i" name="campaign" />
         <div><div class="t">{{ a.titulo }}</div><div class="s">{{ a.texto }}</div></div>
       </a>
@@ -55,12 +55,14 @@ const MAX = 6;
     .cab h2 { font-size: 1rem; }
     .lk { border: 0; background: none; padding: 0; font: inherit; color: var(--primary); font-weight: 700; cursor: pointer; }
     .empty { padding: 16px; }
+    .lido { opacity: 0.7; }
   `,
 })
 export class Avisos {
   protected i = inject(Insights);
   private c = inject(Comunicados);
-  protected comunicados = computed(() => this.c.naoLidos().slice(0, 3));
+  private abertura = new Set(this.c.naoLidos().map((x) => x.id));
+  protected comunicados = computed(() => itensPopover(this.c.lista(), this.abertura, 3));
   protected s = inject(Store);
   readonly fechar = output();
   protected atual = mesAtual();
@@ -73,7 +75,7 @@ export class Avisos {
       untracked(() => this.i.marcarLidas());
     });
     effect(() => {
-      const ids = this.comunicados().map((x) => x.id);
+      const ids = this.comunicados().filter((x) => this.abertura.has(x.id)).map((x) => x.id);
       untracked(() => this.c.marcarLidos(ids));
     });
   }
