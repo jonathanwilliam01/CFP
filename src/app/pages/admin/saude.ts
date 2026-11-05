@@ -25,12 +25,15 @@ import { Icon } from '../../shared/icon';
 
     <section class="c">
       <h3>Migrations</h3>
-      @if (migracoes() === null) {
+      @let mg = migracoes();
+      @if (mg === 'falhou') {
+        <div class="alert err"><app-icon name="error" [size]="18" />Não foi possível verificar as migrations.</div>
+      } @else if (mg === null) {
         <p class="note">Verificando…</p>
-      } @else if (!migracoes()!.length) {
+      } @else if (!mg.length) {
         <p class="ok"><app-icon name="check" [size]="16" />Banco em dia</p>
       } @else {
-        @for (m of migracoes(); track m.migracao) {
+        @for (m of mg; track m.migracao) {
           <div class="alert"><app-icon name="warning" [size]="18" />Migration {{ m.migracao }} não aplicada: {{ m.itens.join(', ') }}</div>
         }
       }
@@ -106,12 +109,12 @@ export default class AdminSaude {
   protected e = signal<AdminErros | null>(null);
   protected versoes = signal<{ versao: string; n: number }[]>([]);
   protected erro = signal('');
-  protected migracoes = signal<MigracaoFaltando[] | null>(null);
+  protected migracoes = signal<MigracaoFaltando[] | null | 'falhou'>(null);
   private maximo = computed(() => Math.max(1, ...(this.e()?.por_dia ?? []).map((x) => x.n)));
 
   constructor() {
     this.carregar();
-    migracoesFaltando().then((m) => this.migracoes.set(m), () => this.migracoes.set([]));
+    migracoesFaltando().then((m) => this.migracoes.set(m), () => this.migracoes.set('falhou'));
   }
 
   protected mudar(d: number) {

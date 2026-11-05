@@ -11,6 +11,7 @@ export function mapearFaltando(marcas: Record<string, string[]>, falta: Set<stri
 
 export async function migracoesFaltando(): Promise<MigracaoFaltando[]> {
   const marcas = MARCAS as Record<string, string[]>;
-  const { data } = await supabase.rpc('colunas_faltando', { p_itens: Object.values(marcas).flat() });
+  const { data, error } = await supabase.rpc('colunas_faltando', { p_itens: Object.values(marcas).flat() });
+  if (error) throw new Error(error.message);
   return mapearFaltando(marcas, new Set((data as string[] | null) ?? []));
 }

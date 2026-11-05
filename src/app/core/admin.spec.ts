@@ -53,6 +53,25 @@ describe('Admin.eAdmin', () => {
     expect(admin.eAdmin()).toBe(true);
     expect(rpc).toHaveBeenCalledTimes(1);
   });
+
+  it('aguardar resolve por uid, mesmo antes do effect', async () => {
+    const rpc = vi.spyOn(supabase, 'rpc').mockResolvedValue({ data: true, error: null } as never);
+    TestBed.configureTestingModule({ providers: [{ provide: Auth, useValue: fakeAuth({ id: 'u' }) }] });
+    const admin = TestBed.inject(Admin);
+    expect(await admin.aguardar()).toBe(true);
+    TestBed.tick();
+    expect(admin.eAdmin()).toBe(true);
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('aguardar: erro e sem usuário = false', async () => {
+    vi.spyOn(supabase, 'rpc').mockResolvedValue({ data: null, error: { message: 'x' } } as never);
+    TestBed.configureTestingModule({ providers: [{ provide: Auth, useValue: fakeAuth({ id: 'u' }) }] });
+    expect(await TestBed.inject(Admin).aguardar()).toBe(false);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [{ provide: Auth, useValue: fakeAuth(null) }] });
+    expect(await TestBed.inject(Admin).aguardar()).toBe(false);
+  });
 });
 
 describe('suspensaGuard', () => {

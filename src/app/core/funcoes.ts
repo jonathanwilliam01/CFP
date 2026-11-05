@@ -1,8 +1,6 @@
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
-import { toObservable } from '@angular/core/rxjs-interop';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { CanActivateChildFn, Router } from '@angular/router';
-import { filter, firstValueFrom } from 'rxjs';
 import { Admin } from './admin';
 import { Auth } from './auth';
 import { FuncaoStatus } from './models';
@@ -134,8 +132,8 @@ export const funcaoGuard: CanActivateChildFn = async (_, state) => {
   const fs = inject(Funcoes);
   const admin = inject(Admin);
   const router = inject(Router);
-  await fs.aguardar();
-  const eAdmin = await firstValueFrom(toObservable(admin.eAdmin).pipe(filter((v) => v !== null)));
+  // inject() só antes do primeiro await
+  const [eAdmin] = await Promise.all([admin.aguardar(), fs.aguardar()]);
   const b = bloqueio(state.url, fs.status(), eAdmin);
   return b ? router.createUrlTree(['/manutencao', b.chave]) : true;
 };

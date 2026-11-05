@@ -20,17 +20,31 @@ export function colunasComunicado(c: Partial<Comunicado>) {
 export class Admin {
   private auth = inject(Auth);
   readonly eAdmin = signal<boolean | null>(null);
+  private checagem: { id: string | null; p: Promise<boolean> } | null = null;
 
   constructor() {
     effect(() => {
       const id = this.auth.uid();
-      untracked(async () => {
-        this.eAdmin.set(id ? null : false);
-        if (!id) return;
-        const r = await ehAdmin().catch(() => false);
-        if (this.auth.uid() === id) this.eAdmin.set(r);
-      });
+      untracked(() => this.checar(id));
     });
+  }
+
+  /** eAdmin do usuário atual; falha ou sem usuário = false */
+  async aguardar() {
+    await this.auth.aguardar();
+    return this.checar(this.auth.uid());
+  }
+
+  /** uma consulta por uid */
+  private checar(id: string | null) {
+    if (this.checagem?.id === id) return this.checagem.p;
+    this.eAdmin.set(id ? null : false);
+    const p = id ? ehAdmin().catch(() => false) : Promise.resolve(false);
+    this.checagem = { id, p };
+    p.then((r) => {
+      if (this.checagem?.p === p) this.eAdmin.set(r);
+    });
+    return p;
   }
 
   async usuarios() {

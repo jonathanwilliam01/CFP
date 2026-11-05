@@ -17,6 +17,13 @@ export function resumoErro(e: unknown) {
   return { mensagem: mensagem.slice(0, 500), detalhe: detalhe.slice(0, 2000) };
 }
 
+/** no máximo 10 erros por sessão, sem repetir a mesma mensagem; marca a mensagem quando aceita */
+export function deveReportar(enviados: Set<string>, mensagem: string) {
+  if (enviados.size >= 10 || enviados.has(mensagem)) return false;
+  enviados.add(mensagem);
+  return true;
+}
+
 const CHAVE = 'cfp.acesso';
 
 @Injectable({ providedIn: 'root' })
@@ -44,6 +51,7 @@ export class Telemetria {
 @Injectable()
 export class ErroGlobal implements ErrorHandler {
   private enviando = false;
+  private enviados = new Set<string>();
 
   handleError(e: unknown) {
     console.error(e);
@@ -51,6 +59,7 @@ export class ErroGlobal implements ErrorHandler {
     this.enviando = true;
     try {
       const { mensagem, detalhe } = resumoErro(e);
+      if (!deveReportar(this.enviados, mensagem)) return;
       supabase
         .rpc('registrar_erro', {
           p_versao: VERSAO,

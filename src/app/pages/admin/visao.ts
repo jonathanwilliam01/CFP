@@ -181,6 +181,7 @@ export default class AdminVisao {
   }
 
   private async checarMigrations() {
-    this.faltando.set((await migracoesFaltando()).map((m) => m.migracao));
+    // falha na checagem: sem alerta (a Saúde mostra)
+    this.faltando.set((await migracoesFaltando().catch(() => [])).map((m) => m.migracao));
   }
 }

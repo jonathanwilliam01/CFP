@@ -42,6 +42,12 @@ export class Auth {
       const id = this.uid();
       untracked(() => this.checarSuspensao(id));
     });
+    // suspensão no meio da sessão: confere de novo ao voltar para o app
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      this.suspensao = null;
+      this.checarSuspensao(this.uid());
+    });
   }
 
   private suspensao: { id: string; p: Promise<boolean> } | null = null;
@@ -122,7 +128,8 @@ export class Auth {
   }
 }
 
-function traduz(m: string) {
+export function traduz(m: string) {
+  if (/banned/i.test(m)) return 'Conta suspensa. Fale com o suporte.';
   if (/invalid login/i.test(m)) return 'E-mail ou senha incorretos';
   if (/already registered/i.test(m)) return 'E-mail já cadastrado';
   if (/email not confirmed/i.test(m)) return 'Confirme seu e-mail antes de entrar';
