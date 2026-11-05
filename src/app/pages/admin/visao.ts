@@ -18,7 +18,7 @@ const marcas = MARCAS as Record<string, string[]>;
       <h2>Visão geral</h2>
       <div class="per">
         @for (d of periodos; track d) {
-          <button type="button" [class.on]="dias() === d" (click)="mudar(d)">{{ d }} dias</button>
+          <button type="button" [attr.aria-pressed]="dias() === d" [class.on]="dias() === d" (click)="mudar(d)">{{ d }} dias</button>
         }
       </div>
     </div>
@@ -45,6 +45,8 @@ const marcas = MARCAS as Record<string, string[]>;
           <div class="bars">
             @for (x of m.ativos_dia; track x.dia) {
               <i [style.height.%]="altura(x.n)" [title]="(x.dia | date: 'dd/MM') + ': ' + x.n"></i>
+            } @empty {
+              <p class="note">Sem dados.</p>
             }
           </div>
         </section>
@@ -91,6 +93,8 @@ const marcas = MARCAS as Record<string, string[]>;
       </p>
     } @else if (!erro()) {
       <p class="note">Carregando…</p>
+    } @else {
+      <button class="btn" type="button" (click)="carregar()">Tentar de novo</button>
     }
   `,
   styles: `
@@ -165,7 +169,7 @@ export default class AdminVisao {
     return n == null ? '—' : total ? Math.round((n / total) * 100) + '%' : '—';
   }
 
-  private async carregar() {
+  protected async carregar() {
     const d = this.dias();
     try {
       const m = await this.admin.metricas(d);
@@ -174,7 +178,7 @@ export default class AdminVisao {
         this.erro.set('');
       }
     } catch (e) {
-      this.erro.set(`Não foi possível carregar as métricas: ${(e as Error).message}`);
+      if (d === this.dias()) this.erro.set(`Não foi possível carregar as métricas: ${(e as Error).message}`);
     }
   }
 

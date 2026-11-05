@@ -15,7 +15,7 @@ import { NOTAS } from '../../core/versao';
             <app-icon [name]="i.icone" [size]="20" /><span class="nome">{{ i.nome }}</span>
           </a>
         }
-        <span class="lock" title="Assinaturas (em breve)"><app-icon name="workspace_premium" [size]="20" /><span class="nome">Assinaturas</span><em class="nome">em breve</em></span>
+        <span class="lock" aria-disabled="true" title="Assinaturas (em breve)"><app-icon name="workspace_premium" [size]="20" /><span class="nome">Assinaturas</span><em class="nome">em breve</em></span>
       </nav>
       <a class="voltar" routerLink="/" title="Voltar ao app"><app-icon name="arrow_back" [size]="20" /><span class="nome">Voltar ao app</span></a>
     </aside>
