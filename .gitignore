@@ -50,3 +50,6 @@ src/environments/environment.ts
 /e2e/.auth/
 /test-results/
 /playwright-report/
+
+# backups da carteira (dados pessoais)
+cfp-*.json
