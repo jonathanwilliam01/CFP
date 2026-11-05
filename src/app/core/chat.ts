@@ -99,7 +99,7 @@ export class Chat {
     this.mensagens.update((l) => [...l, m]);
     if (m.user_id === this.auth.user()?.id) return;
     if (this.aberto() && !document.hidden) return this.marcarLidas();
-    this.avisar(this.s.membroMap().get(m.user_id) ?? 'Chat', m.texto);
+    this.avisar(this.s.nomeAutor(m.user_id), m.texto);
   }
 
   private async avisar(nome: string, texto: string) {

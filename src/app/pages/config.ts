@@ -257,6 +257,10 @@ import { Saida } from '../shared/sair';
         }
         @if (push.disponivel && insights.permissao() !== 'denied') {
           <label class="check">
+            <input type="checkbox" [checked]="pushComunicados()" (change)="alternarComunicados()" [disabled]="ocupado()" />
+            Avisos do app (novidades e comunicados)
+          </label>
+          <label class="check">
             <input type="checkbox" [checked]="push.ativo()" (change)="alternarPush()" [disabled]="ocupado()" />
             Avisos com o app fechado (chat, gastos e contas vencendo)
           </label>
@@ -425,6 +429,9 @@ export default class Config {
 
   constructor() {
     this.bloqueio.bioDisponivel().then((v) => this.bioOk.set(v));
+    q<{ push_comunicados: boolean } | null>(supabase.from('usuario_prefs').select('push_comunicados').maybeSingle())
+      .then((r) => this.pushComunicados.set(r?.push_comunicados !== false))
+      .catch(() => undefined);
     if (this.codigo) {
       limparConvite();
       this.toast.ok(`Convite ${this.codigo} carregado em Carteiras: toque em Entrar`);
@@ -555,6 +562,14 @@ export default class Config {
       await q(supabase.from('carteira_membros').update({ resumo_mensal }).eq('carteira_id', this.s.carteiraId()!).eq('user_id', this.auth.user()!.id));
       await this.s.carregarTudo();
     }, resumo_mensal ? 'Resumo mensal ligado' : 'Resumo mensal desligado');
+  }
+
+  protected pushComunicados = signal(true);
+
+  async alternarComunicados() {
+    const push_comunicados = !this.pushComunicados();
+    const ok = await this.exec(() => q(supabase.from('usuario_prefs').upsert({ user_id: this.auth.uid()!, push_comunicados })), push_comunicados ? 'Avisos do app ligados' : 'Avisos do app desligados');
+    if (ok !== false) this.pushComunicados.set(push_comunicados);
   }
 
   /** opção de aviso do membro (ligada por padrão) */

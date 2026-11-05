@@ -215,7 +215,7 @@
       <div class="coment">
         <span class="lbl">Comentários no chat</span>
         @for (m of comentarios(); track m.id) {
-          <p class="cm"><b>{{ s.membroMap().get(m.user_id) ?? '' }}</b> {{ m.texto }}</p>
+          <p class="cm"><b>{{ s.nomeAutor(m.user_id) }}</b> {{ m.texto }}</p>
         }
         <div class="env">
           <input name="coment" autocomplete="off" maxlength="2000" placeholder="Perguntar ou comentar sobre este gasto"

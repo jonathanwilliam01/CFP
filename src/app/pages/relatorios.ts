@@ -249,7 +249,7 @@ export default class Relatorios {
         itens: agrupar(g, (x) => {
           const ids = [...membros.keys()];
           const i = x.criado_por ? ids.indexOf(x.criado_por) : -1;
-          return [(x.criado_por && membros.get(x.criado_por)) || 'Desconhecido', cores[i] ?? '#94a3b8'];
+          return [(x.criado_por && membros.get(x.criado_por)) || 'Conta excluída', cores[i] ?? '#94a3b8'];
         }),
       },
     ];

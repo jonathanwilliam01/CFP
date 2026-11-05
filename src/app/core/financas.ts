@@ -732,7 +732,7 @@ export interface Transferencia {
 export function acertoMes(
   gastos: Pick<Gasto, 'valor' | 'data' | 'forma' | 'criado_por' | 'pago_por' | 'dividido'>[],
   membros: string[],
-  acertos: { mes: string; de: string; para: string; valor: number }[],
+  acertos: { mes: string; de: string | null; para: string | null; valor: number }[],
   mes: string,
 ) {
   const div = gastos.filter((g) => g.dividido !== false && g.forma !== 'beneficio' && noMes(g.data, mes));
@@ -742,8 +742,8 @@ export function acertoMes(
   const somar = (id: string, v: number) => saldo.has(id) && saldo.set(id, saldo.get(id)! + v);
   for (const g of div) somar(g.pago_por ?? g.criado_por ?? '', g.valor);
   for (const a of acertos.filter((a) => a.mes === mes)) {
-    somar(a.de, a.valor);
-    somar(a.para, -a.valor);
+    somar(a.de ?? '', a.valor);
+    somar(a.para ?? '', -a.valor);
   }
   const r2 = (v: number) => Math.round(v * 100) / 100;
   const deve = [...saldo].filter(([, v]) => v < -0.004).map(([id, v]) => ({ id, v: -v })).sort((a, b) => b.v - a.v);

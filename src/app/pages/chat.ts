@@ -51,7 +51,7 @@ import { Visor } from '../shared/visor';
                 <span class="foto"></span>
               }
               <div class="msg" [class.eu]="m.eu" [class.sel]="sel() === m.id" (click)="m.eu && sel.set(sel() === m.id ? null : m.id)">
-                @if (m.membro) { <span class="quem">{{ m.membro.nome }}</span> }
+                @if (m.quem) { <span class="quem">{{ m.quem }}</span> }
                 @if (m.gasto_id) {
                   @if (gastos().get(m.gasto_id); as g) {
                     <button type="button" class="ref" (click)="lancar.editarGasto(g); $event.stopPropagation()"><app-icon name="receipt_long" [size]="16" /><span>{{ g.descricao }} · {{ g.valor | brl }}</span></button>
@@ -156,7 +156,7 @@ export default class ChatPage {
 
   protected dias = computed(() => {
     const eu = this.auth.user()?.id;
-    const grupos = new Map<string, (Mensagem & { eu: boolean; membro?: Membro; hora: string })[]>();
+    const grupos = new Map<string, (Mensagem & { eu: boolean; membro?: Membro; quem?: string; hora: string })[]>();
     let ant: Mensagem | undefined;
     for (const m of this.chat.mensagens()) {
       const d = new Date(m.criado_em);
@@ -166,7 +166,8 @@ export default class ChatPage {
         ...m,
         eu: m.user_id === eu,
         // foto e nome só na primeira mensagem do bloco
-        membro: m.user_id !== eu && novoBloco ? this.s.membroPorId().get(m.user_id) : undefined,
+        membro: m.user_id !== eu && novoBloco && m.user_id ? this.s.membroPorId().get(m.user_id) : undefined,
+        quem: m.user_id !== eu && novoBloco ? this.s.nomeAutor(m.user_id) : undefined,
         hora: d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       };
       grupos.set(dia, [...(grupos.get(dia) ?? []), item]);

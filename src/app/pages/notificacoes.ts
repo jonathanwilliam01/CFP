@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, untracked } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { Comunicados } from '../core/comunicados';
 import { mesAtual } from '../core/datas';
 import { PrivPipe } from '../core/formato';
 import { Insights } from '../core/insights';
@@ -12,6 +13,28 @@ import { Icon } from '../shared/icon';
   template: `
     <div class="page">
       <div class="page-head"><h1>Notificações</h1></div>
+      <nav class="seg">
+        <button type="button" [class.on]="aba() === 'voce'" (click)="aba.set('voce')">Para você @if (i.naoLidas().length; as n) { <span class="n">{{ n }}</span> }</button>
+        <button type="button" [class.on]="aba() === 'app'" (click)="aba.set('app')">Avisos do app @if (c.naoLidos().length; as n) { <span class="n">{{ n }}</span> }</button>
+      </nav>
+
+      @if (aba() === 'app') {
+        <div class="lista">
+          @for (a of c.lista(); track a.id) {
+            <div class="card com">
+              @if (a.tag; as t) { <span class="tag" [style.color]="t.cor" [style.background]="'color-mix(in srgb, ' + t.cor + ' 15%, transparent)'">{{ t.nome }}</span> }
+              <div class="t">{{ a.titulo }}</div>
+              <div class="s">{{ a.texto }}</div>
+              @if (a.link) {
+                @if (externo(a.link)) { <a class="small lk" [href]="a.link" target="_blank" rel="noopener">Abrir</a> }
+                @else { <a class="small lk" [routerLink]="a.link">Abrir</a> }
+              }
+            </div>
+          } @empty {
+            <div class="card empty"><app-icon class="big" name="campaign" [size]="40" />Nenhum aviso do app</div>
+          }
+        </div>
+      } @else {
 
       @if (i.permissao() !== 'granted') {
         <section class="card perm">
@@ -58,17 +81,26 @@ import { Icon } from '../shared/icon';
           }
         }
       </div>
+      }
     </div>
   `,
   styles: `
     .perm { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
     .lista { display: flex; flex-direction: column; gap: 8px; }
     .volta { margin-top: 8px; }
+    .seg button .n { background: var(--danger); color: #fff; border-radius: 9px; font-size: 0.7rem; padding: 0 6px; margin-left: 4px; }
+    .com { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+    .com .s { color: var(--ink-2); font-size: 0.9rem; white-space: pre-line; }
+    .tag { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+    .lk { color: var(--primary); font-weight: 700; }
   `,
 })
 export default class Notificacoes {
   protected i = inject(Insights);
   protected s = inject(Store);
+  protected c = inject(Comunicados);
+  protected aba = signal<'voce' | 'app'>(inject(ActivatedRoute).snapshot.queryParamMap.get('aba') === 'app' ? 'app' : 'voce');
+  protected externo = (l: string) => /^https?:\/\//i.test(l);
   protected atual = mesAtual();
   protected noMesAtual = computed(() => this.s.mes() === this.atual);
 
@@ -76,6 +108,10 @@ export default class Notificacoes {
     effect(() => {
       this.i.avisos();
       untracked(() => this.i.marcarLidas());
+    });
+    effect(() => {
+      const ids = this.aba() === 'app' ? this.c.naoLidos().map((x) => x.id) : [];
+      untracked(() => this.c.marcarLidos(ids));
     });
   }
 }

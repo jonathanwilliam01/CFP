@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, output, u
 import { RouterLink } from '@angular/router';
 import { mesAtual } from '../core/datas';
 import { PrivPipe } from '../core/formato';
+import { Comunicados } from '../core/comunicados';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
@@ -21,6 +22,12 @@ const MAX = 6;
     @if (s.mes() !== atual) {
       <p class="small muted">Avisos só do mês atual. <button type="button" class="lk" (click)="s.mes.set(atual)">Ir para o mês atual</button></p>
     }
+    @for (a of comunicados(); track a.id) {
+      <a class="aviso info" routerLink="/notificacoes" [queryParams]="{ aba: 'app' }" (click)="fechar.emit()">
+        <app-icon class="i" name="campaign" />
+        <div><div class="t">{{ a.titulo }}</div><div class="s">{{ a.texto }}</div></div>
+      </a>
+    }
     @for (a of lista(); track a.id) {
       @if (a.link) {
         <a class="aviso" [class]="a.nivel" [routerLink]="a.link" (click)="fechar.emit()">
@@ -34,7 +41,7 @@ const MAX = 6;
         </div>
       }
     } @empty {
-      @if (s.mes() === atual) {
+      @if (s.mes() === atual && !comunicados().length) {
         <div class="empty"><app-icon class="big" name="task_alt" [size]="36" />Tudo em dia por aqui</div>
       }
     }
@@ -52,6 +59,8 @@ const MAX = 6;
 })
 export class Avisos {
   protected i = inject(Insights);
+  private c = inject(Comunicados);
+  protected comunicados = computed(() => this.c.naoLidos().slice(0, 3));
   protected s = inject(Store);
   readonly fechar = output();
   protected atual = mesAtual();

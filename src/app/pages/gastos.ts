@@ -443,6 +443,6 @@ export default class Gastos {
 
   quem(g: Gasto) {
     if (this.s.membros().length < 2 || !g.criado_por) return '';
-    return ' · ' + (this.s.membroMap().get(g.criado_por) ?? '');
+    return ' · ' + this.s.nomeAutor(g.criado_por);
   }
 }

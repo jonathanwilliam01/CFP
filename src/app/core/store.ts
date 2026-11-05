@@ -93,6 +93,10 @@ export class Store {
   readonly cartaoPadrao = computed(() => this.cartoesAtivos().find((c) => c.padrao) ?? null);
   readonly beneficiosAtivos = computed(() => this.beneficios().filter((b) => b.ativo));
   readonly membroMap = computed(() => new Map(this.membros().map((m) => [m.user_id, m.nome])));
+  /** nome do autor; conta apagada ou fora da carteira vira 'Conta excluída' */
+  nomeAutor(id: string | null | undefined) {
+    return (id && this.membroMap().get(id)) || 'Conta excluída';
+  }
   readonly membroPorId = computed(() => new Map(this.membros().map((m) => [m.user_id, m])));
 
   /** Reserva de emergência: guardado nos cofrinhos marcados e quantos meses de saídas do mês ela cobre */

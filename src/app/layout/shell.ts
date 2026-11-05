@@ -7,6 +7,7 @@ import { Auth } from '../core/auth';
 import { Chat } from '../core/chat';
 import { Fila } from '../core/fila';
 import { funcaoDaRota, Funcoes } from '../core/funcoes';
+import { Comunicados } from '../core/comunicados';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Atualizacao } from '../shared/atualizar';
@@ -27,13 +28,14 @@ import { Tour, TourView } from '../shared/tour';
 import { Saida, SairModal } from '../shared/sair';
 import { Lancar, LancarSheet, Modo } from '../shared/lancar';
 import { MesPicker } from '../shared/mes-picker';
+import { Destaque } from '../shared/destaque';
 import { Avisos } from './avisos';
 import { Conta } from './conta';
 import { Menus, PRINCIPAIS } from './menu';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora, BloqueioTela, TourView, SairModal],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora, BloqueioTela, TourView, SairModal, Destaque],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.recolhido]': 'recolhido()', '(document:keydown)': 'atalho($event)', '(window:scroll)': 'rolou()' },
   template: `
@@ -59,7 +61,7 @@ import { Menus, PRINCIPAIS } from './menu';
         </button>
         <button type="button" class="bell" [class.on]="pop() === 'avisos'" (click)="abrir('avisos')" aria-label="Notificações" title="Notificações">
           <app-icon name="notifications" [fill]="pop() === 'avisos'" />
-          @if (insights.naoLidas().length; as n) {
+          @if (insights.naoLidas().length + comunicados.naoLidos().length; as n) {
             <span class="dot">{{ n }}</span>
           }
         </button>
@@ -194,6 +196,7 @@ import { Menus, PRINCIPAIS } from './menu';
     <app-conta [(open)]="conta" />
     <app-tour />
     <app-sair />
+    <app-destaque />
   `,
   styles: `
     .puxar {
@@ -361,6 +364,7 @@ export class Shell {
   protected admin = inject(Admin);
   private funcoes = inject(Funcoes);
   protected insights = inject(Insights);
+  protected comunicados = inject(Comunicados);
   protected chat = inject(Chat);
   protected lancar = inject(Lancar);
   private toast = inject(Toast);
@@ -445,7 +449,7 @@ export class Shell {
   }
 
   badge(rota: string) {
-    return rota === '/notificacoes' ? this.insights.naoLidas().length : rota === '/chat' ? this.chat.naoLidas() : 0;
+    return rota === '/notificacoes' ? this.insights.naoLidas().length + this.comunicados.naoLidos().length : rota === '/chat' ? this.chat.naoLidas() : 0;
   }
 
   /** Nome do item ao passar o mouse no menu recolhido */

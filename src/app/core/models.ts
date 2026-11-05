@@ -245,8 +245,8 @@ export interface RegistroItem {
 export interface Acerto {
   id: string;
   mes: string;
-  de: string;
-  para: string;
+  de: string | null;
+  para: string | null;
   valor: number;
 }
 
@@ -306,7 +306,7 @@ export interface ContaMes {
 
 export interface Mensagem {
   id: string;
-  user_id: string;
+  user_id: string | null;
   texto: string;
   criado_em: string;
   /** gasto comentado (migration 020) */

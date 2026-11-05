@@ -171,7 +171,7 @@ export class Revisar {
   }
 
   quem(g: Gasto) {
-    return this.s.membros().length > 1 && g.criado_por ? ' · ' + (this.s.membroMap().get(g.criado_por) ?? '') : '';
+    return this.s.membros().length > 1 && g.criado_por ? ' · ' + this.s.nomeAutor(g.criado_por) : '';
   }
 }
 

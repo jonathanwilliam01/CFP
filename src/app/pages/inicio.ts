@@ -454,7 +454,7 @@ export default class Inicio {
     const max = Math.max(1, ...l.map((x) => x.total));
     return l.map((x) => ({ ...x, pct: pct(x.total, max) })).sort((a, b) => b.total - a.total);
   });
-  protected nomeDe = (id: string) => this.s.membroMap().get(id) ?? '?';
+  protected nomeDe = (id: string) => this.s.nomeAutor(id);
   async acertar(t: Transferencia) {
     if (!confirm(`Registrar que ${this.nomeDe(t.de)} pagou ${moeda(t.valor)} para ${this.nomeDe(t.para)}?`)) return;
     await this.s.acertar(t);
