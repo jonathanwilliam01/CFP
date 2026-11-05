@@ -4,3 +4,7 @@ project_id = "cfp"
 [functions.push]
 # chamada só pelo banco com o segredo de push_config, não com JWT de usuário
 verify_jwt = false
+
+[functions.admin]
+# só admin: o JWT é validado e a função confere is_admin()
+verify_jwt = true

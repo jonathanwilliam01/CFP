@@ -13,7 +13,7 @@
     "test": "ng test --watch=false",
     "db:push": "npx -y supabase@2.122.0 db push",
     "db:tipos": "npx -y supabase@2.122.0 gen types typescript --linked --schema public > src/app/core/banco.types.ts",
-    "fn:deploy": "npx -y supabase@2.122.0 functions deploy push --project-ref bumbmmppdkmsfiqjhrfv",
+    "fn:deploy": "npx -y supabase@2.122.0 functions deploy push admin --project-ref bumbmmppdkmsfiqjhrfv",
     "db:checar": "node scripts/checar-banco.mjs",
     "e2e": "playwright test",
     "e2e:ver": "playwright test --ui"
