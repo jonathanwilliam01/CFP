@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, Routes } from '@angular/router';
 import { deslogadoGuard, logadoGuard, suspensaGuard } from './core/auth';
+import { adminGuard } from './core/admin';
 import { conviteGuardado } from './core/convite';
 import { funcaoGuard } from './core/funcoes';
 import { Store } from './core/store';
@@ -21,6 +22,20 @@ export const routes: Routes = [
   { path: 'nova-senha', canActivate: [logadoGuard], loadComponent: () => import('./pages/nova-senha'), title: 'Nova senha · Controle Financeiro Pessoal' },
   { path: 'bem-vindo', canActivate: [logadoGuard], loadComponent: () => import('./pages/bem-vindo'), title: 'Bem-vindo · Controle Financeiro Pessoal' },
   { path: 'suspensa', canActivate: [logadoGuard], loadComponent: () => import('./pages/suspensa'), title: 'Conta suspensa · Controle Financeiro Pessoal' },
+  {
+    path: 'admin',
+    canActivate: [logadoGuard, adminGuard],
+    loadComponent: () => import('./pages/admin/layout'),
+    children: [
+      { path: '', loadComponent: () => import('./pages/admin/visao'), title: 'Visão geral · Admin · CFP' },
+      { path: 'usuarios', loadComponent: () => import('./pages/admin/usuarios'), title: 'Usuários · Admin · CFP' },
+      { path: 'funcoes', loadComponent: () => import('./pages/admin/funcoes'), title: 'Funções · Admin · CFP' },
+      { path: 'avisos', loadComponent: () => import('./pages/admin/avisos'), title: 'Avisos · Admin · CFP' },
+      { path: 'saude', loadComponent: () => import('./pages/admin/saude'), title: 'Erros e saúde · Admin · CFP' },
+      { path: 'versoes', loadComponent: () => import('./pages/admin/versoes'), title: 'Notas de versão · Admin · CFP' },
+      { path: 'auditoria', loadComponent: () => import('./pages/admin/auditoria'), title: 'Auditoria · Admin · CFP' },
+    ],
+  },
   {
     path: '',
     component: Shell,
