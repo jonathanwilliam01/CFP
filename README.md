@@ -38,6 +38,16 @@ Painel admin: a Edge Function `admin` (suspender, reativar e excluir conta) sai 
 
 Envia mensagem nova do chat (trigger em `mensagens`), gasto lançado por outro membro (triggers em `gastos`/`parcelamentos` e resumo da importação, migration 034; desligável por membro) e contas fixas/faturas não pagas que vencem hoje ou amanhã, todo dia às 8h (pg_cron `cfp-vencimentos`). Às 21h lembra quem não lançou gasto no dia (pg_cron `cfp-lembrete`, desligável em Configurações).
 
+## Painel admin
+
+Rota `/admin`, só para quem está na tabela `admins` (o primeiro admin entra pela migration 039, por e-mail).
+
+1. Aplicar as migrations 039 a 042 com `npm run db:push` antes de publicar (sem elas o `checar-banco` derruba o build da Vercel).
+2. `npm run fn:deploy` publica as Edge Functions `push` e `admin` (`admin` usa `verify_jwt`).
+3. Vercel: ligar o Speed Insights no projeto.
+4. Outro admin: `insert into admins (user_id) select id from auth.users where email = '...';`
+5. Testes do banco: `bash scripts/testar-banco.sh` (Docker).
+
 ## Testes
 
 `npm test` (Vitest): regras de `datas.ts`, `financas.ts`, `extrato.ts` e `texto.ts`.

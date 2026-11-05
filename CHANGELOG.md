@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.26.11.9 — 2026-11-05
+- Avisos do app: mensagens da equipe aparecem em Notificações (aba "Avisos do app"), no sino e, quando importantes, numa janela de destaque
+- Telas em manutenção mostram um aviso no lugar do conteúdo
+- Configurações → Notificações: nova preferência "Avisos do app" para receber esses avisos no celular
+- Mensagens e lançamentos de uma conta excluída passam a aparecer como "Conta excluída"
+
 ## v1.26.11.8 — 2026-11-05
 - Contas fixas cadastradas: seguem o mês escolhido no topo (conta com data final some depois dela e vai para Encerradas, com etiqueta); total no fim da lista com as contas que valem naquele mês
 
