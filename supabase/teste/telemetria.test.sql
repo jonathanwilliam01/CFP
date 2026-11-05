@@ -33,10 +33,13 @@ end $$;
 
 delete from erros_app;
 select teste_como((select id from ids where chave = 'u'));
-select registrar_erro('1', '/x', repeat('m', 900), null, 'n');
+select registrar_erro(repeat('v', 99), repeat('r', 999), repeat('m', 900), null, repeat('n', 999));
+select registrar_acesso(repeat('v', 99), repeat('a', 99));
 select teste_sistema();
 do $$ begin
   assert (select length(mensagem) from erros_app) = 500, 'mensagem nao cortada';
+  assert (select (length(versao), length(rota), length(navegador)) = (40, 200, 200) from erros_app), 'erro sem limite';
+  assert (select (length(versao), length(aparelho)) = (40, 60) from acessos), 'acesso sem limite';
 end $$;
 
 rollback;

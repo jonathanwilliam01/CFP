@@ -27,7 +27,7 @@ language plpgsql security definer set search_path = public as $$
 begin
   if auth.uid() is null then return; end if;
   insert into acessos (user_id, dia, versao, aparelho)
-  values (auth.uid(), (now() at time zone 'America/Sao_Paulo')::date, p_versao, p_aparelho)
+  values (auth.uid(), (now() at time zone 'America/Sao_Paulo')::date, left(p_versao, 40), left(p_aparelho, 60))
   on conflict (user_id, dia) do update
     set versao = excluded.versao, aparelho = excluded.aparelho;
 end $$;
@@ -41,7 +41,8 @@ begin
     return;
   end if;
   insert into erros_app (user_id, versao, rota, mensagem, detalhe, navegador)
-  values (auth.uid(), p_versao, p_rota, left(coalesce(p_mensagem, ''), 500), left(p_detalhe, 2000), p_navegador);
+  values (auth.uid(), left(p_versao, 40), left(p_rota, 200), left(coalesce(p_mensagem, ''), 500), left(p_detalhe, 2000),
+          left(p_navegador, 200));
 end $$;
 
 revoke execute on function registrar_acesso(text, text) from public, anon;

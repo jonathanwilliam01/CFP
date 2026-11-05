@@ -172,3 +172,14 @@ revoke execute on function admin_usuarios(), admin_metricas(int), admin_erros(in
   admin_log_lista(text, int) from public, anon;
 grant execute on function admin_usuarios(), admin_metricas(int), admin_erros(int), admin_comunicados(),
   admin_log_lista(text, int) to authenticated;
+
+-- exclusão de conta: solta os arquivos do usuário (storage.objects.owner pode ter FK para auth.users)
+create or replace function admin_liberar_storage(p_user uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  update storage.objects set owner = null, owner_id = null
+  where owner = p_user or owner_id = p_user::text;
+end $$;
+
+revoke execute on function admin_liberar_storage(uuid) from public, anon, authenticated;
+grant execute on function admin_liberar_storage(uuid) to service_role;

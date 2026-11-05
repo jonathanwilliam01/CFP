@@ -92,4 +92,29 @@ do $$ begin
   assert colunas_faltando(array['check:admin_log_acao_check:length']) = '{}', 'marca 042';
 end $$;
 
+-- admin_liberar_storage: só service_role, solta owner/owner_id
+do $$
+declare
+  v_s uuid := (select id from ids where chave = 's');
+  estado text;
+begin
+  insert into storage.objects (bucket_id, name, owner, owner_id) values
+    ('avatares', 'a', v_s, v_s::text), ('avatares', 'b', null, v_s::text), ('avatares', 'c', gen_random_uuid(), 'outro');
+  perform teste_como(v_s);
+  begin
+    perform admin_liberar_storage(v_s);
+    estado := 'sem erro';
+  exception when others then
+    estado := sqlstate;
+  end;
+  assert estado = '42501', 'authenticated liberou storage: ' || estado;
+  perform teste_sistema();
+
+  set role service_role;
+  perform admin_liberar_storage(v_s);
+  perform teste_sistema();
+  assert not exists (select 1 from storage.objects where owner = v_s or owner_id = v_s::text), 'storage ainda do usuario';
+  assert (select count(*) from storage.objects where owner_id = 'outro' and owner is not null) = 1, 'mexeu em outro dono';
+end $$;
+
 rollback;

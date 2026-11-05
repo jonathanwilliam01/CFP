@@ -40,7 +40,8 @@ create table storage.objects (
   id uuid primary key default gen_random_uuid(),
   bucket_id text,
   name text,
-  owner uuid
+  owner uuid,
+  owner_id text
 );
 alter table storage.objects enable row level security;
 create function storage.foldername(name text) returns text[]

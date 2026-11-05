@@ -12,3 +12,7 @@ Deno.test('recusa ação desconhecida', () => {
 Deno.test('permite ação válida em outra conta', () => {
   for (const a of ['suspender', 'reativar', 'excluir']) assertEquals(podeAgir('a', 'b', a), null);
 });
+
+Deno.test('recusa agir sobre outro admin', () => {
+  for (const a of ['suspender', 'reativar', 'excluir']) assertEquals(podeAgir('a', 'b', a, true), 'Não é possível agir sobre outro admin');
+});
