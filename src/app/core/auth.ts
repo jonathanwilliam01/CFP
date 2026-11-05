@@ -24,6 +24,7 @@ export class Auth {
   /** Entrou pelo link de redefinição de senha */
   readonly recuperando = signal(linkRecuperacao);
   readonly user = computed(() => this.session()?.user ?? null);
+  readonly uid = computed(() => this.user()?.id ?? null);
   readonly foto = computed(() => (this.user()?.user_metadata?.['foto'] as Foto | null) ?? null);
   readonly nome = computed(() => (this.user()?.user_metadata?.['nome'] as string) || this.user()?.email?.split('@')[0] || '');
 
@@ -38,21 +39,32 @@ export class Auth {
       if (e === 'PASSWORD_RECOVERY') this.recuperando.set(true);
     });
     effect(() => {
-      const id = this.user()?.id;
+      const id = this.uid();
       untracked(() => this.checarSuspensao(id));
     });
   }
 
-  private async checarSuspensao(id?: string) {
-    if (!id) return this.suspensa.set(false);
-    try {
-      const { data } = await supabase.rpc('estou_suspenso');
-      if (this.user()?.id !== id) return;
-      this.suspensa.set(data === true);
-      if (data === true) this.router.navigateByUrl('/suspensa');
-    } catch {
-      /* offline: não bloqueia */
+  private suspensao: { id: string; p: Promise<boolean> } | null = null;
+
+  /** Uma consulta por usuário; falha de rede conta como não suspenso */
+  suspenso(): Promise<boolean> {
+    const id = this.uid();
+    if (!id) return Promise.resolve(false);
+    if (this.suspensao?.id !== id) {
+      const p = Promise.resolve(supabase.rpc('estou_suspenso'))
+        .then(({ data }) => data === true)
+        .catch(() => false);
+      this.suspensao = { id, p };
     }
+    return this.suspensao.p;
+  }
+
+  private async checarSuspensao(id: string | null) {
+    if (!id) return this.suspensa.set(false);
+    const sus = await this.suspenso();
+    if (this.uid() !== id) return;
+    this.suspensa.set(sus);
+    if (sus) this.router.navigateByUrl('/suspensa');
   }
 
   aguardar() {
@@ -133,4 +145,11 @@ export const deslogadoGuard: CanActivateFn = async () => {
   const router = inject(Router);
   await auth.aguardar();
   return auth.user() ? router.parseUrl('/') : true;
+};
+
+export const suspensaGuard: CanActivateFn = async () => {
+  const auth = inject(Auth);
+  const router = inject(Router);
+  await auth.aguardar();
+  return (await auth.suspenso()) ? router.parseUrl('/suspensa') : true;
 };

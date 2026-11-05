@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, Routes } from '@angular/router';
-import { deslogadoGuard, logadoGuard } from './core/auth';
+import { deslogadoGuard, logadoGuard, suspensaGuard } from './core/auth';
 import { conviteGuardado } from './core/convite';
 import { Store } from './core/store';
 import { Shell } from './layout/shell';
@@ -23,7 +23,7 @@ export const routes: Routes = [
   {
     path: '',
     component: Shell,
-    canActivate: [logadoGuard, carteiraGuard],
+    canActivate: [logadoGuard, suspensaGuard, carteiraGuard],
     children: [
       { path: '', loadComponent: () => import('./pages/inicio'), title: 'Controle Financeiro Pessoal' },
       { path: 'gastos', loadComponent: () => import('./pages/gastos'), title: 'Gastos · Controle Financeiro Pessoal' },

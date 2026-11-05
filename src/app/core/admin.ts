@@ -16,10 +16,12 @@ export class Admin {
 
   constructor() {
     effect(() => {
-      const u = this.auth.user();
+      const id = this.auth.uid();
       untracked(async () => {
-        this.eAdmin.set(null);
-        this.eAdmin.set(u ? await ehAdmin().catch(() => false) : false);
+        this.eAdmin.set(id ? null : false);
+        if (!id) return;
+        const r = await ehAdmin().catch(() => false);
+        if (this.auth.uid() === id) this.eAdmin.set(r);
       });
     });
   }
