@@ -81,6 +81,11 @@ export class Funcoes {
     });
   }
 
+  /** reflete já o que o admin salvou; o realtime só confirma */
+  aplicar(s: FuncaoStatus) {
+    this.status.update((r) => ({ ...r, [s.chave]: s }));
+  }
+
   /** espera a primeira carga do usuário atual */
   async aguardar() {
     await this.auth.aguardar();

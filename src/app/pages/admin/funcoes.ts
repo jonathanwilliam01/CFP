@@ -1,13 +1,21 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Directive, ElementRef, afterNextRender, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Admin } from '../../core/admin';
 import { FUNCOES, Funcao, Funcoes } from '../../core/funcoes';
 import { Icon } from '../../shared/icon';
 import { Toast } from '../../shared/toast';
 
+@Directive({ selector: '[appFoco]' })
+class Foco {
+  constructor() {
+    const el = inject<ElementRef<HTMLInputElement>>(ElementRef).nativeElement;
+    afterNextRender(() => el.focus());
+  }
+}
+
 @Component({
-  imports: [DatePipe, RouterLink, Icon],
+  imports: [DatePipe, RouterLink, Icon, Foco],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(document:keydown.escape)': 'fechar()' },
   template: `
@@ -26,6 +34,7 @@ import { Toast } from '../../shared/toast';
               <td class="note">{{ off && s?.desde ? (s.desde | date: 'dd/MM HH:mm') : '' }}</td>
               <td class="fim">
                 @if (off) {
+                  <button type="button" class="btn ghost" (click)="editar(f, s.mensagem)">Editar mensagem</button>
                   <a class="btn ghost" routerLink="/admin/avisos" [queryParams]="{ novo: 'manutencao', funcao: f.chave }"><app-icon name="campaign" [size]="16" />Criar aviso de manutenção</a>
                 }
                 <button type="button" class="sw" [class.off]="off" role="switch" [attr.aria-checked]="!off" [attr.aria-label]="f.nome" [disabled]="ocupado()" (click)="alternar(f, off)"></button>
@@ -39,12 +48,12 @@ import { Toast } from '../../shared/toast';
     @if (desligando(); as f) {
       <div class="fundo" (click)="fechar()"></div>
       <div class="modal" role="alertdialog" aria-modal="true">
-        <h3>Desligar {{ f.nome }}</h3>
+        <h3>{{ editando() ? 'Editar mensagem de ' : 'Desligar ' }}{{ f.nome }}</h3>
         <p>Quem estiver nessa tela vai para "Em manutenção" na hora. Mensagem aos usuários:</p>
-        <input type="text" aria-label="Mensagem" [value]="msg()" (input)="msg.set($any($event.target).value)" />
+        <input type="text" appFoco aria-label="Mensagem" [value]="msg()" (input)="msg.set($any($event.target).value)" (keydown.enter)="salvar(f, false, msg().trim() || null)" />
         <div class="bts">
           <button type="button" class="btn ghost" (click)="fechar()" [disabled]="ocupado()">Cancelar</button>
-          <button type="button" class="btn perigo" (click)="salvar(f, false, msg().trim() || null)" [disabled]="ocupado()">Desligar</button>
+          <button type="button" class="btn perigo" (click)="salvar(f, false, msg().trim() || null)" [disabled]="ocupado()">{{ editando() ? 'Salvar' : 'Desligar' }}</button>
         </div>
       </div>
     }
@@ -81,14 +90,23 @@ export default class AdminFuncoes {
   protected funcoes = FUNCOES;
   protected desligando = signal<Funcao | null>(null);
   protected msg = signal('');
+  protected editando = signal(false);
   protected ocupado = signal(false);
+  private funcoesSvc = inject(Funcoes);
 
   protected alternar(f: Funcao, off: boolean) {
     if (off) {
       this.salvar(f, true, null);
       return;
     }
+    this.editando.set(false);
     this.msg.set('Volta em breve.');
+    this.desligando.set(f);
+  }
+
+  protected editar(f: Funcao, mensagem: string | null) {
+    this.editando.set(true);
+    this.msg.set(mensagem ?? '');
     this.desligando.set(f);
   }
 
@@ -97,10 +115,12 @@ export default class AdminFuncoes {
   }
 
   protected async salvar(f: Funcao, ativa: boolean, mensagem: string | null) {
+    if (this.ocupado()) return;
     this.ocupado.set(true);
     try {
       await this.admin.salvarFuncao(f.chave, ativa, mensagem);
-      this.toast.ok(ativa ? `${f.nome} liberada` : `${f.nome} em manutenção`);
+      this.funcoesSvc.aplicar({ chave: f.chave, ativa, mensagem, desde: new Date().toISOString() });
+      this.toast.ok(ativa ? `${f.nome} liberada` : this.editando() ? 'Mensagem atualizada' : `${f.nome} em manutenção`);
       this.ocupado.set(false);
       this.fechar();
     } catch (e) {

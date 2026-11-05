@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Directive, ElementRef, afterNextRender, computed, inject, signal } from '@angular/core';
 import { Admin } from '../../core/admin';
 import { Auth } from '../../core/auth';
 import { AdminUsuario } from '../../core/models';
@@ -8,10 +8,18 @@ import { Toast } from '../../shared/toast';
 
 type Modal = { tipo: 'suspender' | 'excluir'; u: AdminUsuario } | null;
 
+@Directive({ selector: '[appFoco]' })
+class Foco {
+  constructor() {
+    const el = inject<ElementRef<HTMLInputElement>>(ElementRef).nativeElement;
+    afterNextRender(() => el.focus());
+  }
+}
+
 @Component({
-  imports: [DatePipe, Icon],
+  imports: [DatePipe, Icon, Foco],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '(document:keydown.escape)': 'fechar()', '(document:click)': 'menu.set(null)' },
+  host: { '(document:keydown.escape)': 'fechar()', '(document:click)': 'menu.set(null)', '(window:scroll)': 'menu.set(null)', '(window:resize)': 'menu.set(null)' },
   template: `
     <div class="top">
       <h2>Usuários</h2>
@@ -40,7 +48,7 @@ type Modal = { tipo: 'suspender' | 'excluir'; u: AdminUsuario } | null;
               <td class="acoes">
                 <button type="button" class="mais" aria-label="Ações" (click)="abrirMenu($event, u.id)"><app-icon name="more_vert" [size]="20" /></button>
                 @if (menu() === u.id) {
-                  <div class="menu" role="menu">
+                  <div class="menu" role="menu" [style.top.px]="pos().top" [style.right.px]="pos().right">
                     <button type="button" role="menuitem" (click)="detalhes.set(u)">Ver detalhes</button>
                     <button type="button" role="menuitem" (click)="senha(u)">Enviar redefinição de senha</button>
                     @if (u.id !== uid()) {
@@ -68,7 +76,7 @@ type Modal = { tipo: 'suspender' | 'excluir'; u: AdminUsuario } | null;
         @if (m.tipo === 'suspender') {
           <h3>Suspender {{ m.u.email }}</h3>
           <p>A pessoa perde o acesso na hora. Informe o motivo.</p>
-          <input type="text" placeholder="Motivo" aria-label="Motivo" [value]="texto()" (input)="texto.set($any($event.target).value)" />
+          <input type="text" placeholder="Motivo" aria-label="Motivo" appFoco [value]="texto()" (input)="texto.set($any($event.target).value)" (keydown.enter)="texto().trim() && suspender(m.u)" />
           <div class="bts">
             <button type="button" class="btn ghost" (click)="fechar()" [disabled]="ocupado()">Cancelar</button>
             <button type="button" class="btn perigo" (click)="suspender(m.u)" [disabled]="ocupado() || !texto().trim()">Suspender</button>
@@ -76,7 +84,7 @@ type Modal = { tipo: 'suspender' | 'excluir'; u: AdminUsuario } | null;
         } @else {
           <h3>Excluir conta</h3>
           <p>Apaga o acesso de {{ m.u.email }} para sempre. O histórico da carteira fica. Digite o e-mail para confirmar.</p>
-          <input type="text" placeholder="E-mail da conta" aria-label="Confirmar e-mail" [value]="texto()" (input)="texto.set($any($event.target).value)" />
+          <input type="text" placeholder="E-mail da conta" aria-label="Confirmar e-mail" appFoco [value]="texto()" (input)="texto.set($any($event.target).value)" (keydown.enter)="excluir(m.u)" />
           <div class="bts">
             <button type="button" class="btn ghost" (click)="fechar()" [disabled]="ocupado()">Cancelar</button>
             <button type="button" class="btn perigo" (click)="excluir(m.u)" [disabled]="ocupado() || !confere(m.u)">Excluir</button>
@@ -123,10 +131,10 @@ type Modal = { tipo: 'suspender' | 'excluir'; u: AdminUsuario } | null;
     .pill.w { background: var(--warn-soft); color: var(--warn); }
     .alert { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 10px; background: var(--danger-soft); color: var(--danger); }
     .alert .btn { margin-left: auto; }
-    .acoes { position: relative; width: 36px; }
+    .acoes { width: 36px; }
     .mais { border: 0; background: none; color: var(--ink-2); cursor: pointer; border-radius: 8px; padding: 4px; display: grid; }
     .mais:hover { background: var(--card-2); }
-    .menu { position: absolute; right: 8px; top: 100%; z-index: 20; min-width: 220px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; box-shadow: 0 10px 28px rgb(0 0 0 / 0.2); display: flex; flex-direction: column; }
+    .menu { position: fixed; z-index: 20; min-width: 220px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; box-shadow: 0 10px 28px rgb(0 0 0 / 0.2); display: flex; flex-direction: column; }
     .menu button { border: 0; background: none; font: inherit; font-size: 13px; color: var(--ink); text-align: left; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
     .menu button:hover { background: var(--card-2); }
     .menu .perigo, .btn.perigo { color: var(--danger); }
@@ -152,6 +160,7 @@ export default class AdminUsuarios {
   protected erro = signal('');
   protected carregando = signal(true);
   protected menu = signal<string | null>(null);
+  protected pos = signal({ top: 0, right: 0 });
   protected modal = signal<Modal>(null);
   protected detalhes = signal<AdminUsuario | null>(null);
   protected texto = signal('');
@@ -180,6 +189,8 @@ export default class AdminUsuarios {
 
   protected abrirMenu(e: Event, id: string) {
     e.stopPropagation();
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    this.pos.set({ top: Math.max(8, Math.min(r.bottom + 4, innerHeight - 200)), right: innerWidth - r.right });
     this.menu.set(this.menu() === id ? null : id);
   }
 
@@ -200,6 +211,7 @@ export default class AdminUsuarios {
   }
 
   protected async senha(u: AdminUsuario) {
+    this.menu.set(null);
     await this.rodar(() => this.admin.redefinirSenha(u.email), `Redefinição enviada para ${u.email}`);
   }
 
@@ -219,6 +231,7 @@ export default class AdminUsuarios {
   private async rodar(fn: () => Promise<unknown>, ok: string) {
     if (this.ocupado()) return;
     this.ocupado.set(true);
+    this.menu.set(null);
     try {
       await fn();
       this.toast.ok(ok);
