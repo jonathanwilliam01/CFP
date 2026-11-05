@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { noAr, statusComunicado } from './comunicados';
+import { WritableSignal, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { describe, expect, it, vi } from 'vitest';
+import { Auth } from './auth';
+import { supabase } from './supabase';
+import { Comunicados, noAr, statusComunicado } from './comunicados';
 import { Comunicado } from './models';
 
 const agora = new Date('2026-12-25T12:00:00-03:00');
@@ -27,5 +31,17 @@ describe('comunicados', () => {
   });
   it('expira com o tempo', () => {
     expect(noAr([noAr1], new Date('2026-12-26T00:00:01-03:00'))).toEqual([]);
+  });
+});
+
+describe('Comunicados.marcarLidos', () => {
+  it('falha no upsert não devolve o id a naoLidos', async () => {
+    vi.spyOn(supabase, 'from').mockReturnValue({ upsert: () => Promise.reject(new Error('offline')) } as never);
+    TestBed.configureTestingModule({ providers: [{ provide: Auth, useValue: { uid: signal(null) } }] });
+    const s = TestBed.inject(Comunicados);
+    (s as unknown as { todos: WritableSignal<Comunicado[]> }).todos.set([c({ id: 'z', inicio: new Date(Date.now() - 1000).toISOString(), fim: new Date(Date.now() + 1e6).toISOString() })]);
+    expect(s.naoLidos().length).toBe(1);
+    await s.marcarLidos(['z']);
+    expect(s.naoLidos().length).toBe(0);
   });
 });

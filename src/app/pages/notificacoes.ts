@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Comunicados } from '../core/comunicados';
 import { mesAtual } from '../core/datas';
 import { PrivPipe } from '../core/formato';
@@ -8,22 +9,23 @@ import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
 
 @Component({
-  imports: [RouterLink, Icon, PrivPipe],
+  imports: [RouterLink, Icon, PrivPipe, DatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <div class="page-head"><h1>Notificações</h1></div>
       <nav class="seg">
-        <button type="button" [class.on]="aba() === 'voce'" (click)="aba.set('voce')">Para você @if (i.naoLidas().length; as n) { <span class="n">{{ n }}</span> }</button>
-        <button type="button" [class.on]="aba() === 'app'" (click)="aba.set('app')">Avisos do app @if (c.naoLidos().length; as n) { <span class="n">{{ n }}</span> }</button>
+        <button type="button" [class.on]="tab() === 'voce'" (click)="tab.set('voce')">Para você @if (i.naoLidas().length; as n) { <span class="n">{{ n }}</span> }</button>
+        <button type="button" [class.on]="tab() === 'app'" (click)="tab.set('app')">Avisos do app @if (c.naoLidos().length; as n) { <span class="n">{{ n }}</span> }</button>
       </nav>
 
-      @if (aba() === 'app') {
+      @if (tab() === 'app') {
         <div class="lista">
           @for (a of c.lista(); track a.id) {
             <div class="card com">
               @if (a.tag; as t) { <span class="tag" [style.color]="t.cor" [style.background]="'color-mix(in srgb, ' + t.cor + ' 15%, transparent)'">{{ t.nome }}</span> }
               <div class="t">{{ a.titulo }}</div>
+              <div class="small muted">{{ a.inicio | date: 'dd/MM' }}</div>
               <div class="s">{{ a.texto }}</div>
               @if (a.link) {
                 @if (externo(a.link)) { <a class="small lk" [href]="a.link" target="_blank" rel="noopener">Abrir</a> }
@@ -99,18 +101,20 @@ export default class Notificacoes {
   protected i = inject(Insights);
   protected s = inject(Store);
   protected c = inject(Comunicados);
-  protected aba = signal<'voce' | 'app'>(inject(ActivatedRoute).snapshot.queryParamMap.get('aba') === 'app' ? 'app' : 'voce');
+  readonly tab = signal<'voce' | 'app'>('voce');
+  readonly aba = input<string>();
   protected externo = (l: string) => /^https?:\/\//i.test(l);
   protected atual = mesAtual();
   protected noMesAtual = computed(() => this.s.mes() === this.atual);
 
   constructor() {
+    effect(() => this.tab.set(this.aba() === 'app' ? 'app' : 'voce'));
     effect(() => {
       this.i.avisos();
       untracked(() => this.i.marcarLidas());
     });
     effect(() => {
-      const ids = this.aba() === 'app' ? this.c.naoLidos().map((x) => x.id) : [];
+      const ids = this.tab() === 'app' ? this.c.naoLidos().map((x) => x.id) : [];
       untracked(() => this.c.marcarLidos(ids));
     });
   }

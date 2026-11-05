@@ -72,5 +72,9 @@ export class Avisos {
       this.i.avisos();
       untracked(() => this.i.marcarLidas());
     });
+    effect(() => {
+      const ids = this.comunicados().map((x) => x.id);
+      untracked(() => this.c.marcarLidos(ids));
+    });
   }
 }

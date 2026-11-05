@@ -33,7 +33,12 @@ export class Comunicados {
   readonly destaque = computed<Comunicado | null>(() => this.naoLidos().find((c) => c.destaque) ?? null);
 
   constructor() {
-    setInterval(() => this.agora.set(new Date()), 60_000);
+    let ticks = 0;
+    setInterval(() => {
+      this.agora.set(new Date());
+      if (++ticks % 15 === 0) this.recarregar();
+    }, 60_000);
+    document.addEventListener('visibilitychange', () => !document.hidden && this.recarregar());
     effect(() => {
       const id = this.auth.uid();
       untracked(() => this.assinar(id));
@@ -42,13 +47,16 @@ export class Comunicados {
 
   async marcarLidos(ids: string[]) {
     if (!ids.length) return;
-    const eu = this.uid;
     this.lidos.update((s) => new Set([...s, ...ids]));
     try {
       await q(supabase.from('comunicado_leituras').upsert(ids.map((comunicado_id) => ({ comunicado_id })), { onConflict: 'comunicado_id,user_id', ignoreDuplicates: true }));
     } catch {
-      if (this.uid === eu) this.lidos.update((s) => new Set([...s].filter((x) => !ids.includes(x))));
+      /* mantém lido local; volta a sincronizar na próxima carga */
     }
+  }
+
+  private recarregar() {
+    if (this.uid) this.carregar(this.uid);
   }
 
   private assinar(id: string | null) {

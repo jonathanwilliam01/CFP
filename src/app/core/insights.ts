@@ -44,7 +44,7 @@ export class Insights {
     const m = this.chat.ultimaNaoLida();
     if (!m) return [];
     const n = this.chat.naoLidas();
-    const nome = this.s.nomeAutor(m.user_id);
+    const nome = this.s.nomeAutor(m.user_id) || 'Chat';
     const texto = m.texto.length > 80 ? m.texto.slice(0, 80) + '…' : m.texto;
     return [{ id: `chat-${m.id}`, nivel: 'info', icone: 'chat', titulo: n > 1 ? `${n} mensagens novas no chat` : `Mensagem de ${nome}`, texto: n > 1 ? `${nome}: ${texto}` : texto, link: '/chat' }];
   });

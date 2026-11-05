@@ -95,6 +95,7 @@ export class Store {
   readonly membroMap = computed(() => new Map(this.membros().map((m) => [m.user_id, m.nome])));
   /** nome do autor; conta apagada ou fora da carteira vira 'Conta excluída' */
   nomeAutor(id: string | null | undefined) {
+    if (!this.membros().length) return '';
     return (id && this.membroMap().get(id)) || 'Conta excluída';
   }
   readonly membroPorId = computed(() => new Map(this.membros().map((m) => [m.user_id, m])));
