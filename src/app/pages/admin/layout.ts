@@ -48,6 +48,7 @@ import { NOTAS } from '../../core/versao';
       nav { order: 3; flex: 1 1 100%; flex-direction: row; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 0 12px; }
       nav::-webkit-scrollbar { display: none; }
       nav a { flex-shrink: 0; padding: 7px 12px; font-size: 13px; white-space: nowrap; background: #ffffff0d; }
+      nav a.on { background: var(--primary); }
       nav .nome { display: inline; }
       nav .lock { display: none; }
       .voltar { padding: 6px; }
