@@ -5,5 +5,6 @@
   "036": ["check:pagamentos_tipo_check:parcela"],
   "037": ["carteira_membros.push_fatura", "carteira_membros.lembrete_saldos"],
   "038": ["recorrencias.dia_util"],
-  "039": ["suspensos.user_id"]
+  "039": ["suspensos.user_id"],
+  "040": ["acessos.dia", "erros_app.id"]
 }
