@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router, Routes } from '@angular/router';
 import { deslogadoGuard, logadoGuard, suspensaGuard } from './core/auth';
 import { conviteGuardado } from './core/convite';
+import { funcaoGuard } from './core/funcoes';
 import { Store } from './core/store';
 import { Shell } from './layout/shell';
 
@@ -24,6 +25,7 @@ export const routes: Routes = [
     path: '',
     component: Shell,
     canActivate: [logadoGuard, suspensaGuard, carteiraGuard],
+    canActivateChild: [funcaoGuard],
     children: [
       { path: '', loadComponent: () => import('./pages/inicio'), title: 'Controle Financeiro Pessoal' },
       { path: 'gastos', loadComponent: () => import('./pages/gastos'), title: 'Gastos · Controle Financeiro Pessoal' },
@@ -59,6 +61,7 @@ export const routes: Routes = [
       { path: 'desejos', loadComponent: () => import('./pages/desejos'), title: 'Lista de desejos · Controle Financeiro Pessoal' },
       { path: 'viagens', loadComponent: () => import('./pages/viagens'), title: 'Viagens · Controle Financeiro Pessoal' },
       { path: 'imposto', loadComponent: () => import('./pages/imposto'), title: 'Imposto de Renda · Controle Financeiro Pessoal' },
+      { path: 'manutencao/:chave', loadComponent: () => import('./pages/manutencao'), title: 'Em manutenção · Controle Financeiro Pessoal' },
     ],
   },
   { path: '**', redirectTo: '' },

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -6,6 +6,7 @@ import { Admin } from '../core/admin';
 import { Auth } from '../core/auth';
 import { Chat } from '../core/chat';
 import { Fila } from '../core/fila';
+import { funcaoDaRota, Funcoes } from '../core/funcoes';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Atualizacao } from '../shared/atualizar';
@@ -141,6 +142,9 @@ import { Menus, PRINCIPAIS } from './menu';
       <div class="puxar" [style.--p]="atualizando() ? 1 : puxado() / 70" aria-live="polite">
         <app-icon name="refresh" [size]="22" [class.gira]="atualizando()" [style.transform]="atualizando() ? null : 'rotate(' + puxado() * 4 + 'deg)'" />
       </div>
+    }
+    @if (emManutencao()) {
+      <div class="manut" role="status"><app-icon name="construction" [size]="18" /> Em manutenção para os usuários</div>
     }
     <main (touchstart)="toque($event)" (touchmove)="puxando($event)" (touchend)="arrastou($event)"><router-outlet /></main>
 
@@ -285,6 +289,7 @@ import { Menus, PRINCIPAIS } from './menu';
       box-shadow: 0 14px 40px rgb(0 0 0 / 0.22); animation: desce 0.15s; overscroll-behavior: contain;
     }
     /* nada da tela passa da largura: com fonte grande do sistema a página rolava de lado e a barra de baixo saía da tela */
+    .manut { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 6px 12px; font-size: 0.85rem; font-weight: 600; background: var(--warn-soft); color: var(--text); }
     main { display: block; overflow-x: clip; }
     @keyframes desce { from { opacity: 0; transform: translateY(-6px); } }
     .side { display: none; }
@@ -354,6 +359,7 @@ export class Shell {
   protected s = inject(Store);
   protected auth = inject(Auth);
   protected admin = inject(Admin);
+  private funcoes = inject(Funcoes);
   protected insights = inject(Insights);
   protected chat = inject(Chat);
   protected lancar = inject(Lancar);
@@ -391,6 +397,8 @@ export class Shell {
   protected url = toSignal(this.router.events.pipe(filter((e) => e instanceof NavigationEnd), map((e) => e.urlAfterRedirects.split('?')[0])), {
     initialValue: this.router.url.split('?')[0],
   });
+
+  protected emManutencao = computed(() => !!this.admin.eAdmin() && this.funcoes.status()[funcaoDaRota(this.url())?.chave ?? '']?.ativa === false);
 
   // atalho do ícone (?lancar=gasto), lembrete da noite e compartilhado com o app (sw.js guarda texto e arquivo: ?compartilhado=1;
   // titulo/texto/link na URL ficam para o manifesto antigo instalado)
