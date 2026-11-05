@@ -30,7 +30,7 @@ class Foco {
             <tr>
               <td>{{ f.nome }}</td>
               <td><span class="pill" [class.ok]="!off" [class.no]="off">{{ off ? 'manutenção' : 'liberada' }}</span></td>
-              <td [class.note]="!off || !s?.mensagem">{{ off && s?.mensagem ? s.mensagem : '—' }}</td>
+              <td class="msg" [class.note]="!off || !s?.mensagem">{{ off && s?.mensagem ? s.mensagem : '—' }}</td>
               <td class="note">{{ off && s?.desde ? (s.desde | date: 'dd/MM HH:mm') : '' }}</td>
               <td class="fim">
                 @if (off) {
@@ -81,6 +81,19 @@ class Foco {
     .modal p { margin: 0; color: var(--ink-2); font-size: 13px; }
     .bts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
     .btn.perigo { background: var(--danger); color: #fff; }
+    @media (max-width: 640px) {
+      thead { display: none; }
+      table, tbody { display: block; }
+      tr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+      tr:last-child { border-bottom: 0; }
+      td { padding: 0; border: 0; }
+      td:first-child { font-weight: 600; }
+      .msg { flex-basis: 100%; }
+      .msg.note, td:empty { display: none; }
+      .fim { margin-left: auto; flex-wrap: wrap; }
+      .sw { width: 42px; height: 24px; }
+      .sw::after { width: 20px; height: 20px; }
+    }
   `,
 })
 export default class AdminFuncoes {

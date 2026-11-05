@@ -39,12 +39,12 @@ class Foco {
           @for (u of lista(); track u.id) {
             <tr>
               <td>{{ u.nome || '—' }}<br /><span class="note">{{ u.email }}</span></td>
-              <td>{{ u.carteira ? u.carteira + ' (' + u.membros + ')' : '—' }}</td>
-              <td>{{ u.criado_em | date: 'dd/MM/yy' }}</td>
-              <td>{{ u.ultimo_uso ? (u.ultimo_uso | date: 'dd/MM/yy') : '—' }}</td>
-              <td>{{ u.lancamentos }}</td>
-              <td>{{ u.versao || '—' }}</td>
-              <td><span class="pill" [class.ok]="u.status === 'ativo'" [class.w]="u.status === 'parado'" [class.no]="u.status === 'suspenso'">{{ u.status }}</span></td>
+              <td data-l="Carteira">{{ u.carteira ? u.carteira + ' (' + u.membros + ')' : '—' }}</td>
+              <td data-l="Cadastro">{{ u.criado_em | date: 'dd/MM/yy' }}</td>
+              <td data-l="Último uso">{{ u.ultimo_uso ? (u.ultimo_uso | date: 'dd/MM/yy') : '—' }}</td>
+              <td data-l="Lançamentos">{{ u.lancamentos }}</td>
+              <td data-l="Versão">{{ u.versao || '—' }}</td>
+              <td data-l="Status"><span class="pill" [class.ok]="u.status === 'ativo'" [class.w]="u.status === 'parado'" [class.no]="u.status === 'suspenso'">{{ u.status }}</span></td>
               <td class="acoes">
                 <button type="button" class="mais" aria-label="Ações" (click)="abrirMenu($event, u.id)"><app-icon name="more_vert" [size]="20" /></button>
                 @if (menu() === u.id) {
@@ -149,6 +149,19 @@ class Foco {
     dl { display: grid; grid-template-columns: 120px 1fr; gap: 8px 10px; margin: 0; font-size: 13px; }
     dt { color: var(--ink-3); }
     dd { margin: 0; word-break: break-all; }
+    @media (max-width: 640px) {
+      .top input { width: 100%; margin-left: 0; }
+      .c { padding: 0; background: none; box-shadow: none; overflow: visible; }
+      thead { display: none; }
+      table, tbody { display: block; }
+      tr { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; position: relative; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; margin-bottom: 10px; }
+      td { padding: 0; border: 0; min-width: 0; overflow-wrap: anywhere; }
+      td[data-l]::before { content: attr(data-l); display: block; font-size: 11px; color: var(--ink-3); margin-bottom: 2px; }
+      td:first-child { grid-column: 1 / -1; padding-right: 36px; font-weight: 600; }
+      td:first-child .note { font-weight: 400; }
+      .acoes { position: absolute; top: 8px; right: 6px; width: auto; }
+      .mais { padding: 8px; }
+    }
   `,
 })
 export default class AdminUsuarios {

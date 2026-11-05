@@ -124,6 +124,7 @@ const NOMES = Object.fromEntries(FUNCOES.map((f) => [f.chave, f.nome]));
     .note { font-size: 12px; color: var(--ink-3); }
     .note a { color: var(--primary); }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .c { overflow-x: auto; } .k { padding: 12px; } .v { font-size: 20px; } }
   `,
 })
 export default class AdminVisao {

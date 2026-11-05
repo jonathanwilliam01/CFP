@@ -11,7 +11,7 @@ import { NOTAS } from '../../core/versao';
       <div class="logo">CFP Admin<small>{{ versao }}</small></div>
       <nav>
         @for (i of itens; track i.rota) {
-          <a [routerLink]="i.rota" routerLinkActive="on" [routerLinkActiveOptions]="{ exact: i.rota === '/admin' }" [title]="i.nome">
+          <a #el [routerLink]="i.rota" routerLinkActive="on" [routerLinkActiveOptions]="{ exact: i.rota === '/admin' }" [title]="i.nome" (isActiveChange)="$event && el.scrollIntoView({ block: 'nearest', inline: 'nearest' })">
             <app-icon [name]="i.icone" [size]="20" /><span class="nome">{{ i.nome }}</span>
           </a>
         }
@@ -39,6 +39,19 @@ import { NOTAS } from '../../core/versao';
       .nome { display: none; }
       a, .lock { justify-content: center; }
       main { padding: 16px; }
+    }
+    @media (max-width: 700px) {
+      :host { flex-direction: column; }
+      aside { position: sticky; top: 0; z-index: 30; width: auto; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 10px; }
+      .logo { display: flex; align-items: baseline; gap: 8px; flex: 1; padding: 0 4px; }
+      .logo small { display: inline; }
+      nav { order: 3; flex: 1 1 100%; flex-direction: row; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 0 12px; }
+      nav::-webkit-scrollbar { display: none; }
+      nav a { flex-shrink: 0; padding: 7px 12px; font-size: 13px; white-space: nowrap; background: #ffffff0d; }
+      nav .nome { display: inline; }
+      nav .lock { display: none; }
+      .voltar { padding: 6px; }
+      main { padding: 14px 16px calc(env(safe-area-inset-bottom, 0px) + 24px); }
     }
   `,
 })

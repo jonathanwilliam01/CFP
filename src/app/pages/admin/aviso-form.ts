@@ -70,7 +70,6 @@ function local(iso: string) {
   `,
   styles: `
     .grade { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
-    @media (max-width: 800px) { .grade { grid-template-columns: 1fr; } }
     .c { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
     .form { display: flex; flex-direction: column; gap: 12px; }
     label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-3); }
@@ -86,6 +85,8 @@ function local(iso: string) {
     .com .s { color: var(--ink-2); font-size: 0.9rem; white-space: pre-line; }
     .tag { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
     .lk { color: var(--primary); font-weight: 700; }
+    @media (max-width: 800px) { .grade { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 640px) { .dois { grid-template-columns: minmax(0, 1fr); } .bts .btn { flex: 1; } }
   `,
 })
 export class AvisoForm implements OnInit {

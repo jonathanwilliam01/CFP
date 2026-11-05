@@ -75,6 +75,18 @@ export function resumo(d: unknown): string {
     .alvo, .det { word-break: break-word; }
     .det { color: var(--ink-2); }
     .note { font-size: 12px; color: var(--ink-3); }
+    @media (max-width: 640px) {
+      select { margin-left: 0; width: 100%; }
+      .c { padding: 0 14px; }
+      thead { display: none; }
+      table, tbody { display: block; }
+      tr { display: flex; flex-wrap: wrap; gap: 3px 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+      tr:last-child { border-bottom: 0; }
+      td { padding: 0; border: 0; }
+      td:nth-child(2) { font-weight: 600; }
+      .nw { order: 2; margin-left: auto; font-size: 12px; color: var(--ink-3); }
+      .alvo, .det { order: 3; flex-basis: 100%; font-size: 12px; }
+    }
   `,
 })
 export default class AdminAuditoria {
