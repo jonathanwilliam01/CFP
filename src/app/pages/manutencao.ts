@@ -3,7 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
 import { Admin } from '../core/admin';
-import { FUNCOES, Funcoes } from '../core/funcoes';
+import { destinoManutencao, FUNCOES, Funcoes } from '../core/funcoes';
 import { FuncaoStatus } from '../core/models';
 import { Icon } from '../shared/icon';
 
@@ -34,9 +34,8 @@ export default class Manutencao {
 
   constructor() {
     effect(() => {
-      const fn = this.funcao();
-      const livre = this.status()?.ativa !== false || this.admin.eAdmin() === true;
-      untracked(() => this.router.navigateByUrl(fn && livre ? fn.rotas[0] : '/', { replaceUrl: true }).catch(() => {}));
+      const d = destinoManutencao(this.funcao(), this.status(), this.admin.eAdmin());
+      if (d) untracked(() => this.router.navigateByUrl(d, { replaceUrl: true }).catch(() => {}));
     });
   }
 }

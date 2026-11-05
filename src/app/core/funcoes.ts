@@ -49,6 +49,13 @@ export function bloqueio(url: string, status: Record<string, FuncaoStatus>, admi
   return s && !s.ativa ? s : null;
 }
 
+/** para onde a página de manutenção leva; null = ficar */
+export function destinoManutencao(fn: Funcao | undefined, status: FuncaoStatus | undefined, eAdmin: boolean | null): string | null {
+  if (!fn) return '/';
+  if (status?.ativa !== false || eAdmin === true) return fn.rotas[0];
+  return null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class Funcoes {
   private auth = inject(Auth);
