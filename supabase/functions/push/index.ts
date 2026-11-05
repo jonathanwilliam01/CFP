@@ -1,5 +1,5 @@
 // Envia Web Push: mensagem nova do chat (trigger em mensagens), gasto lançado (triggers em gastos/parcelamentos e importação),
-// contas vencendo, lembrete da noite, resumo do mês no dia 1, fatura que fechou e saldos desatualizados (pg_cron).
+// contas vencendo, lembrete da noite, resumo do mês no dia 1, fatura que fechou, saldos desatualizados e avisos do app (pg_cron). Suspensos nunca recebem.
 // Chamada só pelo banco via push_enviar, com o segredo de push_config.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
@@ -23,7 +23,8 @@ Deno.serve(async (req) => {
   const ev = await req.json();
   const envios = ev.tipo === 'chat' ? await chat(ev) : ev.tipo === 'gasto' || ev.tipo === 'importacao' ? await gasto(ev)
     : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : ev.tipo === 'resumo' ? await resumo()
-    : ev.tipo === 'fatura' ? await faturas() : ev.tipo === 'saldos' ? await saldos() : [];
+    : ev.tipo === 'fatura' ? await faturas() : ev.tipo === 'saldos' ? await saldos()
+    : ev.tipo === 'comunicado' ? await comunicado(ev) : [];
   let n = 0;
   for (const e of envios) n += await enviar(e);
   return Response.json({ enviados: n });
@@ -153,7 +154,32 @@ async function saldos(): Promise<Envio[]> {
   }));
 }
 
+/** Aviso do app para quem tem inscrição push, menos quem desligou */
+async function comunicado(ev: { id: string }): Promise<Envio[]> {
+  const { data: c, error } = await db.from('comunicados').select('titulo, texto, link').eq('id', ev.id).single();
+  if (error) throw error;
+  const [insc, prefs] = await Promise.all([
+    db.from('push_inscricoes').select('user_id'),
+    db.from('usuario_prefs').select('user_id').eq('push_comunicados', false),
+  ]);
+  if (insc.error) throw insc.error;
+  if (prefs.error) throw prefs.error;
+  const fora = new Set(prefs.data.map((p) => p.user_id));
+  return [{
+    usuarios: [...new Set(insc.data.map((i) => i.user_id as string))].filter((u) => !fora.has(u)),
+    titulo: c.titulo,
+    texto: c.texto.length > 120 ? c.texto.slice(0, 120) + '…' : c.texto,
+    tag: `comunicado-${ev.id}`,
+    url: c.link ?? '/notificacoes?aba=app',
+  }];
+}
+
 async function enviar(e: Envio) {
+  if (!e.usuarios.length) return 0;
+  const { data: sus, error: errSus } = await db.from('suspensos').select('user_id').in('user_id', e.usuarios);
+  if (errSus) throw errSus;
+  const bloqueados = new Set(sus.map((x) => x.user_id));
+  e.usuarios = e.usuarios.filter((u) => !bloqueados.has(u));
   if (!e.usuarios.length) return 0;
   const { data, error } = await db.from('push_inscricoes').select('endpoint, p256dh, auth').in('user_id', e.usuarios);
   if (error) throw error;
