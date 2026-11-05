@@ -1,6 +1,7 @@
 import { Component, effect, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { Auth } from './core/auth';
+import { Telemetria } from './core/telemetria';
 import { Tema } from './core/tema';
 import { Atualizar } from './shared/atualizar';
 import { ToastView } from './shared/toast';
@@ -12,6 +13,7 @@ import { ToastView } from './shared/toast';
 })
 export class App {
   private tema = inject(Tema);
+  private telemetria = inject(Telemetria);
 
   constructor() {
     const auth = inject(Auth);

@@ -1,5 +1,6 @@
 import {
   ApplicationConfig,
+  ErrorHandler,
   LOCALE_ID,
   provideBrowserGlobalErrorListeners,
   isDevMode,
@@ -8,6 +9,7 @@ import { registerLocaleData } from '@angular/common';
 import localePt from '@angular/common/locales/pt';
 import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { routes } from './app.routes';
+import { ErroGlobal } from './core/telemetria';
 import { provideServiceWorker } from '@angular/service-worker';
 
 registerLocaleData(localePt);
@@ -15,6 +17,7 @@ registerLocaleData(localePt);
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    { provide: ErrorHandler, useClass: ErroGlobal },
     provideRouter(
       routes,
       withComponentInputBinding(),
