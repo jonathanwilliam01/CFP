@@ -9,15 +9,8 @@ if (existsSync('.env')) {
   }
 }
 
-// migration → tabela.coluna (ou check:restrição:texto) que só existe depois dela
-const MARCAS = {
-  '033': ['gastos.comprovante'],
-  '034': ['carteira_membros.push_gastos'],
-  '035': ['regras.id', 'viagens.id', 'desejos.id', 'patrimonio.id', 'gastos.conferido', 'carteira_membros.resumo_mensal'],
-  '036': ['check:pagamentos_tipo_check:parcela'],
-  '037': ['carteira_membros.push_fatura', 'carteira_membros.lembrete_saldos'],
-  '038': ['recorrencias.dia_util'],
-};
+// migration → tabela.coluna (ou check:restrição:texto) que só existe depois dela (src/app/core/marcas-banco.json)
+const MARCAS = JSON.parse(readFileSync(new URL('../src/app/core/marcas-banco.json', import.meta.url), 'utf8'));
 
 const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_ANON_KEY;
