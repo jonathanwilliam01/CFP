@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Admin } from '../core/admin';
 import { Chat } from '../core/chat';
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
@@ -39,6 +40,12 @@ import { Saida } from '../shared/sair';
             }
           }
           @if (g.nome === 'App') {
+            @if (admin.eAdmin()) {
+              <a class="card at" routerLink="/admin">
+                <app-icon class="e" name="admin_panel_settings" [size]="30" />
+                <span class="r">Painel admin</span>
+              </a>
+            }
             <button class="card at sair" type="button" (click)="saida.abrir()">
               <app-icon class="e" name="logout" [size]="30" />
               <span class="r">Sair do app</span>
@@ -80,6 +87,7 @@ import { Saida } from '../shared/sair';
 export default class Mais {
   protected tour = inject(Tour);
   protected saida = inject(Saida);
+  protected admin = inject(Admin);
   protected s = inject(Store);
   protected insights = inject(Insights);
   private chat = inject(Chat);

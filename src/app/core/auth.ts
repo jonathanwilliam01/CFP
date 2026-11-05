@@ -1,4 +1,4 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, effect, signal, untracked } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { inject } from '@angular/core';
 import type { Session } from '@supabase/supabase-js';
@@ -17,6 +17,8 @@ export interface Foto {
 @Injectable({ providedIn: 'root' })
 export class Auth {
   private push = inject(Push);
+  private router = inject(Router);
+  readonly suspensa = signal(false);
   readonly session = signal<Session | null>(null);
   readonly pronto = signal(false);
   /** Entrou pelo link de redefinição de senha */
@@ -35,6 +37,22 @@ export class Auth {
       this.session.set(s);
       if (e === 'PASSWORD_RECOVERY') this.recuperando.set(true);
     });
+    effect(() => {
+      const id = this.user()?.id;
+      untracked(() => this.checarSuspensao(id));
+    });
+  }
+
+  private async checarSuspensao(id?: string) {
+    if (!id) return this.suspensa.set(false);
+    try {
+      const { data } = await supabase.rpc('estou_suspenso');
+      if (this.user()?.id !== id) return;
+      this.suspensa.set(data === true);
+      if (data === true) this.router.navigateByUrl('/suspensa');
+    } catch {
+      /* offline: não bloqueia */
+    }
   }
 
   aguardar() {

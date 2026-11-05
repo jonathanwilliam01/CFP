@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, signal,
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
+import { Admin } from '../core/admin';
 import { Auth } from '../core/auth';
 import { Chat } from '../core/chat';
 import { Fila } from '../core/fila';
@@ -110,6 +111,11 @@ import { Menus, PRINCIPAIS } from './menu';
             }
           }
           @if (g.nome === 'App') {
+            @if (admin.eAdmin()) {
+              <a routerLink="/admin" routerLinkActive="on" aria-label="Painel admin" (mouseenter)="dica($event, 'Painel admin')" (mouseleave)="tip.set(null)">
+                <app-icon name="admin_panel_settings" /><span class="r">Painel admin</span>
+              </a>
+            }
             <button type="button" class="recolher sair" (click)="saida.abrir()" aria-label="Sair do app" (mouseenter)="dica($event, 'Sair do app')" (mouseleave)="tip.set(null)">
               <app-icon name="logout" /><span class="r">Sair do app</span>
             </button>
@@ -347,6 +353,7 @@ import { Menus, PRINCIPAIS } from './menu';
 export class Shell {
   protected s = inject(Store);
   protected auth = inject(Auth);
+  protected admin = inject(Admin);
   protected insights = inject(Insights);
   protected chat = inject(Chat);
   protected lancar = inject(Lancar);

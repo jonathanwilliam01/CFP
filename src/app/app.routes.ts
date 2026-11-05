@@ -19,6 +19,7 @@ export const routes: Routes = [
   { path: 'login', canActivate: [deslogadoGuard], loadComponent: () => import('./pages/login'), title: 'Entrar · Controle Financeiro Pessoal' },
   { path: 'nova-senha', canActivate: [logadoGuard], loadComponent: () => import('./pages/nova-senha'), title: 'Nova senha · Controle Financeiro Pessoal' },
   { path: 'bem-vindo', canActivate: [logadoGuard], loadComponent: () => import('./pages/bem-vindo'), title: 'Bem-vindo · Controle Financeiro Pessoal' },
+  { path: 'suspensa', canActivate: [logadoGuard], loadComponent: () => import('./pages/suspensa'), title: 'Conta suspensa · Controle Financeiro Pessoal' },
   {
     path: '',
     component: Shell,
