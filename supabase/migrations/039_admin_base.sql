@@ -50,20 +50,24 @@ end $$;
 revoke execute on function admin_registrar from public, anon;
 grant execute on function admin_registrar to authenticated;
 
-create or replace function suspensos_log() returns trigger
+-- Chamadas pela Edge Function (service_role), que informa o admin que agiu
+create or replace function admin_suspender(p_user uuid, p_motivo text, p_admin uuid) returns void
 language plpgsql security definer set search_path = public as $$
 begin
-  if tg_op = 'DELETE' then
-    insert into admin_log (admin_id, acao, alvo, detalhe)
-    values (auth.uid(), 'reativar', old.user_id::text, jsonb_build_object('motivo', old.motivo, 'desde', old.desde));
-    return old;
-  end if;
+  insert into suspensos (user_id, motivo) values (p_user, p_motivo)
+  on conflict (user_id) do update set motivo = excluded.motivo;
   insert into admin_log (admin_id, acao, alvo, detalhe)
-  values (auth.uid(), 'suspender', new.user_id::text, jsonb_build_object('motivo', new.motivo));
-  return new;
+  values (p_admin, 'suspender', p_user::text, jsonb_build_object('motivo', p_motivo));
 end $$;
-create trigger suspensos_log after insert or update or delete on suspensos
-  for each row execute function suspensos_log();
+
+create or replace function admin_reativar(p_user uuid, p_admin uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  delete from suspensos where user_id = p_user;
+  insert into admin_log (admin_id, acao, alvo) values (p_admin, 'reativar', p_user::text);
+end $$;
+revoke execute on function admin_suspender, admin_reativar from public, anon, authenticated;
+grant execute on function admin_suspender, admin_reativar to service_role;
 
 -- Suspenso perde o acesso às carteiras na hora (RLS e realtime passam por is_membro)
 create or replace function is_membro(c uuid) returns boolean
@@ -134,7 +138,8 @@ begin
   elsif not exists (select 1 from carteira_membros where carteira_id = old.carteira_id and papel = 'dono') then
     update carteira_membros set papel = 'dono'
     where carteira_id = old.carteira_id
-      and user_id = (select user_id from carteira_membros where carteira_id = old.carteira_id order by criado_em limit 1);
+      and user_id = (select user_id from carteira_membros where carteira_id = old.carteira_id
+        order by (user_id in (select user_id from suspensos)), criado_em, user_id limit 1);
   end if;
   return null;
 end $$;
