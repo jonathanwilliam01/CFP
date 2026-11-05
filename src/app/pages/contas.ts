@@ -12,9 +12,10 @@ import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 import { taxas } from './calc/comum';
+import { Moeda } from '../shared/moeda';
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, PrivPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa, Deslizar],
+  imports: [Moeda, FormsModule, RouterLink, BrlPipe, PrivPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa, Deslizar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -184,7 +185,7 @@ import { taxas } from './calc/comum';
             <button class="btn ghost block" (click)="desfazer(c)">Desfazer pagamento</button>
           } @else {
             <div class="grid2">
-              <label class="field"><span>{{ variavel(c) ? 'Valor da conta' : 'Valor pago' }}</span><input inputmode="decimal" [(ngModel)]="valorPago" /></label>
+              <label class="field"><span>{{ variavel(c) ? 'Valor da conta' : 'Valor pago' }}</span><input moeda inputmode="numeric" [(ngModel)]="valorPago" /></label>
               <label class="field"><span>Pago em</span><input type="date" [(ngModel)]="pagoEm" /></label>
             </div>
             @if (variavel(c) && historico(c); as h) {
@@ -245,7 +246,8 @@ import { taxas } from './calc/comum';
     .rec { font: inherit; color: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
     .rec.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
     .rec .l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
-    .lin { display: flex; justify-content: space-between; gap: 6px; font-size: 0.85rem; }
+    .lin { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 6px; font-size: 0.85rem; }
+    .lin b { margin-left: auto; }
     .lin span { color: var(--ink-2); }
     .lin b { font-variant-numeric: tabular-nums; }
     .orc span { display: inline-flex; align-items: center; gap: 3px; color: #8b5cf6; font-weight: 700; }

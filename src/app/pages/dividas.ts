@@ -10,6 +10,7 @@ import { q, supabase } from '../core/supabase';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Moeda } from '../shared/moeda';
 
 interface FormDivida {
   id?: string;
@@ -27,7 +28,7 @@ interface FormDivida {
 
 /** Dívidas e financiamentos: saldo devedor, quanto falta e quando termina */
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, MesPipe, Icon, Sheet],
+  imports: [Moeda, FormsModule, RouterLink, BrlPipe, MesPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -91,7 +92,7 @@ interface FormDivida {
         <label class="field"><span>Descrição</span><input name="d" [(ngModel)]="f.descricao" placeholder="Ex.: Financiamento do carro" /></label>
         <label class="field"><span>Credor (opcional)</span><input name="c" [(ngModel)]="f.credor" placeholder="Ex.: Banco X" /></label>
         <div class="grid2">
-          <label class="field"><span>Valor da parcela</span><input name="v" inputmode="decimal" [(ngModel)]="f.valor_parcela" placeholder="0,00" /></label>
+          <label class="field"><span>Valor da parcela</span><input name="v" moeda inputmode="numeric" [(ngModel)]="f.valor_parcela" placeholder="0,00" /></label>
           <label class="field"><span>Nº de parcelas</span><input name="n" type="number" min="1" [(ngModel)]="f.num_parcelas" /></label>
         </div>
         <div class="grid2">

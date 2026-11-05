@@ -8,6 +8,7 @@ import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 import { Abas, ENTRADAS } from '../shared/abas';
+import { Moeda } from '../shared/moeda';
 
 interface FormReceber {
   id?: string;
@@ -19,7 +20,7 @@ interface FormReceber {
 
 /** Valores que alguém vai devolver (empréstimo, conta dividida com amigo) */
 @Component({
-  imports: [Abas, FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
+  imports: [Moeda, Abas, FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -77,7 +78,7 @@ interface FormReceber {
           <datalist id="pessoas">@for (p of nomes(); track p) { <option [value]="p"></option> }</datalist>
         </label>
         <div class="grid2">
-          <label class="field"><span>Valor</span><input name="v" inputmode="decimal" [(ngModel)]="f.valor" placeholder="0,00" /></label>
+          <label class="field"><span>Valor</span><input name="v" moeda inputmode="numeric" [(ngModel)]="f.valor" placeholder="0,00" /></label>
           <label class="field"><span>Data</span><input name="dt" type="date" [(ngModel)]="f.data" /></label>
         </div>
         <button class="btn block" [disabled]="salvando()">Salvar</button>

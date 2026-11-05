@@ -11,6 +11,7 @@ import { Reajuste } from '../shared/reajuste';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 import { Abas, ENTRADAS } from '../shared/abas';
+import { Moeda } from '../shared/moeda';
 
 interface FormFixa {
   id?: string;
@@ -27,7 +28,7 @@ interface FormFixa {
 }
 
 @Component({
-  imports: [Abas, FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Reajuste],
+  imports: [Moeda, Abas, FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Reajuste],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -77,7 +78,7 @@ interface FormFixa {
       <form class="form" (ngSubmit)="salvar()">
         <label class="field"><span>Descrição</span><input name="d" [(ngModel)]="form.descricao" placeholder="Ex.: Salário" /></label>
         <div class="grid2">
-          <label class="field"><span>{{ form.variavel ? 'Valor estimado' : 'Valor' }}</span><input name="v" inputmode="decimal" [(ngModel)]="form.valor" /></label>
+          <label class="field"><span>{{ form.variavel ? 'Valor estimado' : 'Valor' }}</span><input name="v" moeda inputmode="numeric" [(ngModel)]="form.valor" /></label>
           <label class="field"><span>{{ form.dia_util ? 'Dia útil (nº)' : 'Dia que cai' }}</span><input name="dia" type="number" min="1" max="31" [(ngModel)]="form.dia" /></label>
         </div>
         @if (form.id) {
@@ -116,7 +117,7 @@ interface FormFixa {
     <app-sheet [open]="!!recebendo()" (openChange)="recebendo.set(null)" [titulo]="'Quanto veio de ' + (recebendo()?.descricao ?? '')">
       @if (recebendo(); as r) {
         <form class="form" (ngSubmit)="receber(r)">
-          <label class="field"><span>Valor recebido</span><input name="vr" inputmode="decimal" [(ngModel)]="valorRecebido" /></label>
+          <label class="field"><span>Valor recebido</span><input name="vr" moeda inputmode="numeric" [(ngModel)]="valorRecebido" /></label>
           @if (s.medias().get(r.id); as m) { <p class="small muted">Média dos últimos meses: {{ m | brl }}</p> }
           <button class="btn block">Marcar como recebida</button>
         </form>

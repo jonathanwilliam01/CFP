@@ -202,6 +202,7 @@ body, input, select, button { font-variant-numeric: tabular-nums; }
 
 .page-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -218,6 +219,7 @@ body, input, select, button { font-variant-numeric: tabular-nums; }
 
 .card-head {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
@@ -457,11 +459,12 @@ input[type='color'] {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .stat {
+  min-width: 0;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -517,7 +520,7 @@ input[type='color'] {
 }
 
 @media (min-width: 720px) {
-  .stats { grid-template-columns: repeat(4, 1fr); }
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (min-width: 1024px) {

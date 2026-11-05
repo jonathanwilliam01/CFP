@@ -11,6 +11,7 @@ import { Curvas } from '../shared/graficos';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Moeda } from '../shared/moeda';
 
 type Futuro = { cartao_id: string; valor: number; fatura_mes: string; data: string; parcelamento_id: string | null };
 
@@ -34,7 +35,7 @@ interface FormCartao {
 }
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet, Curvas],
+  imports: [Moeda, FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet, Curvas],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -121,7 +122,7 @@ interface FormCartao {
             }
           </div>
           <label class="field"><span>Total da fatura no app do banco</span>
-            <input inputmode="decimal" placeholder="0,00" [ngModel]="totalBanco()" (ngModelChange)="totalBanco.set($event)" /></label>
+            <input moeda inputmode="numeric" placeholder="0,00" [ngModel]="totalBanco()" (ngModelChange)="totalBanco.set($event)" /></label>
           <div class="linha"><span class="muted">No CFP</span><b class="num">{{ totalApp() | brl }}</b></div>
           @if (diferenca(); as d) {
             @if (d > 0) {
@@ -175,7 +176,7 @@ interface FormCartao {
         <label class="check"><input type="checkbox" name="rel" [ngModel]="f.fecha_dias !== null" (ngModelChange)="f.fecha_dias = $event ? 7 : null" /> Fecha dias antes do vencimento (Nubank: 7)</label>
         <div class="grid2">
           <label class="field"><span>Limite (opcional)</span>
-            <input name="limite" type="number" inputmode="decimal" step="0.01" [(ngModel)]="f.limite" /></label>
+            <input name="limite" moeda="numero" inputmode="numeric" [(ngModel)]="f.limite" /></label>
           <label class="field"><span>Cor</span><input name="cor" type="color" [(ngModel)]="f.cor" /></label>
         </div>
         <label class="check"><input type="checkbox" name="padrao" [(ngModel)]="f.padrao" /> Cartão padrão</label>

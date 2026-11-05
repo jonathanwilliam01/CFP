@@ -5,16 +5,17 @@ import { BrlPipe, parseValor } from '../../core/formato';
 import { Icon } from '../../shared/icon';
 import { ESTILO, cdi, lembrado, pctCdi, poupanca } from './comum';
 import { FonteBcb } from './fonte';
+import { Moeda } from '../../shared/moeda';
 
 @Component({
   selector: 'app-calc-rende',
-  imports: [FormsModule, BrlPipe, Icon, FonteBcb],
+  imports: [Moeda, FormsModule, BrlPipe, Icon, FonteBcb],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card form">
       <div class="campos">
-        <label class="field"><span>Tenho hoje</span><input inputmode="decimal" placeholder="1.000,00" [ngModel]="inicial()" (ngModelChange)="inicial.set($event)" /></label>
-        <label class="field"><span>Guardo por mês</span><input inputmode="decimal" placeholder="200,00" [ngModel]="aporte()" (ngModelChange)="aporte.set($event)" /></label>
+        <label class="field"><span>Tenho hoje</span><input moeda inputmode="numeric" placeholder="1.000,00" [ngModel]="inicial()" (ngModelChange)="inicial.set($event)" /></label>
+        <label class="field"><span>Guardo por mês</span><input moeda inputmode="numeric" placeholder="200,00" [ngModel]="aporte()" (ngModelChange)="aporte.set($event)" /></label>
         <label class="field"><span>Por quantos meses</span><input type="number" min="1" max="600" [ngModel]="n()" (ngModelChange)="n.set(+$event)" /></label>
       </div>
       <div class="chips wrap rapido">

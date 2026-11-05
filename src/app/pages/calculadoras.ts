@@ -13,6 +13,7 @@ import { CalcRende } from './calc/rende';
 import { CalcReserva } from './calc/reserva';
 import { CalcSalario } from './calc/salario';
 import { CalcDecimo } from './calc/decimo';
+import { Moeda } from '../shared/moeda';
 
 const GRUPOS = [
   {
@@ -50,7 +51,7 @@ const ABAS = GRUPOS.flatMap((g) => g.itens);
 
 
 @Component({
-  imports: [FormsModule, BrlPipe, Icon, Sheet, FonteBcb, CalcCredito, CalcDivida, CalcHoras, CalcRende, CalcReserva, CalcSalario, CalcDecimo],
+  imports: [Moeda, FormsModule, BrlPipe, Icon, Sheet, FonteBcb, CalcCredito, CalcDivida, CalcHoras, CalcRende, CalcReserva, CalcSalario, CalcDecimo],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -81,8 +82,8 @@ const ABAS = GRUPOS.flatMap((g) => g.itens);
         @case ('parcelado') {
           <section class="card form">
             <div class="campos">
-              <label class="field"><span>Preço à vista (Pix)</span><input inputmode="decimal" placeholder="950,00" [ngModel]="avista()" (ngModelChange)="avista.set($event)" /></label>
-              <label class="field"><span>Total parcelado</span><input inputmode="decimal" placeholder="1.000,00" [ngModel]="total()" (ngModelChange)="total.set($event)" /></label>
+              <label class="field"><span>Preço à vista (Pix)</span><input moeda inputmode="numeric" placeholder="950,00" [ngModel]="avista()" (ngModelChange)="avista.set($event)" /></label>
+              <label class="field"><span>Total parcelado</span><input moeda inputmode="numeric" placeholder="1.000,00" [ngModel]="total()" (ngModelChange)="total.set($event)" /></label>
               <label class="field"><span>Parcelas</span><input type="number" min="1" max="120" [ngModel]="n()" (ngModelChange)="n.set(+$event)" /></label>
             </div>
             <div class="campos">
@@ -164,9 +165,9 @@ const ABAS = GRUPOS.flatMap((g) => g.itens);
         @case ('meta') {
           <section class="card form">
             <div class="campos">
-              <label class="field"><span>Quero juntar</span><input inputmode="decimal" placeholder="10.000,00" [ngModel]="meta()" (ngModelChange)="meta.set($event)" /></label>
+              <label class="field"><span>Quero juntar</span><input moeda inputmode="numeric" placeholder="10.000,00" [ngModel]="meta()" (ngModelChange)="meta.set($event)" /></label>
               <label class="field"><span>Em quantos meses</span><input type="number" min="1" max="600" [ngModel]="prazo()" (ngModelChange)="prazo.set(+$event)" /></label>
-              <label class="field"><span>Já tenho</span><input inputmode="decimal" placeholder="0,00" [ngModel]="tenho()" (ngModelChange)="tenho.set($event)" /></label>
+              <label class="field"><span>Já tenho</span><input moeda inputmode="numeric" placeholder="0,00" [ngModel]="tenho()" (ngModelChange)="tenho.set($event)" /></label>
             </div>
             <p class="small muted">Rendendo {{ pctCdi() }}% do CDI de {{ cdi() }}% ao ano, com IR (mude na aba À vista x parcelado).</p>
           </section>
@@ -185,7 +186,7 @@ const ABAS = GRUPOS.flatMap((g) => g.itens);
         @case ('dividir') {
           <section class="card form">
             <div class="campos">
-              <label class="field"><span>Total da conta</span><input inputmode="decimal" placeholder="0,00" [ngModel]="conta()" (ngModelChange)="conta.set($event)" /></label>
+              <label class="field"><span>Total da conta</span><input moeda inputmode="numeric" placeholder="0,00" [ngModel]="conta()" (ngModelChange)="conta.set($event)" /></label>
               <label class="field"><span>Pessoas</span><input type="number" min="1" max="100" [ngModel]="pessoas()" (ngModelChange)="pessoas.set(+$event)" /></label>
               <label class="field"><span>Serviço (%)</span><input inputmode="decimal" [ngModel]="servico()" (ngModelChange)="servico.set($event)" /></label>
             </div>

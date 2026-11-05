@@ -5,10 +5,11 @@ import { BrlPipe, parseValor } from '../../core/formato';
 import { Icon } from '../../shared/icon';
 import { ESTILO, pctTxt, taxas } from './comum';
 import { FonteBcb } from './fonte';
+import { Moeda } from '../../shared/moeda';
 
 @Component({
   selector: 'app-calc-divida',
-  imports: [FormsModule, BrlPipe, Icon, FonteBcb],
+  imports: [Moeda, FormsModule, BrlPipe, Icon, FonteBcb],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="seg">
@@ -17,9 +18,9 @@ import { FonteBcb } from './fonte';
     </div>
     <section class="card form">
       <div class="campos">
-        <label class="field"><span>Quanto deve</span><input inputmode="decimal" placeholder="2.000,00" [ngModel]="divida()" (ngModelChange)="divida.set($event)" /></label>
+        <label class="field"><span>Quanto deve</span><input moeda inputmode="numeric" placeholder="2.000,00" [ngModel]="divida()" (ngModelChange)="divida.set($event)" /></label>
         <label class="field"><span>Juros ao mês (%)</span><input inputmode="decimal" [ngModel]="taxa()()" (ngModelChange)="taxa().guardar($event)" /></label>
-        <label class="field"><span>Paga por mês</span><input inputmode="decimal" placeholder="300,00" [ngModel]="pagamento()" (ngModelChange)="pagamento.set($event)" /></label>
+        <label class="field"><span>Paga por mês</span><input moeda inputmode="numeric" placeholder="300,00" [ngModel]="pagamento()" (ngModelChange)="pagamento.set($event)" /></label>
       </div>
       <app-fonte-bcb />
     </section>

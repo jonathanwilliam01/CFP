@@ -21,6 +21,7 @@ import { Buscador } from '../shared/buscador';
 import { Calculadora } from '../shared/calculadora';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
+import { Tour, TourView } from '../shared/tour';
 import { Lancar, LancarSheet, Modo } from '../shared/lancar';
 import { MesPicker } from '../shared/mes-picker';
 import { Avisos } from './avisos';
@@ -29,7 +30,7 @@ import { Menus, PRINCIPAIS } from './menu';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora, BloqueioTela],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora, BloqueioTela, TourView],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.recolhido]': 'recolhido()', '(document:keydown)': 'atalho($event)', '(window:scroll)': 'rolou()' },
   template: `
@@ -101,6 +102,11 @@ import { Menus, PRINCIPAIS } from './menu';
                 <span class="n">{{ n }}</span>
               }
             </a>
+            @if (m.rota === '/config') {
+              <button type="button" class="recolher" (click)="tour.iniciar()" aria-label="Passo a passo" (mouseenter)="dica($event, 'Passo a passo')" (mouseleave)="tip.set(null)">
+                <app-icon name="tour" /><span class="r">Passo a passo</span>
+              </button>
+            }
           }
         }
       </nav>
@@ -170,6 +176,7 @@ import { Menus, PRINCIPAIS } from './menu';
     <app-lancar />
 
     <app-conta [(open)]="conta" />
+    <app-tour />
   `,
   styles: `
     .puxar {
@@ -264,6 +271,8 @@ import { Menus, PRINCIPAIS } from './menu';
       background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px;
       box-shadow: 0 14px 40px rgb(0 0 0 / 0.22); animation: desce 0.15s; overscroll-behavior: contain;
     }
+    /* nada da tela passa da largura: com fonte grande do sistema a página rolava de lado e a barra de baixo saía da tela */
+    main { display: block; overflow-x: clip; }
     @keyframes desce { from { opacity: 0; transform: translateY(-6px); } }
     .side { display: none; }
     @media (min-width: 720px) {
@@ -334,6 +343,7 @@ export class Shell {
   protected lancar = inject(Lancar);
   private toast = inject(Toast);
   protected tema = inject(Tema);
+  protected tour = inject(Tour);
   protected fila = inject(Fila);
 
   protected privado = privado;
@@ -368,6 +378,12 @@ export class Shell {
   // atalho do ícone (?lancar=gasto), lembrete da noite e compartilhado com o app (sw.js guarda texto e arquivo: ?compartilhado=1;
   // titulo/texto/link na URL ficam para o manifesto antigo instalado)
   constructor() {
+    // passo a passo sozinho uma vez, só em carteira ainda vazia
+    effect(() => {
+      const s = this.s;
+      if (s.pronto() && !this.tour.visto && this.tour.passo() == null && !s.cartoes().length && !s.recorrencias().length && !s.recentes().length)
+        untracked(() => this.tour.iniciar());
+    });
     const sub = inject(ActivatedRoute).queryParamMap.subscribe((p) => {
       if (p.get('compartilhado')) {
         this.router.navigate([], { queryParams: {}, replaceUrl: true });

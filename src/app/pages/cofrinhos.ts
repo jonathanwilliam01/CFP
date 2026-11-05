@@ -9,9 +9,10 @@ import { Icon } from '../shared/icon';
 import { IconePicker } from '../shared/icone-picker';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Moeda } from '../shared/moeda';
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, Icon, IconePicker, Sheet],
+  imports: [Moeda, FormsModule, RouterLink, BrlPipe, Icon, IconePicker, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -71,7 +72,7 @@ import { Toast } from '../shared/toast';
       <form class="form" (ngSubmit)="salvar()">
         <label class="field"><span>Nome</span><input name="nome" [(ngModel)]="f.nome" placeholder="Ex.: Viagem" /></label>
         <div class="grid2">
-          <label class="field"><span>Meta (R$)</span><input name="meta" inputmode="decimal" [(ngModel)]="f.meta" placeholder="0,00" /></label>
+          <label class="field"><span>Meta (R$)</span><input name="meta" moeda inputmode="numeric" [(ngModel)]="f.meta" placeholder="0,00" /></label>
           <label class="field"><span>Prazo</span><input name="prazo" type="date" [(ngModel)]="f.prazo" /></label>
         </div>
         <label class="field"><span>Cor</span><input name="cor" type="color" [(ngModel)]="f.cor" /></label>
@@ -84,13 +85,13 @@ import { Toast } from '../shared/toast';
   styles: `
     .reserva { display: flex; gap: 10px; align-items: center; font-size: 0.9rem; }
     .reserva app-icon { color: var(--primary); }
-    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .cof { display: flex; flex-direction: column; gap: 6px; color: inherit; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .cof { display: flex; flex-direction: column; gap: 6px; color: inherit; min-width: 0; overflow-wrap: anywhere; }
     .top { display: flex; justify-content: space-between; align-items: flex-start; }
     .v { font-weight: 800; font-size: 1.05rem; }
     .flag { display: inline-flex; align-items: center; gap: 4px; color: var(--warn); font-weight: 700; font-size: 0.75rem; }
     .prazo { display: inline-flex; align-items: center; gap: 4px; color: var(--primary); font-weight: 700; font-size: 0.75rem; }
-    @media (min-width: 720px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (min-width: 720px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   `,
 })
 export default class Cofrinhos {

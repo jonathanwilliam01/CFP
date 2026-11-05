@@ -9,6 +9,7 @@ import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Moeda } from '../shared/moeda';
 
 interface FormDesejo {
   id?: string;
@@ -27,7 +28,7 @@ const PRIORIDADES = [
 
 /** O que o casal quer comprar: prioridade, quanto já tem guardado e se cabe no planejamento */
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
+  imports: [Moeda, FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -87,7 +88,7 @@ const PRIORIDADES = [
     <app-sheet [(open)]="aberto" [titulo]="f.id ? 'Editar desejo' : 'Novo desejo'">
       <form class="form" (ngSubmit)="salvar()">
         <label class="field"><span>O que é</span><input name="d" [(ngModel)]="f.descricao" placeholder="Ex.: Geladeira nova" /></label>
-        <label class="field"><span>Preço</span><input name="v" inputmode="decimal" [(ngModel)]="f.valor" placeholder="0,00" /></label>
+        <label class="field"><span>Preço</span><input name="v" moeda inputmode="numeric" [(ngModel)]="f.valor" placeholder="0,00" /></label>
         <div class="field">
           <span>Prioridade</span>
           <div class="seg">

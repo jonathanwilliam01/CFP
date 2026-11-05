@@ -185,7 +185,7 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
     </app-sheet>
   `,
   styles: `
-    .acts { display: flex; gap: 8px; }
+    .acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
     .busca { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; color: var(--ink-3); }
     .busca input { border: 0; background: none; box-shadow: none; padding: 10px 0; }
     .total { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; }

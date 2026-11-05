@@ -12,6 +12,7 @@ import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 import { normalizar } from '../core/texto';
+import { Moeda } from '../shared/moeda';
 
 interface FormPlano {
   id?: string;
@@ -26,7 +27,7 @@ interface FormPlano {
 const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && !g.parcelamento_id;
 
 @Component({
-  imports: [BrlPipe, MesPipe, FormsModule, RouterLink, Sheet, Icon, Barras],
+  imports: [Moeda, BrlPipe, MesPipe, FormsModule, RouterLink, Sheet, Icon, Barras],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -39,7 +40,7 @@ const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && 
       <section class="card sim">
         <div class="card-head"><h2>Posso comprar?</h2></div>
         <div class="campos">
-          <label class="field"><span>Valor total</span><input name="sv" inputmode="decimal" placeholder="0,00" [(ngModel)]="simValor" /></label>
+          <label class="field"><span>Valor total</span><input name="sv" moeda inputmode="numeric" placeholder="0,00" [(ngModel)]="simValor" /></label>
           <label class="field"><span>Parcelas</span><input name="sp" type="number" min="1" max="120" [(ngModel)]="simParcelas" /></label>
           <label class="field"><span>Pagamento</span>
             <select name="sf" [(ngModel)]="simPagamento">
@@ -52,16 +53,46 @@ const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && 
           <button class="btn sm" type="button" (click)="simular()">Simular</button>
           @if (sim().length) { <button class="btn ghost sm" type="button" (click)="sim.set([])">Limpar</button> }
         </div>
-        @if (sim().length && base(); as b) {
-          <p class="small">
-            Acumulado em 12 meses vai de <b>{{ b.final | brl }}</b> para <b [class.neg]="final() < 0">{{ final() | brl }}</b>.
-            @if (novosNegativos().length) {
-              <span class="neg">Fica negativo em {{ novosNegativos().join(', ') }}.</span>
-            } @else {
-              <span class="pos">Nenhum mês fica negativo por causa dela.</span>
+        @if (resultado(); as r) {
+          <div class="veredito" [class]="r.nivel">
+            <app-icon [name]="r.nivel === 'ok' ? 'check_circle' : r.nivel === 'aperta' ? 'warning' : 'cancel'" [size]="22" [fill]="true" />
+            <div>
+              <b>{{ r.nivel === 'ok' ? 'Cabe no orçamento' : r.nivel === 'aperta' ? 'Cabe, mas aperta' : 'Não cabe agora' }}</b>
+              <p class="small">
+                @if (r.nivel === 'ok') {
+                  Todos os meses com parcela continuam com sobra.
+                } @else if (r.nivel === 'aperta') {
+                  {{ r.negativos.join(', ') }} {{ r.negativos.length > 1 ? 'ficam' : 'fica' }} no vermelho; a sobra dos outros meses cobre.
+                } @else if (r.finalAntes < 0) {
+                  Mesmo sem a compra, a previsão fecha os 12 meses em {{ r.finalAntes | brl }}. A compra aumenta esse buraco.
+                } @else {
+                  Com ela, a previsão fecha os 12 meses em {{ r.finalDepois | brl }}.
+                }
+              </p>
+            </div>
+          </div>
+          <div class="sim-res">
+            <div><span>Parcelas</span><b>{{ r.n }}x de {{ r.parcela | brl }}</b></div>
+            <div><span>Sobra em 12 meses</span><b><span [class.neg]="r.finalAntes < 0">{{ r.finalAntes | brl }}</span> → <span [class.neg]="r.finalDepois < 0">{{ r.finalDepois | brl }}</span></b></div>
+            @for (x of r.meses; track x.mes) {
+              <div class="m"><span class="cap">{{ x.mes | mes: true }} · −{{ x.parcela | brl }}</span>
+                <b><span [class.neg]="x.antes < 0">{{ x.antes | brl }}</span> → <span [class.neg]="x.depois < 0" [class.pos]="x.depois >= 0">{{ x.depois | brl }}</span></b></div>
             }
-          </p>
+            @if (r.fora > 0.005) {
+              <p class="small muted">{{ r.fora | brl }} caem depois dos 12 meses mostrados.</p>
+            }
+          </div>
         }
+        <details class="ler">
+          <summary>Como ler</summary>
+          <ul class="small">
+            <li><b>Sobra do mês</b> = entradas previstas − saídas previstas. Entradas: salário e entradas fixas, entradas lançadas e eventos. Saídas: contas fixas, faturas no mês do vencimento, débitos lançados, reservas de orçamento, eventos e, se marcado, o dia a dia estimado.</li>
+            <li><b>Acumulado</b> soma as sobras a partir deste mês. Ele começa do zero, sem o saldo que já está no banco: negativo quer dizer que, no período, sai mais do que entra.</li>
+            <li><b>A compra</b> entra como gasto extra: no cartão, cada parcela vai para a fatura do mês em que vence; no Pix/débito, uma por mês a partir de hoje. A lista mostra a sobra antes → depois em cada mês com parcela.</li>
+            <li><b>Cabe</b>: todo mês com parcela segue positivo. <b>Aperta</b>: algum mês fica negativo, mas o total dos 12 meses fecha positivo. <b>Não cabe</b>: o total dos 12 meses fica negativo.</li>
+            <li>Tudo negativo? Confira o dia a dia estimado (desmarque para ver só o que é fixo) e se as entradas fixas estão cadastradas.</li>
+          </ul>
+        </details>
       </section>
 
       @if (provisao().itens.length) {
@@ -120,6 +151,7 @@ const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && 
                 <div class="v">
                   <span [class.neg]="m.saldo < 0" [class.pos]="m.saldo >= 0">{{ m.saldo | brl }}</span>
                   <div class="s" [class.neg]="m.acumulado < 0">acum. {{ m.acumulado | brl }}</div>
+                  @if (resultado()?.porMes?.get(m.mes); as p) { <div class="s simu">compra −{{ p | brl }}</div> }
                 </div>
               </button>
               @if (aberto() === m.mes) {
@@ -161,7 +193,7 @@ const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && 
         </div>
         <label class="field"><span>Descrição</span><input name="descricao" [(ngModel)]="form.descricao" placeholder="Ex.: IPVA, 13º, viagem" /></label>
         <div class="grid2">
-          <label class="field"><span>Valor</span><input name="valor" inputmode="decimal" [(ngModel)]="form.valor" placeholder="0,00" /></label>
+          <label class="field"><span>Valor</span><input name="valor" moeda inputmode="numeric" [(ngModel)]="form.valor" placeholder="0,00" /></label>
           <label class="field"><span>Mês</span><input name="mes" type="month" [(ngModel)]="form.mes" /></label>
         </div>
         <label class="check"><input name="anual" type="checkbox" [(ngModel)]="form.anual" />Repete todo ano (13º, férias, IR, IPVA)</label>
@@ -187,6 +219,19 @@ const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && 
     .campos { display: grid; grid-template-columns: 1fr 90px; gap: 8px; }
     .campos label:last-child { grid-column: span 2; }
     @media (min-width: 720px) { .campos { grid-template-columns: 1fr 100px 1fr; } .campos label:last-child { grid-column: auto; } }
+    .veredito { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--card-2); }
+    .veredito p { margin: 2px 0 0; color: var(--ink-2); }
+    .veredito.ok app-icon { color: var(--ok); }
+    .veredito.aperta app-icon { color: var(--warn); }
+    .veredito.nao app-icon { color: var(--danger); }
+    .sim-res { display: flex; flex-direction: column; gap: 4px; font-size: 0.88rem; }
+    .sim-res > div { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 8px; }
+    .sim-res > div > span { color: var(--ink-2); }
+    .sim-res > div > b { margin-left: auto; font-variant-numeric: tabular-nums; }
+    .sim-res .m { padding-left: 8px; border-left: 2px solid var(--line); }
+    .simu { color: var(--warn); }
+    .ler summary { cursor: pointer; font-weight: 700; font-size: 0.88rem; color: var(--primary); }
+    .ler ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--ink-2); }
   `,
 })
 export default class Planejamento {
@@ -229,13 +274,26 @@ export default class Planejamento {
   simPagamento = this.s.cartaoPadrao()?.id ?? 'debito';
 
   protected projecao = computed(() => this.projetar(this.sim()));
-  protected base = computed(() => {
-    const l = this.projetar([]);
-    return { final: l.at(-1)?.acumulado ?? 0, negativos: new Set(l.filter((m) => m.saldo < 0).map((m) => m.mes)) };
+
+  /** Antes x depois da compra simulada, mês a mês */
+  protected resultado = computed(() => {
+    const sim = this.sim();
+    const depois = this.projecao();
+    if (!sim.length || !depois.length) return null;
+    const antes = this.projetar([]);
+    const meses = depois
+      .map((m, i) => ({ mes: m.mes, parcela: Math.round((antes[i].saldo - m.saldo) * 100) / 100, antes: antes[i].saldo, depois: m.saldo }))
+      .filter((x) => x.parcela > 0.005);
+    const finalAntes = antes.at(-1)!.acumulado;
+    const finalDepois = depois.at(-1)!.acumulado;
+    const negativos = meses.filter((x) => x.depois < 0).map((x) => nomeMes(x.mes, true));
+    return {
+      meses, finalAntes, finalDepois, negativos, n: sim.length, parcela: sim[0].valor,
+      porMes: new Map(meses.map((x) => [x.mes, x.parcela])),
+      fora: soma(sim, (g) => g.valor) - soma(meses, (x) => x.parcela),
+      nivel: finalDepois < 0 ? 'nao' : negativos.length ? 'aperta' : 'ok',
+    };
   });
-  protected novosNegativos = computed(() =>
-    this.projecao().filter((m) => m.saldo < 0 && !this.base().negativos.has(m.mes)).map((m) => nomeMes(m.mes, true)),
-  );
 
   simular() {
     const total = parseValor(this.simValor);
@@ -306,9 +364,10 @@ export default class Planejamento {
       const planos = this.planosDoMes(mes);
       const pe = soma(planos.filter((p) => p.tipo === 'entrada'), (p) => p.valor);
       const ps = soma(planos.filter((p) => p.tipo === 'saida'), (p) => p.valor);
-      // já lançado no mês: débitos do mês e compras do cartão que caem na fatura dele
+      // já lançado no mês: débitos do mês e compras do cartão que caem na fatura dele.
+      // A compra simulada fica fora: senão ela só trocava de lugar com a estimativa do dia a dia e o saldo não mudava
       const lancados = soma(
-        d.gastos.filter((g) => diaADia(g) && (g.forma === 'debito' ? noMes(g.data, mes) : g.fatura_mes === faturaDoMes(mes, cartoes.get(g.cartao_id!) ?? ({} as Cartao)))),
+        d.gastos.filter((g) => diaADia(g) && !g.id.startsWith('sim-') &&(g.forma === 'debito' ? noMes(g.data, mes) : g.fatura_mes === faturaDoMes(mes, cartoes.get(g.cartao_id!) ?? ({} as Cartao)))),
         (g) => g.valor,
       );
       // reserva dos orçamentos já cobre parte do dia a dia estimado

@@ -5,17 +5,18 @@ import { BrlPipe, parseValor } from '../../core/formato';
 import { Icon } from '../../shared/icon';
 import { Toast } from '../../shared/toast';
 import { ESTILO, ganho, lembrado } from './comum';
+import { Moeda } from '../../shared/moeda';
 
 @Component({
   selector: 'app-calc-salario',
-  imports: [FormsModule, BrlPipe, Icon],
+  imports: [Moeda, FormsModule, BrlPipe, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card form">
       <div class="campos">
-        <label class="field"><span>Salário bruto</span><input inputmode="decimal" placeholder="5.000,00" [ngModel]="bruto()" (ngModelChange)="bruto.guardar($event)" /></label>
+        <label class="field"><span>Salário bruto</span><input moeda inputmode="numeric" placeholder="5.000,00" [ngModel]="bruto()" (ngModelChange)="bruto.guardar($event)" /></label>
         <label class="field"><span>Dependentes</span><input type="number" min="0" max="20" [ngModel]="dep()" (ngModelChange)="dep.set(+$event)" /></label>
-        <label class="field"><span>Outros descontos</span><input inputmode="decimal" placeholder="0,00" [ngModel]="outros()" (ngModelChange)="outros.set($event)" /></label>
+        <label class="field"><span>Outros descontos</span><input moeda inputmode="numeric" placeholder="0,00" [ngModel]="outros()" (ngModelChange)="outros.set($event)" /></label>
       </div>
       <label class="check"><input type="checkbox" [checked]="vt()" (change)="vt.set(!vt())" />Vale-transporte (desconta 6%)</label>
     </section>

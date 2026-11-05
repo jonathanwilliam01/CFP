@@ -13,9 +13,10 @@ import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
 import { Valor } from '../shared/valor';
 import { Painel } from '../core/painel';
+import { PrimeirosPassos } from '../shared/primeiros-passos';
 
 @Component({
-  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, PrivPipe, Donut, Linha, Icon, Avatar, Bloco, Mosaico, Valor],
+  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, PrivPipe, Donut, Linha, Icon, Avatar, Bloco, Mosaico, Valor, PrimeirosPassos],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page" mosaico>
@@ -67,6 +68,8 @@ import { Painel } from '../core/painel';
           </div>
         }
       </section>
+
+      <app-primeiros-passos />
 
       @if (mostrarFechamento()) {
         <div class="aviso info fech">
@@ -287,7 +290,7 @@ import { Painel } from '../core/painel';
     .saldo small { opacity: 0.8; font-weight: 600; }
     .topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .acoes-topo { display: flex; gap: 6px; }
-    .acoes { display: flex; align-items: center; gap: 8px; }
+    .acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
     .so-icone { padding: 4px 6px; }
     .topo small { white-space: nowrap; }
     .esqueleto.grande { height: 2.4rem; width: 60%; margin: 4px 0; opacity: 0.6; }
@@ -301,10 +304,10 @@ import { Painel } from '../core/painel';
     .reserva { color: inherit; opacity: 0.8; text-decoration: underline; text-underline-offset: 2px; }
     .compara { font-size: 0.78rem; opacity: 0.9; margin-top: 6px; }
     .saldo strong { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.03em; }
-    .es { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+    .es { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 8px; }
     .es a { background: var(--hero-glass); border-radius: 14px; padding: 10px 12px; color: inherit; display: flex; flex-direction: column; }
     .es span { font-size: 0.75rem; opacity: 0.85; font-weight: 600; }
-    .es b { font-size: 1.05rem; }
+    .es b { font-size: 1.05rem; overflow-wrap: anywhere; }
     .es i { font-style: normal; font-weight: 800; }
     .sobe { color: var(--hero-sobe); }
     .desce { color: var(--hero-desce); }
@@ -326,7 +329,7 @@ import { Painel } from '../core/painel';
     /* computador largo: blocos em duas colunas em mosaico (diretiva mosaico); saldo e fechamento na largura toda */
     @media (min-width: 1200px) {
       .page { max-width: 1240px; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 4px; row-gap: 0; column-gap: 16px; align-items: start; }
-      .saldo, .fech, .page > .btn { grid-column: 1 / -1; }
+      .saldo, .fech, .page > .btn, app-primeiros-passos { grid-column: 1 / -1; }
     }
     .avisos .grow { flex: 1; min-width: 0; }
     .dispensar { border: 0; background: none; color: var(--ink-3); padding: 2px; margin: -2px -4px 0 0; cursor: pointer; display: grid; place-items: center; }
@@ -353,7 +356,8 @@ import { Painel } from '../core/painel';
     .rec { display: flex; flex-direction: column; gap: 3px; color: var(--ink); background: var(--card-2); border-radius: 12px; padding: 10px 12px; }
     .rec .l { display: flex; flex-direction: column; margin-bottom: 2px; }
     .rec .nm { font-size: 0.75rem; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .lin { display: flex; justify-content: space-between; gap: 6px; font-size: 0.82rem; }
+    .lin { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 6px; font-size: 0.82rem; }
+    .lin > b { margin-left: auto; }
     .lin > span { color: var(--ink-2); }
     .orc > span { display: inline-flex; align-items: center; gap: 3px; color: #8b5cf6; font-weight: 700; }
     .orc b { color: #8b5cf6; }

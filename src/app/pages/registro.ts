@@ -10,9 +10,10 @@ import { Icon } from '../shared/icon';
 import { IconePicker } from '../shared/icone-picker';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Moeda } from '../shared/moeda';
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, MesPipe, Icon, IconePicker, Sheet],
+  imports: [Moeda, FormsModule, RouterLink, BrlPipe, MesPipe, Icon, IconePicker, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -63,7 +64,7 @@ import { Toast } from '../shared/toast';
       <form class="form" (ngSubmit)="salvarItem()">
         <label class="field"><span>Descrição</span><input name="descricao" [(ngModel)]="it.descricao" placeholder="Ex.: Troca de óleo" /></label>
         <div class="grid2">
-          <label class="field"><span>Valor (R$)</span><input name="valor" inputmode="decimal" [(ngModel)]="it.valor" placeholder="0,00" /></label>
+          <label class="field"><span>Valor (R$)</span><input name="valor" moeda inputmode="numeric" [(ngModel)]="it.valor" placeholder="0,00" /></label>
           <label class="field"><span>Data</span><input name="data" type="date" [(ngModel)]="it.data" /></label>
         </div>
         <label class="field"><span>Observação</span><textarea name="obs" rows="2" [(ngModel)]="it.obs" placeholder="Ex.: km 45.000"></textarea></label>

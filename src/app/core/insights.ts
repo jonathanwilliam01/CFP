@@ -191,7 +191,8 @@ export class Insights {
   });
 
   constructor() {
-    effect(() => this.notificarSistema(this.naoLidas()));
+    // só com tudo carregado: no meio da carga as contas pagas ainda aparecem em aberto
+    effect(() => this.s.pronto() && this.notificarSistema(this.naoLidas()));
   }
 
   dispensar(id: string) {
@@ -214,7 +215,7 @@ export class Insights {
   async pedirPermissao() {
     if (typeof Notification === 'undefined') return;
     this.permissao.set(await Notification.requestPermission());
-    this.notificarSistema(this.naoLidas());
+    if (this.s.pronto()) this.notificarSistema(this.naoLidas());
   }
 
   private async notificarSistema(avisos: Aviso[]) {

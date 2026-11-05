@@ -13,6 +13,7 @@ export interface Carteira {
   divisao?: boolean;
   /** meta de sobra do mês, em % das entradas (033) */
   meta_sobra?: number | null;
+  criado_em?: string;
 }
 
 export interface Membro {

@@ -5,6 +5,7 @@ import { BrlPipe, parseValor } from '../../core/formato';
 import { Icon } from '../../shared/icon';
 import { ESTILO, taxas } from './comum';
 import { FonteBcb } from './fonte';
+import { Moeda } from '../../shared/moeda';
 
 const OPCOES = [
   { k: 'emprestimo', nome: 'Empréstimo pessoal', icone: 'account_balance' },
@@ -14,12 +15,12 @@ const OPCOES = [
 
 @Component({
   selector: 'app-calc-credito',
-  imports: [FormsModule, BrlPipe, Icon, FonteBcb],
+  imports: [Moeda, FormsModule, BrlPipe, Icon, FonteBcb],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card form">
       <div class="campos">
-        <label class="field"><span>Preciso de</span><input inputmode="decimal" placeholder="3.000,00" [ngModel]="valor()" (ngModelChange)="valor.set($event)" /></label>
+        <label class="field"><span>Preciso de</span><input moeda inputmode="numeric" placeholder="3.000,00" [ngModel]="valor()" (ngModelChange)="valor.set($event)" /></label>
         <label class="field"><span>Pagar em (meses)</span><input type="number" min="1" max="120" [ngModel]="n()" (ngModelChange)="n.set(+$event)" /></label>
       </div>
       <div class="chips wrap rapido">

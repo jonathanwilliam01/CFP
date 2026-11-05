@@ -7,11 +7,12 @@ import { BrlPipe, MesPipe, parseValor } from '../core/formato';
 import { Recorrencia } from '../core/models';
 import { Store } from '../core/store';
 import { Toast } from './toast';
+import { Moeda } from './moeda';
 
 /** Reajuste de valor de conta ou entrada fixa a partir de um mês */
 @Component({
   selector: 'app-reajuste',
-  imports: [FormsModule, BrlPipe, MesPipe],
+  imports: [Moeda, FormsModule, BrlPipe, MesPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // fica dentro do form da conta: Enter aqui aplicaria o form (valor antigo) em vez do reajuste
   template: `
@@ -36,7 +37,7 @@ import { Toast } from './toast';
         </p>
         <div class="grid2">
           <label class="field"><span>{{ rec().variavel ? 'Novo valor estimado' : 'Novo valor' }}</span>
-            <input name="rv" inputmode="decimal" [ngModel]="valor()" (ngModelChange)="valor.set($event)" [ngModelOptions]="{ standalone: true }" />
+            <input name="rv" moeda inputmode="numeric" [ngModel]="valor()" (ngModelChange)="valor.set($event)" [ngModelOptions]="{ standalone: true }" />
           </label>
           <label class="field"><span>{{ rec().cartao_id ? 'A partir da fatura' : 'A partir de' }}</span>
             <input name="rm" type="month" [ngModel]="mes()" (ngModelChange)="mes.set($event)" [ngModelOptions]="{ standalone: true }" />

@@ -7,6 +7,7 @@ import { VERSAO } from '../core/versao';
 import { CHAT, Menus } from '../layout/menu';
 import { Compartilhar, TEXTO_APP } from '../shared/compartilhar';
 import { Icon } from '../shared/icon';
+import { Tour } from '../shared/tour';
 
 @Component({
   imports: [RouterLink, Icon, Compartilhar],
@@ -29,6 +30,12 @@ import { Icon } from '../shared/icon';
                 <span class="n">{{ n }}</span>
               }
             </a>
+            @if (a.rota === '/config') {
+              <button class="card at" type="button" (click)="tour.iniciar()">
+                <app-icon class="e" name="tour" [size]="30" />
+                <span class="r">Passo a passo</span>
+              </button>
+            }
           }
         </div>
       }
@@ -47,20 +54,22 @@ import { Icon } from '../shared/icon';
   `,
   styles: `
     .grupo { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin: 6px 2px -4px; }
-    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .at { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 8px; color: var(--ink); text-align: center; }
+    button.at { font: inherit; cursor: pointer; width: 100%; }
     .at:active { transform: scale(0.97); }
     .e { color: var(--primary); }
-    .r { font-size: 0.8rem; font-weight: 700; }
+    .r { font-size: 0.8rem; font-weight: 700; max-width: 100%; overflow-wrap: anywhere; }
     .n { position: absolute; top: 8px; right: 8px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 0.68rem; font-weight: 800; display: grid; place-items: center; padding: 0 4px; }
     .indicar { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 0; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
     .indicar .grow { display: flex; flex-direction: column; gap: 2px; flex: 1; }
     .org { align-self: center; display: flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; padding-top: 4px; }
     .versao { align-self: center; font-size: 0.8rem; color: var(--ink-3); font-weight: 600; padding: 12px; }
-    @media (min-width: 720px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+    @media (min-width: 720px) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
   `,
 })
 export default class Mais {
+  protected tour = inject(Tour);
   protected s = inject(Store);
   protected insights = inject(Insights);
   private chat = inject(Chat);

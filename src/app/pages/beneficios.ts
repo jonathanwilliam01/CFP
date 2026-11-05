@@ -10,6 +10,7 @@ import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Moeda } from '../shared/moeda';
 
 interface FormBeneficio {
   id?: string;
@@ -22,7 +23,7 @@ interface FormBeneficio {
 }
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet],
+  imports: [Moeda, FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -85,7 +86,7 @@ interface FormBeneficio {
         <label class="field"><span>Nome</span><input name="nome" [(ngModel)]="f.nome" placeholder="Ex.: Vale-refeição" /></label>
         <div class="grid2">
           <label class="field"><span>Valor mensal</span>
-            <input name="valor" type="number" inputmode="decimal" step="0.01" [(ngModel)]="f.valor_mensal" /></label>
+            <input name="valor" moeda="numero" inputmode="numeric" [(ngModel)]="f.valor_mensal" /></label>
           <label class="field"><span>Dia do crédito</span>
             <input name="dia" type="number" inputmode="numeric" min="1" max="31" [(ngModel)]="f.dia_credito" /></label>
         </div>

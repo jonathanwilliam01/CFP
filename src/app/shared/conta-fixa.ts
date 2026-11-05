@@ -8,6 +8,7 @@ import { Store } from '../core/store';
 import { Icon } from './icon';
 import { Reajuste } from './reajuste';
 import { Toast } from './toast';
+import { Moeda } from './moeda';
 
 interface FormFixa {
   id?: string;
@@ -29,7 +30,7 @@ interface FormFixa {
 /** Cadastro/edição de conta fixa (tela de contas e lançamento) */
 @Component({
   selector: 'app-conta-fixa',
-  imports: [FormsModule, BrlPipe, MesPipe, Icon, Reajuste],
+  imports: [Moeda, FormsModule, BrlPipe, MesPipe, Icon, Reajuste],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <form class="form" (ngSubmit)="salvar()">
@@ -43,7 +44,7 @@ interface FormFixa {
       </label>
       <label class="check"><input name="var" type="checkbox" [ngModel]="f().variavel" (ngModelChange)="set('variavel', $event)" />Valor variável (ex.: luz, água)</label>
       <div class="grid2">
-        <label class="field"><span>{{ f().variavel ? 'Valor estimado' : 'Valor (previsto)' }}</span><input name="v" inputmode="decimal" [ngModel]="f().valor" (ngModelChange)="set('valor', $event)" /></label>
+        <label class="field"><span>{{ f().variavel ? 'Valor estimado' : 'Valor (previsto)' }}</span><input name="v" moeda inputmode="numeric" [ngModel]="f().valor" (ngModelChange)="set('valor', $event)" /></label>
         @if (!f().cartao_id) {
           <label class="field"><span>Dia do vencimento</span><input name="dia" type="number" min="1" max="31" [ngModel]="f().dia" (ngModelChange)="set('dia', $event)" /></label>
         }
@@ -82,7 +83,7 @@ interface FormFixa {
           }
           <div class="add">
             <input name="hm" type="month" [max]="mesAtualCurto" [(ngModel)]="histMes" />
-            <input name="hv" inputmode="decimal" placeholder="Valor" [(ngModel)]="histValor" />
+            <input name="hv" moeda inputmode="numeric" placeholder="Valor" [(ngModel)]="histValor" />
             <button type="button" class="btn ghost icon" (click)="adicionarHist()" aria-label="Adicionar conta"><app-icon name="add" /></button>
           </div>
         </div>

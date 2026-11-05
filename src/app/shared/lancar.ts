@@ -13,6 +13,7 @@ import { guardarArquivo } from '../core/arquivos';
 import { ePdf, enviarComprovante, linkComprovante, prepararComprovante, removerComprovante } from '../core/comprovante';
 import { Icon } from './icon';
 import { Sheet } from './sheet';
+import { Moeda } from './moeda';
 import { Visor } from './visor';
 import { Toast } from './toast';
 
@@ -101,7 +102,7 @@ interface FormLanc {
 
 @Component({
   selector: 'app-lancar',
-  imports: [Sheet, FormsModule, BrlPipe, MesPipe, Icon, Visor],
+  imports: [Sheet, FormsModule, BrlPipe, MesPipe, Icon, Visor, Moeda],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './lancar.html',
   styleUrl: './lancar.scss',

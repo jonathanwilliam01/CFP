@@ -11,6 +11,7 @@ import { Icon } from '../shared/icon';
 import { Lancar } from '../shared/lancar';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Moeda } from '../shared/moeda';
 
 interface FormViagem {
   id?: string;
@@ -29,7 +30,7 @@ const tagDe = (nome: string) => normalizar(nome).replace(/[^a-z0-9]+/g, '-').rep
 
 /** Modo viagem: com uma viagem ativa, os gastos lançados ganham o marcador dela; aqui o total, o orçamento e por categoria */
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
+  imports: [Moeda, FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -97,7 +98,7 @@ const tagDe = (nome: string) => normalizar(nome).replace(/[^a-z0-9]+/g, '-').rep
           <label class="field"><span>Início</span><input name="i" type="date" [(ngModel)]="f.inicio" /></label>
           <label class="field"><span>Fim (opcional)</span><input name="f" type="date" [(ngModel)]="f.fim" /></label>
         </div>
-        <label class="field"><span>Orçamento em reais (opcional)</span><input name="o" inputmode="decimal" [(ngModel)]="f.orcamento" placeholder="0,00" /></label>
+        <label class="field"><span>Orçamento em reais (opcional)</span><input name="o" moeda inputmode="numeric" [(ngModel)]="f.orcamento" placeholder="0,00" /></label>
         <div class="grid3">
           <label class="field"><span>Moeda</span><input name="m" [(ngModel)]="f.moeda" placeholder="USD" maxlength="5" /></label>
           <label class="field"><span>Cotação</span><input name="c" inputmode="decimal" [(ngModel)]="f.cotacao" placeholder="5,40" /></label>

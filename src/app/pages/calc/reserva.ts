@@ -8,17 +8,18 @@ import { Store } from '../../core/store';
 import { normalizar } from '../../core/texto';
 import { Icon } from '../../shared/icon';
 import { ESTILO, cdi, lembrado, pctCdi } from './comum';
+import { Moeda } from '../../shared/moeda';
 
 @Component({
   selector: 'app-calc-reserva',
-  imports: [FormsModule, BrlPipe, Icon, RouterLink],
+  imports: [Moeda, FormsModule, BrlPipe, Icon, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card form">
       <div class="campos">
-        <label class="field"><span>Custo de vida por mês</span><input inputmode="decimal" [placeholder]="sugestao() ? (sugestao() | brl) : '4.000,00'" [ngModel]="custo()" (ngModelChange)="custo.guardar($event)" /></label>
-        <label class="field"><span>Já tenho guardado</span><input inputmode="decimal" [placeholder]="guardado() ? (guardado() | brl) : '0,00'" [ngModel]="tenho()" (ngModelChange)="tenho.set($event)" /></label>
-        <label class="field"><span>Guardo por mês</span><input inputmode="decimal" placeholder="500,00" [ngModel]="aporte()" (ngModelChange)="aporte.guardar($event)" /></label>
+        <label class="field"><span>Custo de vida por mês</span><input moeda inputmode="numeric" [placeholder]="sugestao() ? (sugestao() | brl) : '4.000,00'" [ngModel]="custo()" (ngModelChange)="custo.guardar($event)" /></label>
+        <label class="field"><span>Já tenho guardado</span><input moeda inputmode="numeric" [placeholder]="guardado() ? (guardado() | brl) : '0,00'" [ngModel]="tenho()" (ngModelChange)="tenho.set($event)" /></label>
+        <label class="field"><span>Guardo por mês</span><input moeda inputmode="numeric" placeholder="500,00" [ngModel]="aporte()" (ngModelChange)="aporte.guardar($event)" /></label>
       </div>
       @if (!custo() && sugestao()) {
         <p class="small muted">Em branco, usa as saídas previstas de {{ mesTxt() }}.</p>

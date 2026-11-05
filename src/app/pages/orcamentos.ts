@@ -9,6 +9,7 @@ import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Moeda } from '../shared/moeda';
 
 type Aplicar = 'mes' | 'meses' | 'sempre';
 
@@ -27,7 +28,7 @@ interface FormOrcamento {
 }
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, PrivPipe, MesPipe, Icon, Sheet],
+  imports: [Moeda, FormsModule, RouterLink, BrlPipe, PrivPipe, MesPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -138,7 +139,7 @@ interface FormOrcamento {
         </div>
         <div class="grid2">
           <label class="field"><span>{{ f.id ? 'Novo limite' : 'Limite mensal' }}</span>
-            <input name="valor" type="number" inputmode="decimal" step="0.01" [(ngModel)]="f.valor" /></label>
+            <input name="valor" moeda="numero" inputmode="numeric" [(ngModel)]="f.valor" /></label>
           <label class="field"><span>Avisar em (%)</span>
             <input name="alerta" type="number" inputmode="numeric" min="1" max="100" [(ngModel)]="f.alerta_pct" /></label>
         </div>

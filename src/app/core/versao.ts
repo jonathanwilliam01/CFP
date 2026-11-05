@@ -8,6 +8,17 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.7',
+    data: '2026-11-05',
+    itens: [
+      'Valores com máscara: digite só os números e os centavos entram sozinhos (3450 vira 34,50; 56789 vira 567,89) em gastos, parcelados, entradas, contas e demais campos de dinheiro',
+      'Posso comprar? (Planejamento): corrigido o valor que não mudava a previsão quando o dia a dia estava incluído; agora diz se cabe, aperta ou não cabe, mostra a sobra antes → depois em cada mês com parcela e traz o "Como ler"',
+      'Passo a passo para quem começa: tour pelos botões principais (abre sozinho em carteira nova; reabre em Passo a passo, abaixo de Configurações no Mais e no menu lateral) e checklist de Primeiros passos no Início',
+      'Avisos do celular não saem mais para contas já pagas: o app espera carregar os pagamentos antes de avisar',
+      'Celulares com fonte grande: a tela não rola mais de lado, a barra de baixo e o botão + ficam no lugar e os cartões de Por recebimento, Gastos, Mais, Calendário e Cofrinhos se ajustam',
+    ],
+  },
+  {
     versao: 'v1.26.11.6',
     data: '2026-11-04',
     itens: [

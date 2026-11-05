@@ -185,6 +185,10 @@ export class Store {
   private canal: RealtimeChannel | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private reqMes = 0;
+  private tudoOk = signal(false);
+  private mesOk = signal(false);
+  /** cadastros e mês da carteira atual carregados: antes disso as contas parecem todas em aberto */
+  readonly pronto = computed(() => this.tudoOk() && this.mesOk() && !this.carregando() && !this.carregandoMes());
 
   constructor() {
     effect(() => {
@@ -193,6 +197,8 @@ export class Store {
       untracked(() => {
         this.assinar(id);
         this.valoresOk = false;
+        this.tudoOk.set(false);
+        this.mesOk.set(false);
         if (id) this.carregarTudo();
       });
     });
@@ -253,6 +259,8 @@ export class Store {
 
   private limpar() {
     this.valoresOk = false;
+    this.tudoOk.set(false);
+    this.mesOk.set(false);
     this.carteiras.set([]);
     this.membros.set([]);
     const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.orcamentoFechados, this.cofrinhos, this.cofrinhoMovs, this.registros, this.acertos, this.receber, this.dividas, this.desafios, this.contasBancarias, this.regras, this.viagens, this.desejos, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
@@ -267,6 +275,7 @@ export class Store {
     this.carregando.set(true);
     try {
       await Promise.all([this.recarregarMembros(), ...CADASTROS.map((t) => this.recarregar(t))]);
+      this.tudoOk.set(true);
     } finally {
       this.carregando.set(false);
     }
@@ -339,6 +348,7 @@ export class Store {
       const k = r.descricao.trim().toLowerCase();
       return !vistos.has(k) && vistos.add(k);
     }));
+    this.mesOk.set(true);
   }
 
   /** Insere (sem id) ou atualiza (com id), recarrega o que for afetado e devolve o id */

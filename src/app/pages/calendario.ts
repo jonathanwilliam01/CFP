@@ -99,10 +99,10 @@ interface Dia {
     .resumo b { color: var(--ink); }
     .resumo b.neg { color: var(--danger); }
     .resumo b.pos { color: var(--ok); }
-    .sem, .grade { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .sem, .grade { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
     .sem span { text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--ink-3); padding-bottom: 4px; }
     .dia {
-      aspect-ratio: 1; border: 1px solid transparent; border-radius: 10px; background: var(--card-2); color: var(--ink);
+      aspect-ratio: 1; min-width: 0; overflow: hidden; border: 1px solid transparent; border-radius: 10px; background: var(--card-2); color: var(--ink);
       font: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 5px 2px;
     }
     .dia[data-n='1'] { background: color-mix(in srgb, var(--primary) 14%, var(--card-2)); }

@@ -3,16 +3,17 @@ import { FormsModule } from '@angular/forms';
 import { BrlPipe, parseValor } from '../../core/formato';
 import { Icon } from '../../shared/icon';
 import { ESTILO, ganho, lembrado, pctTxt } from './comum';
+import { Moeda } from '../../shared/moeda';
 
 @Component({
   selector: 'app-calc-horas',
-  imports: [FormsModule, BrlPipe, Icon],
+  imports: [Moeda, FormsModule, BrlPipe, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card form">
       <div class="campos">
-        <label class="field"><span>Quanto custa</span><input inputmode="decimal" placeholder="300,00" [ngModel]="preco()" (ngModelChange)="preco.set($event)" /></label>
-        <label class="field"><span>Ganho líquido por mês</span><input inputmode="decimal" placeholder="3.000,00" [ngModel]="ganho()" (ngModelChange)="ganho.guardar($event)" /></label>
+        <label class="field"><span>Quanto custa</span><input moeda inputmode="numeric" placeholder="300,00" [ngModel]="preco()" (ngModelChange)="preco.set($event)" /></label>
+        <label class="field"><span>Ganho líquido por mês</span><input moeda inputmode="numeric" placeholder="3.000,00" [ngModel]="ganho()" (ngModelChange)="ganho.guardar($event)" /></label>
         <label class="field"><span>Horas por semana</span><input type="number" min="1" max="100" [ngModel]="semana()" (ngModelChange)="semana.guardar($event + '')" /></label>
       </div>
     </section>

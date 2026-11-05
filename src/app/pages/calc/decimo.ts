@@ -7,18 +7,19 @@ import { Store } from '../../core/store';
 import { Icon } from '../../shared/icon';
 import { Toast } from '../../shared/toast';
 import { ESTILO, lembrado } from './comum';
+import { Moeda } from '../../shared/moeda';
 
 @Component({
   selector: 'app-calc-decimo',
-  imports: [FormsModule, BrlPipe, Icon],
+  imports: [Moeda, FormsModule, BrlPipe, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card form">
       <div class="campos">
-        <label class="field"><span>Salário bruto</span><input inputmode="decimal" placeholder="5.000,00" [ngModel]="bruto()" (ngModelChange)="bruto.guardar($event)" /></label>
+        <label class="field"><span>Salário bruto</span><input moeda inputmode="numeric" placeholder="5.000,00" [ngModel]="bruto()" (ngModelChange)="bruto.guardar($event)" /></label>
         <label class="field"><span>Meses trabalhados no ano</span><input type="number" min="1" max="12" [ngModel]="meses()" (ngModelChange)="meses.set(+$event)" /></label>
         <label class="field"><span>Dependentes</span><input type="number" min="0" max="20" [ngModel]="dep()" (ngModelChange)="dep.set(+$event)" /></label>
-        <label class="field"><span>Média de extras e comissões</span><input inputmode="decimal" placeholder="0,00" [ngModel]="extras()" (ngModelChange)="extras.set($event)" /></label>
+        <label class="field"><span>Média de extras e comissões</span><input moeda inputmode="numeric" placeholder="0,00" [ngModel]="extras()" (ngModelChange)="extras.set($event)" /></label>
       </div>
       <div class="seg">
         <button type="button" [class.on]="duas()" (click)="duas.set(true)">Em duas parcelas</button>

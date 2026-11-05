@@ -10,9 +10,10 @@ import { Icon } from '../shared/icon';
 import { IconePicker } from '../shared/icone-picker';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Moeda } from '../shared/moeda';
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, Icon, IconePicker, Sheet],
+  imports: [Moeda, FormsModule, RouterLink, BrlPipe, DiaPipe, Icon, IconePicker, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -65,7 +66,7 @@ import { Toast } from '../shared/toast';
             </div>
             <div class="grid2">
               <label class="field"><span>Vou depositar (R$)</span>
-                <input name="simv" inputmode="decimal" placeholder="Ex.: 50" [ngModel]="simValor()" (ngModelChange)="simValor.set($event)" /></label>
+                <input name="simv" moeda inputmode="numeric" placeholder="Ex.: 50" [ngModel]="simValor()" (ngModelChange)="simValor.set($event)" /></label>
               <div class="field"><span>A cada</span>
                 <div class="seg">
                   @for (fq of frequencias; track fq) {
@@ -75,7 +76,7 @@ import { Toast } from '../shared/toast';
               </div>
             </div>
             <label class="field"><span>Chegar a (R$)</span>
-              <input name="sima" inputmode="decimal" placeholder="Ex.: 1.000" [ngModel]="simAlvo()" (ngModelChange)="simAlvo.set($event)" /></label>
+              <input name="sima" moeda inputmode="numeric" placeholder="Ex.: 1.000" [ngModel]="simAlvo()" (ngModelChange)="simAlvo.set($event)" /></label>
             @if (sim(); as r) {
               <div class="res">
                 <p>Com <b class="num">{{ simNum() | brl }}</b> por {{ nomes[simFreq()] }}, são <b>{{ r.depositos }} depósitos</b>:
@@ -128,7 +129,7 @@ import { Toast } from '../shared/toast';
 
     <app-sheet [(open)]="movAberto" [titulo]="sinal() > 0 ? 'Depositar' : 'Retirar'">
       <form class="form" (ngSubmit)="salvarMov()">
-        <label class="field"><span>Valor (R$)</span><input name="valor" inputmode="decimal" [(ngModel)]="m.valor" placeholder="0,00" autofocus /></label>
+        <label class="field"><span>Valor (R$)</span><input name="valor" moeda inputmode="numeric" [(ngModel)]="m.valor" placeholder="0,00" autofocus /></label>
         <label class="field"><span>Data</span><input name="data" type="date" [(ngModel)]="m.data" /></label>
         <label class="field"><span>Descrição (opcional)</span><input name="descricao" [(ngModel)]="m.descricao" /></label>
         <button class="btn block" [disabled]="salvando()">Salvar</button>
@@ -139,7 +140,7 @@ import { Toast } from '../shared/toast';
       <form class="form" (ngSubmit)="salvarCofrinho()">
         <label class="field"><span>Nome</span><input name="nome" [(ngModel)]="f.nome" /></label>
         <div class="grid2">
-          <label class="field"><span>Meta (R$)</span><input name="meta" inputmode="decimal" [(ngModel)]="f.meta" /></label>
+          <label class="field"><span>Meta (R$)</span><input name="meta" moeda inputmode="numeric" [(ngModel)]="f.meta" /></label>
           <label class="field"><span>Prazo</span><input name="prazo" type="date" [(ngModel)]="f.prazo" /></label>
         </div>
         <label class="field"><span>Cor</span><input name="cor" type="color" [(ngModel)]="f.cor" /></label>

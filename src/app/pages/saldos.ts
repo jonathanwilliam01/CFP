@@ -11,6 +11,7 @@ import { Patrimonio, Patrimonios, liquido } from '../core/patrimonio';
 import { nomeMes } from '../core/datas';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Moeda } from '../shared/moeda';
 
 interface FormConta {
   id?: string;
@@ -22,7 +23,7 @@ interface FormConta {
 
 /** Saldo real nos bancos e quanto deve sobrar no fim do mês pelo que falta pagar e receber */
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Curvas],
+  imports: [Moeda, FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Curvas],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -92,7 +93,7 @@ interface FormConta {
       <form class="form" (ngSubmit)="salvar()">
         <label class="field"><span>Nome</span><input name="n" [(ngModel)]="f.nome" placeholder="Ex.: Nubank, Itaú, dinheiro" /></label>
         <div class="grid2">
-          <label class="field"><span>Saldo hoje</span><input name="s" inputmode="decimal" [(ngModel)]="f.saldo" placeholder="0,00" /></label>
+          <label class="field"><span>Saldo hoje</span><input name="s" moeda inputmode="numeric" [(ngModel)]="f.saldo" placeholder="0,00" /></label>
           <label class="field"><span>Cor</span><input name="c" type="color" [(ngModel)]="f.cor" /></label>
         </div>
         <label class="check"><input type="checkbox" name="a" [(ngModel)]="f.ativo" /> Ativa (soma no total)</label>
@@ -104,8 +105,9 @@ interface FormConta {
     </app-sheet>
   `,
   styles: `
-    .lin { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+    .lin { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
     .lin span { color: var(--ink-2); }
+    .lin b { margin-left: auto; }
     .lin.tot { border-bottom: 0; font-weight: 700; }
     .row { background: none; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; }
     .row.off { opacity: 0.55; }

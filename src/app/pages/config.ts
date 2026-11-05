@@ -362,7 +362,7 @@ import { Compartilhar, TEXTO_APP } from '../shared/compartilhar';
     .foto { border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; }
     .foto:disabled { cursor: default; }
     .linha input { flex: 2; min-width: 0; }
-    .convite { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--primary-soft); border-radius: 14px; padding: 12px; }
+    .convite { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; background: var(--primary-soft); border-radius: 14px; padding: 12px; }
     .cod { font-size: 1.5rem; font-weight: 800; letter-spacing: 0.2em; color: var(--primary); }
     .cor { width: 14px; height: 14px; border-radius: 50%; }
     .up { text-transform: uppercase; letter-spacing: 0.15em; }

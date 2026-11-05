@@ -26,13 +26,13 @@
 
     <label class="valor" [class.entrada]="l.modo() === 'entrada'">
       <span>R$</span>
-      <input name="valor" inputmode="decimal" placeholder="0,00" autocomplete="off" autofocus
+      <input name="valor" moeda inputmode="numeric" placeholder="0,00" autocomplete="off" autofocus
         [ngModel]="f().valor" (ngModelChange)="set('valor', $event)" />
     </label>
     @if (cambio(); as v) {
       <label class="field">
         <span>Valor em {{ v.moeda }} ({{ v.nome }}: cotação {{ v.cotacao }} + IOF {{ v.iof }}%)</span>
-        <input name="estrangeiro" inputmode="decimal" placeholder="0,00" autocomplete="off" [ngModel]="estrangeiro()" (ngModelChange)="converter($event)" />
+        <input name="estrangeiro" moeda inputmode="numeric" placeholder="0,00" autocomplete="off" [ngModel]="estrangeiro()" (ngModelChange)="converter($event)" />
       </label>
     }
 

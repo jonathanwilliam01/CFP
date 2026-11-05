@@ -9,6 +9,7 @@ import { normalizar } from '../core/texto';
 import { Icon } from '../shared/icon';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
+import { Moeda } from '../shared/moeda';
 
 type G = Pick<Gasto, 'descricao' | 'categoria_id' | 'valor' | 'data'>;
 
@@ -32,7 +33,7 @@ interface FormDesafio {
 }
 
 @Component({
-  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
+  imports: [Moeda, FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -103,7 +104,7 @@ interface FormDesafio {
         </label>
         <label class="field"><span>Ou gasto que contém</span><input name="t" [(ngModel)]="f.termo" placeholder="Ex.: ifood, uber" /></label>
         <div class="grid2">
-          <label class="field"><span>Gastar no máximo</span><input name="l" inputmode="decimal" [(ngModel)]="f.limite" placeholder="0 = nada" /></label>
+          <label class="field"><span>Gastar no máximo</span><input name="l" moeda inputmode="numeric" [(ngModel)]="f.limite" placeholder="0 = nada" /></label>
           <label class="field"><span>Dias</span><input name="n" type="number" min="1" max="365" [(ngModel)]="f.dias" /></label>
         </div>
         <label class="field"><span>Começa em</span><input name="i" type="date" [(ngModel)]="f.inicio" /></label>

@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { addMeses, hoje, inicioMes, mesAtual, mesFatura, nomeMes } from '../core/datas';
 import { BrlPipe, MesPipe, moeda, parseValor, pct, soma } from '../core/formato';
 import { Gasto, Parcelamento } from '../core/models';
+import { Moeda } from '../shared/moeda';
 
 type Parcela = Pick<Gasto, 'id' | 'parcelamento_id' | 'parcela' | 'valor' | 'data' | 'fatura_mes'>;
 import { Store } from '../core/store';
@@ -14,7 +15,7 @@ import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 
 @Component({
-  imports: [BrlPipe, MesPipe, Icon, Empilhadas, FormsModule, Sheet],
+  imports: [Moeda, BrlPipe, MesPipe, Icon, Empilhadas, FormsModule, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -91,7 +92,7 @@ import { Toast } from '../shared/toast';
             <label class="field"><span>Quantas parcelas (até {{ a.antecipaveis.length }})</span>
               <input name="n" type="number" min="1" [max]="a.antecipaveis.length" [ngModel]="antN()" (ngModelChange)="trocarN(+$event)" />
             </label>
-            <label class="field"><span>Valor pago (com desconto)</span><input name="v" inputmode="decimal" [ngModel]="antValor()" (ngModelChange)="antValor.set($event)" /></label>
+            <label class="field"><span>Valor pago (com desconto)</span><input name="v" moeda inputmode="numeric" [ngModel]="antValor()" (ngModelChange)="antValor.set($event)" /></label>
             <p class="hint">Sem desconto: {{ semDesconto() | brl }}@if (desconto() > 0) { · economia <b class="pos">{{ desconto() | brl }}</b> }</p>
             <button class="btn block" type="submit" [disabled]="salvando()">{{ antN() === a.antecipaveis.length ? 'Quitar' : 'Antecipar' }}</button>
           </form>
