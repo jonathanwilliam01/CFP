@@ -9,6 +9,13 @@ async function ehAdmin() {
   return !error && data === true;
 }
 
+const COLUNAS_COMUNICADO = ['id', 'titulo', 'texto', 'tag_id', 'inicio', 'fim', 'link', 'push', 'destaque', 'publicado'] as const;
+
+export function colunasComunicado(c: Partial<Comunicado>) {
+  const o = c as Record<string, unknown>;
+  return Object.fromEntries(COLUNAS_COMUNICADO.filter((k) => k in o).map((k) => [k, o[k]]));
+}
+
 @Injectable({ providedIn: 'root' })
 export class Admin {
   private auth = inject(Auth);
@@ -71,8 +78,11 @@ export class Admin {
   }
 
   salvarComunicado(c: Partial<Comunicado>) {
-    const { lidos, total_usuarios, ...linha } = c;
-    return q<Comunicado>(supabase.from('comunicados').upsert(linha).select().single());
+    return q<Comunicado>(supabase.from('comunicados').upsert(colunasComunicado(c)).select().single());
+  }
+
+  async encerrarComunicado(id: string) {
+    await q(supabase.from('comunicados').update({ fim: new Date().toISOString() }).eq('id', id));
   }
 
   async excluirComunicado(id: string) {

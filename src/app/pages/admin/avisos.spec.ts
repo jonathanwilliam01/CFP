@@ -15,3 +15,12 @@ describe('avisoDaVersao', () => {
     expect(r.texto.endsWith('…')).toBe(true);
   });
 });
+
+import { colunasComunicado } from '../../core/admin';
+
+describe('colunasComunicado', () => {
+  it('descarta campos que não são colunas', () => {
+    const r = colunasComunicado({ id: '1', titulo: 't', tag: { nome: 'x' }, status: 'no_ar', lidos: 3, push_enviado_em: 'x' } as never);
+    expect(r).toEqual({ id: '1', titulo: 't' });
+  });
+});

@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { Admin } from '../../core/admin';
 import { Comunicado, ComunicadoTag } from '../../core/models';
 import { Nota } from '../../core/versao';
@@ -48,6 +48,7 @@ function local(iso: string) {
         <label>Link (opcional, interno ou URL)<input type="text" placeholder="/novidades" [value]="link()" (input)="link.set($any($event.target).value)" /></label>
         <label class="ck"><input type="checkbox" [checked]="push()" (change)="push.set($any($event.target).checked)" />Enviar push quando entrar no ar</label>
         <label class="ck"><input type="checkbox" [checked]="destaque()" (change)="destaque.set($any($event.target).checked)" />Destaque (banner no topo até ser lido)</label>
+        @if (aviso().push_enviado_em; as e) { <div class="dica">Push já enviado em {{ e | date: 'dd/MM HH:mm' }} — não será reenviado</div> }
         @if (erro()) { <div class="erro" role="alert">{{ erro() }}</div> }
         <div class="bts">
           <button type="button" class="btn ghost" (click)="cancelar.emit()" [disabled]="ocupado()">Cancelar</button>
@@ -77,6 +78,7 @@ function local(iso: string) {
     .dois { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .nt { display: flex; gap: 8px; align-items: center; }
     .nt input[type='text'] { flex: 1; }
+    .dica { font-size: 12px; color: var(--ink-3); }
     .erro { background: var(--danger-soft); color: var(--danger); padding: 8px 10px; border-radius: 10px; font-size: 13px; }
     .bts { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
     .pv { font-size: 12px; color: var(--ink-3); margin-bottom: 8px; }
@@ -86,7 +88,7 @@ function local(iso: string) {
     .lk { color: var(--primary); font-weight: 700; }
   `,
 })
-export class AvisoForm {
+export class AvisoForm implements OnInit {
   private admin = inject(Admin);
   private toast = inject(Toast);
   readonly aviso = input.required<Partial<Comunicado>>();

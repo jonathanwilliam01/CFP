@@ -172,7 +172,7 @@ export default class AdminAvisos implements OnInit {
 
   protected async encerrar(c: Comunicado) {
     if (!confirm(`Encerrar "${c.titulo}" agora?`)) return;
-    await this.agir(() => this.admin.salvarComunicado({ ...c, fim: new Date().toISOString() }), 'Aviso encerrado');
+    await this.agir(() => this.admin.encerrarComunicado(c.id), 'Aviso encerrado');
   }
 
   protected async excluir(c: Comunicado) {
