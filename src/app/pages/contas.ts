@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { addMeses, diffDias, hoje, inicioMes, mesAtual, mesesEntre, nomeMes } from '../core/datas';
+import { addMeses, diffDias, hoje, inicioMes, mesesEntre, nomeMes } from '../core/datas';
 import { ACIMA_MEDIA, CompraRecorrente, Recebimento, aporteMensal, fixasNaFatura, mediaContas, noMes } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, parseValor, soma } from '../core/formato';
 import { Cartao, Cofrinho, ContaMes, Gasto, Recorrencia } from '../core/models';
@@ -157,13 +157,13 @@ import { Moeda } from '../shared/moeda';
               <span class="ico"><app-icon [name]="s.catMap().get(r.categoria_id ?? '')?.icone ?? 'receipt_long'" /></span>
               <div class="grow">
                 <div class="t">{{ r.descricao }}@if (encerradas().includes(r)) {<span class="badge perigo enc">Encerrada</span>}</div>
-                <div class="s">{{ cartaoNome(r) ? 'Na fatura do ' + cartaoNome(r) + ', vence dia ' + r.dia : 'Todo dia ' + r.dia }}{{ r.variavel ? ' · variável' : '' }}{{ r.paga_mes_anterior && !cartaoNome(r) ? ' · salário do mês anterior' : '' }}{{ r.beneficio_id ? ' · ' + beneficioNome(r.beneficio_id) : '' }}{{ r.ativo ? '' : ' · inativa' }}{{ r.inicio > dataHoje ? ' · a partir de ' + r.inicio.slice(5, 7) + '/' + r.inicio.slice(0, 4) : '' }}{{ r.fim ? ' · até ' + r.fim.slice(5, 7) + '/' + r.fim.slice(0, 4) : '' }}</div>
+                <div class="s">{{ cartaoNome(r) ? 'Na fatura do ' + cartaoNome(r) + ', vence dia ' + r.dia : 'Todo dia ' + r.dia }}{{ r.variavel ? ' · variável' : '' }}{{ r.paga_mes_anterior && !cartaoNome(r) ? ' · salário do mês anterior' : '' }}{{ r.beneficio_id ? ' · ' + beneficioNome(r.beneficio_id) : '' }}{{ r.ativo ? '' : ' · inativa' }}{{ r.inicio >= proxMes() ? ' · a partir de ' + r.inicio.slice(5, 7) + '/' + r.inicio.slice(0, 4) : '' }}{{ r.fim ? ' · até ' + r.fim.slice(5, 7) + '/' + r.fim.slice(0, 4) : '' }}</div>
               </div>
               <span class="v">{{ s.medias().get(r.id) ?? r.valor | brl }}</span>
             </button>
           }
           <div class="row tot">
-            <div class="grow"><div class="t">Total</div><div class="s">{{ totalFixas().n }} {{ totalFixas().n === 1 ? 'conta ativa' : 'contas ativas' }}</div></div>
+            <div class="grow"><div class="t">Total</div><div class="s">{{ totalFixas().n }} {{ totalFixas().n === 1 ? 'conta' : 'contas' }} em {{ s.mes() | mes }}</div></div>
             <span class="v">{{ totalFixas().valor | brl }}</span>
           </div>
         </section>
@@ -329,15 +329,16 @@ export default class Contas {
   /** reajuste encerra a anterior: as que já terminaram ou foram substituídas ficam escondidas (histórico no reajuste) */
   private todasFixas = computed(() => this.s.recorrencias().filter((r) => r.tipo === 'conta'));
   private substituidas = computed(() => new Set(this.s.recorrencias().map((r) => r.reajuste_de)));
-  protected fixas = computed(() => this.todasFixas().filter((r) => (!r.fim || r.fim >= mesAtual()) && !this.substituidas().has(r.id)));
-  protected encerradas = computed(() => this.todasFixas().filter((r) => r.fim && r.fim < mesAtual()));
+  /** encerrada = fim antes do mês selecionado no topo */
+  protected fixas = computed(() => this.todasFixas().filter((r) => (!r.fim || r.fim >= this.s.mes()) && !this.substituidas().has(r.id)));
+  protected encerradas = computed(() => this.todasFixas().filter((r) => r.fim && r.fim < this.s.mes()));
+  protected proxMes = computed(() => addMeses(this.s.mes(), 1));
   protected verEncerradas = signal(false);
-  /** Encerradas ficam fora; variável entra pela média */
+  /** Só as que valem no mês selecionado (ativas, já iniciadas); variável entra pela média */
   protected totalFixas = computed(() => {
-    const l = this.fixas().filter((r) => r.ativo);
+    const l = this.fixas().filter((r) => r.ativo && r.inicio < this.proxMes());
     return { n: l.length, valor: soma(l, (r) => this.s.medias().get(r.id) ?? r.valor) };
   });
-  protected dataHoje = hoje();
   protected itensFatura = computed(() => {
     const c = this.sel();
     const cartao = this.s.cartoes().find((x) => x.id === c?.ref_id);

@@ -1,7 +1,7 @@
 # Changelog
 
 ## v1.26.11.8 — 2026-11-05
-- Contas fixas cadastradas: total das contas ativas no fim da lista e etiqueta Encerrada nas que aparecem ao abrir as encerradas
+- Contas fixas cadastradas: seguem o mês escolhido no topo (conta com data final some depois dela e vai para Encerradas, com etiqueta); total no fim da lista com as contas que valem naquele mês
 
 ## v1.26.11.7 — 2026-11-05
 - Sair do app em vermelho como última opção da seção App (menu lateral e Mais), com confirmação; Sair em Minha conta e Configurações usa a mesma confirmação
