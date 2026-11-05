@@ -8,6 +8,7 @@ import { CHAT, Menus } from '../layout/menu';
 import { Compartilhar, TEXTO_APP } from '../shared/compartilhar';
 import { Icon } from '../shared/icon';
 import { Tour } from '../shared/tour';
+import { Saida } from '../shared/sair';
 
 @Component({
   imports: [RouterLink, Icon, Compartilhar],
@@ -37,6 +38,12 @@ import { Tour } from '../shared/tour';
               </button>
             }
           }
+          @if (g.nome === 'App') {
+            <button class="card at sair" type="button" (click)="saida.abrir()">
+              <app-icon class="e" name="logout" [size]="30" />
+              <span class="r">Sair do app</span>
+            </button>
+          }
         </div>
       }
 
@@ -57,6 +64,8 @@ import { Tour } from '../shared/tour';
     .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .at { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 8px; color: var(--ink); text-align: center; }
     button.at { font: inherit; cursor: pointer; width: 100%; }
+    .at.sair, .at.sair .e { color: var(--danger); }
+    .at.sair { border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
     .at:active { transform: scale(0.97); }
     .e { color: var(--primary); }
     .r { font-size: 0.8rem; font-weight: 700; max-width: 100%; overflow-wrap: anywhere; }
@@ -70,6 +79,7 @@ import { Tour } from '../shared/tour';
 })
 export default class Mais {
   protected tour = inject(Tour);
+  protected saida = inject(Saida);
   protected s = inject(Store);
   protected insights = inject(Insights);
   private chat = inject(Chat);

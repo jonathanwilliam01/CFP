@@ -23,6 +23,7 @@ import { Menus } from '../layout/menu';
 import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
 import { conviteGuardado, limparConvite, linkConvite } from '../core/convite';
 import { Compartilhar, TEXTO_APP } from '../shared/compartilhar';
+import { Saida } from '../shared/sair';
 
 @Component({
   imports: [FormsModule, Avatar, Icon, IconePicker, Sheet, Visor, Ordenar, Compartilhar],
@@ -383,6 +384,7 @@ import { Compartilhar, TEXTO_APP } from '../shared/compartilhar';
 })
 export default class Config {
   protected auth = inject(Auth);
+  private saida = inject(Saida);
   protected s = inject(Store);
   protected insights = inject(Insights);
   protected tema = inject(Tema);
@@ -719,9 +721,7 @@ export default class Config {
     return this.exec(() => (ativo ? this.push.desativar() : this.push.ativar()), ativo ? 'Avisos desligados' : 'Avisos ligados');
   }
 
-  async sair() {
-    if (!confirm('Sair da conta?')) return;
-    await this.auth.sair();
-    this.router.navigateByUrl('/apresentacao');
+  sair() {
+    this.saida.abrir();
   }
 }

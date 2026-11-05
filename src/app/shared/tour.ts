@@ -53,7 +53,7 @@ export class Tour {
       @if (foco(); as f) {
         <div class="foco" [style.top.px]="f.top" [style.left.px]="f.left" [style.width.px]="f.width" [style.height.px]="f.height"></div>
       }
-      <div class="balao" role="dialog" aria-modal="true" [attr.aria-label]="p.titulo" [style.top]="pos().top" [style.bottom]="pos().bottom">
+      <div class="balao" role="dialog" aria-modal="true" [attr.aria-label]="p.titulo" [style.top]="pos().top" [style.bottom]="pos().bottom" [style.left]="pos().left" [style.transform]="pos().transform">
         <div class="tit"><app-icon [name]="p.icone" [size]="22" [fill]="true" /><b>{{ p.titulo }}</b><span class="n">{{ tour.passo()! + 1 }}/{{ total }}</span></div>
         <p>{{ p.texto }}</p>
         <div class="bts">
@@ -88,7 +88,7 @@ export class Tour {
     p { margin: 0; color: var(--ink-2); font-size: 0.92rem; }
     .bts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
     .grow { flex: 1; }
-    @keyframes entra { from { opacity: 0; transform: translate(-50%, 8px); } }
+    @keyframes entra { from { opacity: 0; } }
     @media (prefers-reduced-motion: reduce) { .foco, .balao { transition: none; animation: none; } }
   `,
 })
@@ -111,13 +111,17 @@ export class TourView {
     return { top, left, width: Math.min(innerWidth - 3, c.right + 6) - left, height: Math.min(innerHeight - 3, c.bottom + 6) - top };
   });
 
-  /** balão do lado oposto ao alvo; sem alvo, no meio */
+  /** balão acima ou abaixo do alvo (onde couber), senão ao lado (alvo alto, como o menu lateral), senão no meio */
   protected pos = computed(() => {
+    const meio = { left: '50%', transform: 'translateX(-50%)' };
     const c = this.caixa();
-    if (!c) return { top: '30%', bottom: 'auto' };
-    return c.top + c.height / 2 > innerHeight / 2
-      ? { top: 'auto', bottom: `${innerHeight - c.top + 18}px` }
-      : { top: `${c.bottom + 18}px`, bottom: 'auto' };
+    if (!c) return { ...meio, top: '30%', bottom: 'auto' };
+    const acima = c.top - 6, abaixo = innerHeight - c.bottom - 6;
+    if (Math.max(acima, abaixo) >= 230)
+      return abaixo >= acima ? { ...meio, top: `${c.bottom + 18}px`, bottom: 'auto' } : { ...meio, top: 'auto', bottom: `${innerHeight - c.top + 18}px` };
+    if (innerWidth - c.right >= 400)
+      return { left: `${c.right + 18}px`, transform: 'none', top: `${Math.min(Math.max(16, c.top), innerHeight - 260)}px`, bottom: 'auto' };
+    return { ...meio, top: '30%', bottom: 'auto' };
   });
 
   constructor() {
@@ -130,7 +134,10 @@ export class TourView {
   protected medir() {
     const p = this.atual();
     const el = p?.alvo?.map((s) => document.querySelector<HTMLElement>(s)).find((e) => e && e.getClientRects().length && e.offsetWidth);
-    this.caixa.set(el ? el.getBoundingClientRect() : null);
+    // alvo dentro de lista rolada (menu lateral) pode estar fora da vista
+    el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const r = el?.getBoundingClientRect();
+    this.caixa.set(r && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth ? r : null);
   }
 
   protected ir(d: number) {

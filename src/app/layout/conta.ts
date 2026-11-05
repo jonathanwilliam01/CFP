@@ -9,6 +9,7 @@ import { Toast } from '../shared/toast';
 import { Visor } from '../shared/visor';
 import { fecharNoVoltar } from '../shared/voltar';
 import { reduzir } from '../core/imagem';
+import { Saida } from '../shared/sair';
 
 const TAM = 220;
 
@@ -114,6 +115,7 @@ const TAM = 220;
 })
 export class Conta {
   protected auth = inject(Auth);
+  private saida = inject(Saida);
   protected s = inject(Store);
   private router = inject(Router);
   private toast = inject(Toast);
@@ -241,10 +243,8 @@ export class Conta {
   }
 
   async sair() {
-    if (!confirm('Sair da conta?')) return;
     await this.fecharAntes();
-    await this.auth.sair();
-    this.router.navigateByUrl('/apresentacao');
+    this.saida.abrir();
   }
 
   private limparImagem() {

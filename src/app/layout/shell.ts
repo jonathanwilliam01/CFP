@@ -22,6 +22,7 @@ import { Calculadora } from '../shared/calculadora';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
 import { Tour, TourView } from '../shared/tour';
+import { Saida, SairModal } from '../shared/sair';
 import { Lancar, LancarSheet, Modo } from '../shared/lancar';
 import { MesPicker } from '../shared/mes-picker';
 import { Avisos } from './avisos';
@@ -30,7 +31,7 @@ import { Menus, PRINCIPAIS } from './menu';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora, BloqueioTela, TourView],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora, BloqueioTela, TourView, SairModal],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.recolhido]': 'recolhido()', '(document:keydown)': 'atalho($event)', '(window:scroll)': 'rolou()' },
   template: `
@@ -108,6 +109,11 @@ import { Menus, PRINCIPAIS } from './menu';
               </button>
             }
           }
+          @if (g.nome === 'App') {
+            <button type="button" class="recolher sair" (click)="saida.abrir()" aria-label="Sair do app" (mouseenter)="dica($event, 'Sair do app')" (mouseleave)="tip.set(null)">
+              <app-icon name="logout" /><span class="r">Sair do app</span>
+            </button>
+          }
         }
       </nav>
       <div class="pe">
@@ -177,6 +183,7 @@ import { Menus, PRINCIPAIS } from './menu';
 
     <app-conta [(open)]="conta" />
     <app-tour />
+    <app-sair />
   `,
   styles: `
     .puxar {
@@ -309,6 +316,8 @@ import { Menus, PRINCIPAIS } from './menu';
       }
       .side nav a:hover, .recolher:hover { background: var(--card-2); color: var(--ink); }
       .side nav a.on { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+      .side .sair { color: var(--danger); }
+      .side .sair:hover { background: var(--danger-soft); color: var(--danger); }
       .grupo {
         margin: 12px 4px 2px; padding: 0 10px 4px; border-bottom: 1px solid var(--line);
         font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap;
@@ -344,6 +353,7 @@ export class Shell {
   private toast = inject(Toast);
   protected tema = inject(Tema);
   protected tour = inject(Tour);
+  protected saida = inject(Saida);
   protected fila = inject(Fila);
 
   protected privado = privado;

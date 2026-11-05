@@ -1,6 +1,7 @@
 # Changelog
 
 ## v1.26.11.7 — 2026-11-05
+- Sair do app em vermelho como última opção da seção App (menu lateral e Mais), com confirmação; Sair em Minha conta e Configurações usa a mesma confirmação
 - Valores com máscara: digite só os números e os centavos entram sozinhos (3450 vira 34,50; 56789 vira 567,89) em gastos, parcelados, entradas, contas e demais campos de dinheiro
 - Posso comprar? (Planejamento): corrigido o valor que não mudava a previsão quando o dia a dia estava incluído; agora diz se cabe, aperta ou não cabe, mostra a sobra antes → depois em cada mês com parcela e traz o "Como ler"
 - Passo a passo para quem começa: tour pelos botões principais (abre sozinho em carteira nova; reabre em Passo a passo, abaixo de Configurações no Mais e no menu lateral) e checklist de Primeiros passos no Início
