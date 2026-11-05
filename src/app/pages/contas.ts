@@ -156,12 +156,16 @@ import { Moeda } from '../shared/moeda';
             <button class="row" (click)="editarFixa(r)">
               <span class="ico"><app-icon [name]="s.catMap().get(r.categoria_id ?? '')?.icone ?? 'receipt_long'" /></span>
               <div class="grow">
-                <div class="t">{{ r.descricao }}</div>
+                <div class="t">{{ r.descricao }}@if (encerradas().includes(r)) {<span class="badge perigo enc">Encerrada</span>}</div>
                 <div class="s">{{ cartaoNome(r) ? 'Na fatura do ' + cartaoNome(r) + ', vence dia ' + r.dia : 'Todo dia ' + r.dia }}{{ r.variavel ? ' · variável' : '' }}{{ r.paga_mes_anterior && !cartaoNome(r) ? ' · salário do mês anterior' : '' }}{{ r.beneficio_id ? ' · ' + beneficioNome(r.beneficio_id) : '' }}{{ r.ativo ? '' : ' · inativa' }}{{ r.inicio > dataHoje ? ' · a partir de ' + r.inicio.slice(5, 7) + '/' + r.inicio.slice(0, 4) : '' }}{{ r.fim ? ' · até ' + r.fim.slice(5, 7) + '/' + r.fim.slice(0, 4) : '' }}</div>
               </div>
               <span class="v">{{ s.medias().get(r.id) ?? r.valor | brl }}</span>
             </button>
           }
+          <div class="row tot">
+            <div class="grow"><div class="t">Total</div><div class="s">{{ totalFixas().n }} {{ totalFixas().n === 1 ? 'conta ativa' : 'contas ativas' }}</div></div>
+            <span class="v">{{ totalFixas().valor | brl }}</span>
+          </div>
         </section>
       }
     </div>
@@ -259,6 +263,8 @@ import { Moeda } from '../shared/moeda';
     .sobra { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 2px; }
     .dir { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
     .riscado { color: var(--ink-3); }
+    .enc { margin-left: 6px; vertical-align: 2px; }
+    .row.tot { cursor: default; }
     .centro { text-align: center; margin-top: -6px; }
     .itens { max-height: 40dvh; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; }
     .it { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
@@ -326,6 +332,11 @@ export default class Contas {
   protected fixas = computed(() => this.todasFixas().filter((r) => (!r.fim || r.fim >= mesAtual()) && !this.substituidas().has(r.id)));
   protected encerradas = computed(() => this.todasFixas().filter((r) => r.fim && r.fim < mesAtual()));
   protected verEncerradas = signal(false);
+  /** Encerradas ficam fora; variável entra pela média */
+  protected totalFixas = computed(() => {
+    const l = this.fixas().filter((r) => r.ativo);
+    return { n: l.length, valor: soma(l, (r) => this.s.medias().get(r.id) ?? r.valor) };
+  });
   protected dataHoje = hoje();
   protected itensFatura = computed(() => {
     const c = this.sel();

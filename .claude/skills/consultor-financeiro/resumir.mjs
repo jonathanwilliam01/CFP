@@ -43,15 +43,19 @@ const entradas = T('entradas');
 const ativa = (r, m) => r.ativo && mesDe(r.inicio) <= m && (!r.fim || mesDe(r.fim) >= m);
 const pagoRec = (r, m) => pags.find((p) => p.tipo === 'recorrencia' && p.ref_id === r.id && p.mes === m);
 // competência: cartão pela fatura, resto pela data
-const compet = (g) => (g.forma === 'cartao' && g.fatura_mes ? g.fatura_mes : mesDe(g.data));
+// cartão com paga_mes_anterior: a fatura de M+1 sai do dinheiro de M (financas.ts:faturaDoMes)
+const pma = new Map(cartoes.map((c) => [c.id, c.paga_mes_anterior]));
+const compet = (g) => (g.forma === 'cartao' && g.fatura_mes ? addMeses(g.fatura_mes, pma.get(g.cartao_id) ? -1 : 0) : mesDe(g.data));
+// mês da conta fixa que sai do dinheiro de M
+const mesConta = (r, m) => addMeses(m, (idsCartao.has(r.cartao_id) ? pma.get(r.cartao_id) : r.paga_mes_anterior) ? 1 : 0);
 
 function mesResumo(m) {
   const gm = gastos.filter((g) => compet(g) === m);
   const debito = soma(gm.filter((g) => g.forma === 'debito'));
   const cartao = soma(gm.filter((g) => g.forma === 'cartao'));
   const benef = soma(gm.filter((g) => g.forma === 'beneficio'));
-  const fixas = recs.filter((r) => r.tipo === 'conta' && ativa(r, m));
-  const valorFixa = (r) => pagoRec(r, m)?.valor ?? r.valor;
+  const fixas = recs.filter((r) => r.tipo === 'conta' && ativa(r, mesConta(r, m)));
+  const valorFixa = (r) => pagoRec(r, mesConta(r, m))?.valor ?? r.valor;
   const fixasCartao = soma(fixas.filter((r) => idsCartao.has(r.cartao_id)), valorFixa);
   const fixasBenef = soma(fixas.filter((r) => !idsCartao.has(r.cartao_id) && r.beneficio_id), valorFixa);
   const fixasDinheiro = soma(fixas.filter((r) => !idsCartao.has(r.cartao_id) && !r.beneficio_id), valorFixa);
@@ -172,8 +176,12 @@ const bens = T('beneficios').filter((x) => x.ativo);
 if (bens.length) {
   p('\n## Benefícios');
   for (const x of bens) {
-    const uso = media(base.map((r) => soma(r.gm.filter((g) => g.beneficio_id === x.id))));
-    p(`- ${x.nome}: ${brl(x.valor_mensal)}/mês${x.acumula ? ' (acumula)' : ''}, uso médio ${brl(uso)}`);
+    const usoMes = (r) => soma(r.gm.filter((g) => g.beneficio_id === x.id)) + soma(r.fixas.filter((f) => f.beneficio_id === x.id), r.valorFixa);
+    const desde = R.filter((r) => r.m >= mesDe(x.inicio));
+    const base2 = desde.filter((r) => !parcial(r.m));
+    const usado = soma(desde, usoMes);
+    const credito = desde.length * x.valor_mensal;
+    p(`- ${x.nome}: ${brl(x.valor_mensal)}/mês${x.acumula ? ' (acumula)' : ''}, desde ${x.inicio.slice(0, 7)}; uso médio ${brl(media(base2.map(usoMes)))}/mês; no período creditado ${brl(credito)}, usado ${brl(usado)}, sobra ${brl(credito - usado)}`);
   }
 }
 

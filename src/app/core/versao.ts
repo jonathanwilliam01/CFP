@@ -8,6 +8,13 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.8',
+    data: '2026-11-05',
+    itens: [
+      'Contas fixas cadastradas: total das contas ativas no fim da lista e etiqueta Encerrada nas que aparecem ao abrir as encerradas',
+    ],
+  },
+  {
     versao: 'v1.26.11.7',
     data: '2026-11-05',
     itens: [

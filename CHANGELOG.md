@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.26.11.8 — 2026-11-05
+- Contas fixas cadastradas: total das contas ativas no fim da lista e etiqueta Encerrada nas que aparecem ao abrir as encerradas
+
 ## v1.26.11.7 — 2026-11-05
 - Sair do app em vermelho como última opção da seção App (menu lateral e Mais), com confirmação; Sair em Minha conta e Configurações usa a mesma confirmação
 - Valores com máscara: digite só os números e os centavos entram sozinhos (3450 vira 34,50; 56789 vira 567,89) em gastos, parcelados, entradas, contas e demais campos de dinheiro
