@@ -6,5 +6,6 @@
   "037": ["carteira_membros.push_fatura", "carteira_membros.lembrete_saldos"],
   "038": ["recorrencias.dia_util"],
   "039": ["suspensos.user_id"],
-  "040": ["acessos.dia", "erros_app.id"]
+  "040": ["acessos.dia", "erros_app.id"],
+  "041": ["funcoes_status.chave", "comunicados.id"]
 }
