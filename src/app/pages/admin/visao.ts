@@ -2,13 +2,11 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Admin } from '../../core/admin';
 import { FUNCOES } from '../../core/funcoes';
-import MARCAS from '../../core/marcas-banco.json';
+import { migracoesFaltando } from '../../core/migracoes';
 import { AdminMetricas } from '../../core/models';
-import { supabase } from '../../core/supabase';
 import { Icon } from '../../shared/icon';
 
 const NOMES = Object.fromEntries(FUNCOES.map((f) => [f.chave, f.nome]));
-const marcas = MARCAS as Record<string, string[]>;
 
 @Component({
   imports: [DecimalPipe, DatePipe, Icon],
@@ -183,10 +181,6 @@ export default class AdminVisao {
   }
 
   private async checarMigrations() {
-    const itens = Object.values(marcas).flat();
-    const { data } = await supabase.rpc('colunas_faltando', { p_itens: itens });
-    const falta = new Set((data as string[] | null) ?? []);
-    if (!falta.size) return;
-    this.faltando.set(Object.keys(marcas).filter((n) => marcas[n].some((i) => falta.has(i))));
+    this.faltando.set((await migracoesFaltando()).map((m) => m.migracao));
   }
 }
