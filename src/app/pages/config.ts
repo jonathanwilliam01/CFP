@@ -79,6 +79,25 @@ import { Saida } from '../shared/sair';
             Dividir gastos entre os membros
           </label>
           <p class="small muted">Opcional. No lançamento escolhe quem pagou e se o gasto é dividido; o Início mostra quem deve quanto no mês.</p>
+          @if (s.divisao() && s.membros().length > 1) {
+            <label class="check">
+              <input type="checkbox" [checked]="proporcional()" (change)="alternarProporcional()" [disabled]="ocupado()" />
+              Dividir por percentual (ex.: pela renda de cada um)
+            </label>
+            @if (proporcional()) {
+              <div class="pesos">
+                @for (m of s.membros(); track m.user_id) {
+                  <label class="peso"><span>{{ m.nome }}</span><input type="number" inputmode="numeric" min="0" max="100" step="1" [ngModel]="pesoDe(m)" (ngModelChange)="mudarPeso(m.user_id, $event)" /><b>%</b></label>
+                }
+                <p class="small" [class.neg]="somaPesos() !== 100" [class.muted]="somaPesos() === 100">Soma {{ somaPesos() }}%{{ somaPesos() !== 100 ? ': precisa dar 100%' : '' }}</p>
+                <div class="grid2">
+                  <button class="btn ghost" type="button" (click)="pelaRenda()" [disabled]="ocupado()"><app-icon name="payments" [size]="18" />Pela renda do mês</button>
+                  <button class="btn" type="button" (click)="salvarPesos()" [disabled]="ocupado() || somaPesos() !== 100">Salvar</button>
+                </div>
+                <p class="small muted">"Pela renda do mês" usa as entradas avulsas que cada um lançou no mês do topo (entradas fixas não têm dono).</p>
+              </div>
+            }
+          }
           @if (s.souDono()) {
             <button class="btn ghost" type="button" (click)="novoCodigo()" [disabled]="ocupado()"><app-icon name="autorenew" [size]="18" />Gerar novo código</button>
           }
@@ -357,6 +376,9 @@ import { Saida } from '../shared/sair';
     <app-visor [(url)]="foto" />
   `,
   styles: `
+    .pesos { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+    .peso { display: grid; grid-template-columns: minmax(0, 1fr) 80px auto; align-items: center; gap: 8px; }
+    .peso input { text-align: right; }
     .linha { display: flex; gap: 8px; }
     .cores { display: flex; gap: 10px; flex-wrap: wrap; }
     .cores button {
@@ -535,6 +557,47 @@ export default class Config {
   }
 
   protected lembrete = computed(() => this.s.membros().find((m) => m.user_id === this.auth.user()?.id)?.lembrete !== false);
+
+  /** Divisão por percentual: ligada quando todos os membros têm peso salvo */
+  private pesosSalvos = computed(() => this.s.membros().length > 1 && this.s.membros().every((m) => m.peso != null));
+  private editandoPesos = signal<boolean | null>(null);
+  protected proporcional = computed(() => this.editandoPesos() ?? this.pesosSalvos());
+  private pesos = signal<Record<string, number>>({});
+  protected pesoDe = (m: Membro) => this.pesos()[m.user_id] ?? m.peso ?? Math.round(100 / this.s.membros().length);
+  protected somaPesos = computed(() => this.s.membros().reduce((a, m) => a + (Number(this.pesoDe(m)) || 0), 0));
+  mudarPeso(id: string, v: number) {
+    this.pesos.update((p) => ({ ...p, [id]: Math.max(0, Math.min(100, Math.round(Number(v) || 0))) }));
+  }
+
+  alternarProporcional() {
+    if (!this.proporcional()) return this.editandoPesos.set(true);
+    this.editandoPesos.set(false);
+    this.pesos.set({});
+    if (this.pesosSalvos()) this.gravarPesos({}, 'Divisão por igual');
+  }
+
+  pelaRenda() {
+    const ms = this.s.membros();
+    const renda = ms.map((m) => this.s.entradasMes().filter((e) => e.criado_por === m.user_id).reduce((a, e) => a + e.valor, 0));
+    const total = renda.reduce((a, b) => a + b, 0);
+    if (!total) return this.toast.erro('Nenhuma entrada avulsa lançada pelos membros neste mês');
+    const pct = renda.map((v) => Math.round((v / total) * 100));
+    pct[pct.length - 1] += 100 - pct.reduce((a, b) => a + b, 0);
+    this.pesos.set(Object.fromEntries(ms.map((m, i) => [m.user_id, pct[i]])));
+  }
+
+  salvarPesos() {
+    this.gravarPesos(Object.fromEntries(this.s.membros().map((m) => [m.user_id, this.pesoDe(m)])), 'Divisão por percentual salva');
+  }
+
+  private gravarPesos(p_pesos: Record<string, number>, ok: string) {
+    return this.exec(async () => {
+      await q(supabase.rpc('definir_pesos', { p_carteira: this.s.carteiraId()!, p_pesos }));
+      await this.s.iniciar();
+      this.editandoPesos.set(null);
+      this.pesos.set({});
+    }, ok);
+  }
 
   alternarDivisao() {
     const divisao = !this.s.divisao();

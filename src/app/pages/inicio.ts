@@ -158,7 +158,7 @@ import { PrimeirosPassos } from '../shared/primeiros-passos';
           @if (diferenca(); as d) { <p class="small muted">{{ d.nome }} gastou {{ d.valor | brl }} a mais no mês.</p> }
           @if (s.acerto(); as a) {
             <div class="acerto">
-              <span class="small muted">Divididos {{ a.total | brl }} · {{ a.parte | brl }} para cada</span>
+              <span class="small muted">Divididos {{ a.total | brl }} · {{ a.partes ? partesTexto(a.partes) : (a.parte | brl) + ' para cada' }}</span>
               @for (t of a.transferencias; track t.de + t.para) {
                 <div class="l">
                   <span><b>{{ nomeDe(t.de) }}</b> deve {{ t.valor | brl }} para <b>{{ nomeDe(t.para) }}</b></span>
@@ -455,6 +455,7 @@ export default class Inicio {
     return l.map((x) => ({ ...x, pct: pct(x.total, max) })).sort((a, b) => b.total - a.total);
   });
   protected nomeDe = (id: string) => this.s.nomeAutor(id);
+  protected partesTexto = (ps: { id: string; valor: number; pct: number }[]) => ps.map((p) => `${this.nomeDe(p.id)} ${moeda(p.valor)} (${p.pct}%)`).join(', ');
   async acertar(t: Transferencia) {
     if (!confirm(`Registrar que ${this.nomeDe(t.de)} pagou ${moeda(t.valor)} para ${this.nomeDe(t.para)}?`)) return;
     await this.s.acertar(t);

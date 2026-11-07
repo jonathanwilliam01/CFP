@@ -14,11 +14,11 @@ import { Atualizacao } from '../shared/atualizar';
 import { Patrimonios } from '../core/patrimonio';
 import { Tema } from '../core/tema';
 import { VERSAO } from '../core/versao';
-import { addMeses } from '../core/datas';
+import { addMeses, diffDias, hoje, mesAtual } from '../core/datas';
 import { alternarPrivado, privado } from '../core/formato';
 import { Avatar } from '../shared/avatar';
 import { BloqueioTela } from './bloqueio';
-import { tirarCompartilhado } from '../core/arquivos';
+import { eExtrato, extratoPendente, tirarCompartilhado } from '../core/arquivos';
 import { prepararComprovante } from '../core/comprovante';
 import { Buscador } from '../shared/buscador';
 import { Calculadora } from '../shared/calculadora';
@@ -37,7 +37,7 @@ import { Menus, PRINCIPAIS } from './menu';
   selector: 'app-shell',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora, BloqueioTela, TourView, SairModal, Destaque],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '[class.recolhido]': 'recolhido()', '(document:keydown)': 'atalho($event)', '(window:scroll)': 'rolou()' },
+  host: { '[class.recolhido]': 'recolhido()', '(document:keydown)': 'atalho($event)', '(document:dragover)': 'arrastando($event)', '(document:dragleave)': 'saiu($event)', '(document:drop)': 'soltou($event)', '(window:scroll)': 'rolou()' },
   template: `
     <app-bloqueio />
     <header class="top">
@@ -197,8 +197,16 @@ import { Menus, PRINCIPAIS } from './menu';
     <app-tour />
     <app-sair />
     <app-destaque />
+    @if (soltando()) {
+      <div class="soltar"><app-icon name="upload_file" [size]="48" /><b>Solte o arquivo</b><span>CSV ou OFX vai para Importar · foto ou PDF vira lançamento com comprovante</span></div>
+    }
   `,
   styles: `
+    .soltar {
+      position: fixed; inset: 12px; z-index: 60; border: 3px dashed var(--primary); border-radius: 24px; background: color-mix(in srgb, var(--bg) 88%, transparent);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--primary); pointer-events: none; text-align: center; padding: 24px;
+    }
+    .soltar span { color: var(--ink-2); font-size: 0.9rem; }
     .puxar {
       position: fixed; z-index: 25; left: 50%; top: calc(64px + env(safe-area-inset-top, 0px)); transform: translate(-50%, calc(var(--p) * 30px - 20px));
       width: 40px; height: 40px; border-radius: 50%; background: var(--card); box-shadow: var(--shadow), 0 2px 10px rgb(0 0 0 / 0.15);
@@ -431,13 +439,54 @@ export class Shell {
     effect(() => {
       if (this.s.carteiraId() && !this.s.carregando() && this.s.contasBancarias().length + this.s.cofrinhos().length) untracked(() => pat.diaria());
     });
+    effect(() => {
+      if (!this.s.pronto() || this.s.mes() !== mesAtual()) return;
+      const d = hoje();
+      this.urgentes.set(this.s.contasMes().filter((c) => !c.pago && !c.beneficio_id && diffDias(d, c.vencimento) <= 3).length);
+    });
+    effect(() => {
+      const n = this.urgentes();
+      const nav = navigator as Navigator & { setAppBadge?: (n: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+      (n ? nav.setAppBadge?.(n) : nav.clearAppBadge?.())?.catch(() => {});
+    });
     inject(DestroyRef).onDestroy(() => (sub.unsubscribe(), nav.unsubscribe()));
+  }
+
+  /** Contas do mês corrente vencidas ou vencendo em até 3 dias, sem pagar: no menu e no ícone do app */
+  protected urgentes = signal(0);
+
+  /** Arrastar arquivo para a janela (desktop) */
+  protected soltando = signal(false);
+  private temArquivo = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files');
+  arrastando(e: DragEvent) {
+    if (!this.temArquivo(e) || document.querySelector('[role="dialog"]')) return;
+    e.preventDefault();
+    this.soltando.set(true);
+  }
+  saiu(e: DragEvent) {
+    if (!e.relatedTarget) this.soltando.set(false);
+  }
+  soltou(e: DragEvent) {
+    const f = e.dataTransfer?.files[0];
+    if (!this.soltando() || !f) return;
+    e.preventDefault();
+    this.soltando.set(false);
+    this.abrirArquivo(f, '');
+  }
+  private async abrirArquivo(f: File, texto: string) {
+    if (eExtrato(f)) {
+      extratoPendente.set(f);
+      return void this.router.navigateByUrl('/importar');
+    }
+    if (!/^image\/|^application\/pdf$/.test(f.type)) return this.toast.erro('Use CSV/OFX, foto ou PDF');
+    this.lancar.deTexto(texto, await prepararComprovante(f));
   }
 
   private async abrirCompartilhado() {
     try {
       const c = await tirarCompartilhado();
       if (!c) return;
+      if (c.arquivo && eExtrato(c.arquivo)) return this.abrirArquivo(c.arquivo, c.texto);
       this.lancar.deTexto(c.texto, c.arquivo ? await prepararComprovante(c.arquivo) : null);
     } catch (e) {
       this.toast.erro(e);
@@ -449,6 +498,7 @@ export class Shell {
   }
 
   badge(rota: string) {
+    if (rota === '/contas') return this.urgentes();
     return rota === '/notificacoes' ? this.insights.naoLidas().length + this.comunicados.naoLidos().length : rota === '/chat' ? this.chat.naoLidas() : 0;
   }
 
@@ -487,6 +537,10 @@ export class Shell {
   /** Fora de campos e painéis: N lança gasto, / abre a busca, ← e → trocam o mês */
   atalho(e: KeyboardEvent) {
     if (e.key === 'Escape' && this.pop()) return this.pop.set(null);
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      return this.pop.set(this.pop() === 'busca' ? null : 'busca');
+    }
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
     const k = e.key === '/' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' ? e.key : e.key.toLowerCase();
     if (k !== 'n' && k !== '/' && k !== 'ArrowLeft' && k !== 'ArrowRight') return;

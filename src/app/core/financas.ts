@@ -726,7 +726,8 @@ export interface Transferencia {
 }
 
 /**
- * Acerto do mês entre os membros: gastos divididos com data no mês (sem benefício) rateados por igual.
+ * Acerto do mês entre os membros: gastos divididos com data no mês (sem benefício) rateados por igual,
+ * ou pelo `pesos` (% de cada membro) quando todos têm peso e a soma é positiva.
  * Saldo positivo = tem a receber. Acertos já feitos no mês entram no saldo; transferências quitam do maior devedor ao maior credor.
  */
 export function acertoMes(
@@ -734,11 +735,15 @@ export function acertoMes(
   membros: string[],
   acertos: { mes: string; de: string | null; para: string | null; valor: number }[],
   mes: string,
+  pesos?: Map<string, number | null | undefined>,
 ) {
   const div = gastos.filter((g) => g.dividido !== false && g.forma !== 'beneficio' && noMes(g.data, mes));
   const total = soma(div, (g) => g.valor);
   const parte = membros.length ? total / membros.length : 0;
-  const saldo = new Map(membros.map((m) => [m, -parte]));
+  const somaPesos = membros.reduce((a, m) => a + (pesos?.get(m) ?? NaN), 0);
+  const proporcional = somaPesos > 0;
+  const parteDe = (m: string) => (proporcional ? (total * pesos!.get(m)!) / somaPesos : parte);
+  const saldo = new Map(membros.map((m) => [m, -parteDe(m)]));
   const somar = (id: string, v: number) => saldo.has(id) && saldo.set(id, saldo.get(id)! + v);
   for (const g of div) somar(g.pago_por ?? g.criado_por ?? '', g.valor);
   for (const a of acertos.filter((a) => a.mes === mes)) {
@@ -757,7 +762,8 @@ export function acertoMes(
       d.v -= v;
       c.v -= v;
     }
-  return { total: r2(total), parte: r2(parte), saldos: new Map([...saldo].map(([k, v]) => [k, r2(v)])), transferencias };
+  const partes = proporcional ? membros.map((id) => ({ id, valor: r2(parteDe(id)), pct: Math.round((pesos!.get(id)! / somaPesos) * 100) })) : null;
+  return { total: r2(total), parte: r2(parte), partes, saldos: new Map([...saldo].map(([k, v]) => [k, r2(v)])), transferencias };
 }
 
 /** Alíquota do IR na renda fixa pelo prazo em meses (tabela regressiva) */

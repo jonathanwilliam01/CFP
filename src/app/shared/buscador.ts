@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, effect, inject, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+import { ATALHOS, PRINCIPAIS } from '../layout/menu';
 import { BrlPipe, DiaPipe, parseValor, soma } from '../core/formato';
 import { Entrada, Gasto } from '../core/models';
 import { Store } from '../core/store';
@@ -20,12 +21,24 @@ const LIMITE = 100;
   template: `
       <label class="busca">
         <app-icon name="search" [size]="20" />
-        <input type="search" autofocus (keydown.escape)="fechar.emit()" placeholder="Descrição, categoria, #marcador ou valor" [ngModel]="termo()" (ngModelChange)="termo.set($event)" />
+        <input type="search" autofocus (keydown.escape)="fechar.emit()" (keydown.enter)="irPrimeira()" placeholder="Descrição, categoria, #marcador ou valor" [ngModel]="termo()" (ngModelChange)="termo.set($event)" />
       </label>
 
       @if (termo().trim().length < 2) {
         <p class="small muted dica">Digite ao menos 2 letras. Valor com centavos (49,90) acha o exato, só reais (49) acha de 49,00 a 49,99; #viagem busca pelo marcador.</p>
       } @else {
+        @if (telas().length) {
+          <div class="card-head"><h2>Ir para</h2><span class="small muted">Enter abre a primeira</span></div>
+          <section class="list">
+            @for (t of telas(); track t.rota) {
+              <a class="row" [routerLink]="t.rota" (click)="fechar.emit()">
+                <span class="ico"><app-icon [name]="t.icone" /></span>
+                <div class="grow"><div class="t">{{ t.rotulo }}</div></div>
+                <app-icon name="arrow_forward" [size]="18" />
+              </a>
+            }
+          </section>
+        }
         @if (gastos().length) {
           <div class="card-head"><h2>Gastos</h2><span class="small muted">{{ gastos().length }}{{ gastos().length === limite ? '+' : '' }} · <b class="num">{{ totalGastos() | brl }}</b></span></div>
           <section class="list">
@@ -63,7 +76,7 @@ const LIMITE = 100;
             }
           </section>
         }
-        @if (!buscando() && !gastos().length && !entradas().length && !outros().length) {
+        @if (!buscando() && !telas().length && !gastos().length && !entradas().length && !outros().length) {
           <div class="empty"><app-icon class="big" name="search_off" [size]="40" />Nada encontrado.</div>
         }
       }
@@ -87,6 +100,18 @@ export class Buscador {
   protected limite = LIMITE;
 
   protected termo = signal('');
+  private router = inject(Router);
+  /** Telas pelo nome: busca também serve de paleta de comandos (Ctrl+K) */
+  protected telas = computed(() => {
+    const t = normalizar(this.termo().trim());
+    return t.length < 2 ? [] : [...PRINCIPAIS, ...ATALHOS].filter((x) => normalizar(x.rotulo).includes(t)).slice(0, 5);
+  });
+  irPrimeira() {
+    const t = this.telas()[0];
+    if (!t) return;
+    this.router.navigateByUrl(t.rota);
+    this.fechar.emit();
+  }
   protected buscando = signal(false);
   protected gastos = signal<Gasto[]>([]);
   protected entradas = signal<Entrada[]>([]);

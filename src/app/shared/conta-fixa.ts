@@ -23,6 +23,7 @@ interface FormFixa {
   variavel: boolean;
   paga_mes_anterior: boolean;
   beneficio_id: string | null;
+  pagamento: string;
   hist: { id?: string; mes: string; valor: number }[];
   removidos: string[];
 }
@@ -42,6 +43,9 @@ interface FormFixa {
           @for (b of s.beneficiosAtivos(); track b.id) { <option [ngValue]="'b:' + b.id">{{ b.nome }}</option> }
         </select>
       </label>
+      @if (!f().cartao_id && !f().beneficio_id) {
+        <label class="field"><span>Chave Pix ou código do boleto (opcional)</span><input name="pgc" [ngModel]="f().pagamento" (ngModelChange)="set('pagamento', $event)" maxlength="300" placeholder="Copiado com um toque na hora de pagar" /></label>
+      }
       <label class="check"><input name="var" type="checkbox" [ngModel]="f().variavel" (ngModelChange)="set('variavel', $event)" />Valor variável (ex.: luz, água)</label>
       <div class="grid2">
         <label class="field"><span>{{ f().variavel ? 'Valor estimado' : 'Valor (previsto)' }}</span><input name="v" moeda inputmode="numeric" [ngModel]="f().valor" (ngModelChange)="set('valor', $event)" /></label>
@@ -137,7 +141,7 @@ export class ContaFixa implements OnInit {
       this.f.set({
         id: r.id, descricao: r.descricao, valor: String(r.valor).replace('.', ','), dia: r.dia, categoria_id: r.categoria_id,
         inicio: r.inicio.slice(0, 7), fim: r.fim?.slice(0, 7) ?? '', ativo: r.ativo, cartao_id: r.cartao_id ?? null,
-        variavel: r.variavel, paga_mes_anterior: r.paga_mes_anterior, beneficio_id: r.beneficio_id ?? null, removidos: [],
+        variavel: r.variavel, paga_mes_anterior: r.paga_mes_anterior, beneficio_id: r.beneficio_id ?? null, pagamento: r.pagamento ?? '', removidos: [],
         hist: this.s.valoresFixas().filter((v) => v.ref_id === r.id).map(({ id, mes, valor }) => ({ id, mes, valor })),
       });
     const x = this.sugestao();
@@ -152,7 +156,7 @@ export class ContaFixa implements OnInit {
   private vazio(): FormFixa {
     return {
       descricao: '', valor: '', dia: 10, categoria_id: null, inicio: mesAtual().slice(0, 7), fim: '', ativo: true, cartao_id: null,
-      variavel: false, paga_mes_anterior: false, beneficio_id: null, hist: [], removidos: [],
+      variavel: false, paga_mes_anterior: false, beneficio_id: null, pagamento: '', hist: [], removidos: [],
     };
   }
 
@@ -184,6 +188,7 @@ export class ContaFixa implements OnInit {
         categoria_id: f.categoria_id, inicio: `${f.inicio || mesAtual().slice(0, 7)}-01`, fim: f.fim ? `${f.fim}-01` : null, ativo: f.ativo,
         cartao_id: f.cartao_id, variavel: f.variavel, paga_mes_anterior: !f.cartao_id && !f.beneficio_id && f.paga_mes_anterior,
         beneficio_id: f.cartao_id ? null : f.beneficio_id,
+        pagamento: (!f.cartao_id && !f.beneficio_id && f.pagamento.trim()) || null,
       });
       if (f.variavel) {
         const novos = f.hist.filter((h) => !h.id).map((h) => ({ mes: h.mes, valor: h.valor, pago_em: diaNoMes(h.mes, dia) }));

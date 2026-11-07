@@ -72,6 +72,18 @@
       ]
     },
     {
+      "name": "Contas do mês",
+      "short_name": "Contas",
+      "url": "./contas",
+      "icons": [
+        {
+          "src": "icons/icon-96x96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
       "name": "Compra parcelada",
       "short_name": "Parcelado",
       "url": "./?lancar=parcelado",
@@ -104,7 +116,20 @@
       "title": "titulo",
       "text": "texto",
       "url": "link",
-      "files": [{ "name": "arquivo", "accept": ["image/*", "application/pdf"] }]
+      "files": [
+        {
+          "name": "arquivo",
+          "accept": [
+            "image/*",
+            "application/pdf",
+            "text/csv",
+            "text/comma-separated-values",
+            "application/x-ofx",
+            ".csv",
+            ".ofx"
+          ]
+        }
+      ]
     }
   }
 }

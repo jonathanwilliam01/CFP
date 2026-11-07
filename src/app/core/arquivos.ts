@@ -1,3 +1,9 @@
+import { signal } from '@angular/core';
+
+/** Extrato CSV/OFX solto na janela ou compartilhado: Importar lê ao abrir */
+export const extratoPendente = signal<File | null>(null);
+export const eExtrato = (f: File) => /\.(csv|ofx)$/i.test(f.name);
+
 /** Arquivos guardados no aparelho (IndexedDB) até a internet voltar, pela chave do lançamento */
 const abrir = () =>
   new Promise<IDBDatabase>((ok, falha) => {

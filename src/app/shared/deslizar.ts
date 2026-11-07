@@ -95,6 +95,7 @@ export class Deslizar {
     if (this.arrastando()) {
       this.bloquearClique = true;
       setTimeout(() => (this.bloquearClique = false), 300);
+      if (Math.abs(this.dx()) >= LIMITE) navigator.vibrate?.(15);
       if (this.dx() <= -LIMITE) this.esquerdaFeito.emit();
       else if (this.dx() >= LIMITE) this.direitaFeito.emit();
     }

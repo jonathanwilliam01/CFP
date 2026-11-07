@@ -32,6 +32,8 @@ export interface Membro {
   /** push no dia em que a fatura fecha e lembrete semanal dos saldos (037) */
   push_fatura?: boolean;
   lembrete_saldos?: boolean;
+  /** % do membro na divisão; null em todos = por igual (043) */
+  peso?: number | null;
 }
 
 export interface Categoria {
@@ -136,6 +138,8 @@ export interface Recorrencia {
   beneficio_id: string | null;
   /** recorrência anterior encerrada pelo reajuste */
   reajuste_de?: string | null;
+  /** chave Pix ou linha digitável para pagar (043) */
+  pagamento?: string | null;
 }
 
 export interface Pagamento {

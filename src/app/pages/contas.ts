@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { addMeses, diffDias, hoje, inicioMes, mesesEntre, nomeMes } from '../core/datas';
 import { ACIMA_MEDIA, CompraRecorrente, Recebimento, aporteMensal, fixasNaFatura, mediaContas, noMes } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, parseValor, soma } from '../core/formato';
 import { Cartao, Cofrinho, ContaMes, Gasto, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
+import { CodigoLido, lerCodigo } from '../core/boleto';
 import { ContaFixa } from '../shared/conta-fixa';
 import { AcaoDeslizar, Deslizar } from '../shared/deslizar';
 import { Icon } from '../shared/icon';
@@ -15,7 +17,7 @@ import { taxas } from './calc/comum';
 import { Moeda } from '../shared/moeda';
 
 @Component({
-  imports: [Moeda, FormsModule, RouterLink, BrlPipe, PrivPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa, Deslizar],
+  imports: [NgTemplateOutlet, Moeda, FormsModule, RouterLink, BrlPipe, PrivPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa, Deslizar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -31,6 +33,7 @@ import { Moeda } from '../shared/moeda';
         <div class="stat"><div class="l">À vista no mês</div><div class="v">{{ s.resumo().avista | brl }}</div></div>
       </div>
 
+      <div class="col">
       @if (recebimentos().length) {
         <div class="card-head"><h2>Por recebimento</h2>
           @if (s.entradaMesSeguinte()) { <button type="button" class="btn ghost sm" (click)="s.trocarRecebimento(); diaSel.set(null)">{{ s.recebimentoModo() === 'mes' ? 'No mês' : 'Competência' }}<app-icon name="swap_horiz" [size]="16" /></button> }
@@ -54,23 +57,73 @@ import { Moeda } from '../shared/moeda';
           @if (temReserva()) { A <app-icon class="fl" name="flag" [size]="13" [fill]="true" /> mostra o que os orçamentos reservam e ainda não foi gasto: entra na sobra. }</p>
       }
 
-      <section class="card list">
-        @for (c of contasLista(); track c.tipo + c.ref_id) {
-          <app-deslizar [esquerda]="c.pago ? desfazerAcao : pagarAcao" (esquerdaFeito)="c.pago ? desfazer(c) : pagarRapido(c)">
-          <button class="row" (click)="abrir(c)">
+      @if (contasBase().length) {
+        <div class="progresso" role="progressbar" [attr.aria-valuenow]="progresso().pct" aria-valuemin="0" aria-valuemax="100">
+          <div class="pl"><span>Pago {{ progresso().pago | brl }} de {{ progresso().total | brl }}</span><b>{{ progresso().pct }}%</b></div>
+          <div class="barra"><span [style.width.%]="progresso().pct"></span></div>
+        </div>
+        <div class="filtros">
+          <div class="chips">
+            @for (o of opcoes(); track o.k) {
+              <button type="button" class="chip" [class.on]="filtro() === o.k" [class.vermelho]="o.k === 'vencidas' && o.n" (click)="filtro.set(o.k)">{{ o.r }}@if (o.n !== null) { <span class="n">{{ o.n }}</span> }</button>
+            }
+          </div>
+          <div class="acoes">
+            <button type="button" class="btn ghost sm" (click)="ordem.set(ordem() === 'venc' ? 'valor' : 'venc')" [attr.aria-label]="'Ordenar por ' + (ordem() === 'venc' ? 'valor' : 'vencimento')">
+              <app-icon name="sort" [size]="16" />{{ ordem() === 'venc' ? 'Vencimento' : 'Valor' }}</button>
+            @if (abertas().length > 1) {
+              <button type="button" class="btn ghost sm" [class.on]="selecionando()" (click)="alternarSelecao()"><app-icon name="checklist" [size]="16" />{{ selecionando() ? 'Cancelar' : 'Selecionar' }}</button>
+            }
+          </div>
+        </div>
+      }
+
+      <ng-template #linha let-c>
+        <button class="row" [class.venc]="!c.pago && st(c).c === 'perigo'" (click)="selecionando() && !c.pago ? marcar(c) : abrir(c)">
+          @if (selecionando() && !c.pago) {
+            <span class="ico sel" [class.on]="marcadas().has(chave(c))"><app-icon [name]="marcadas().has(chave(c)) ? 'check_box' : 'check_box_outline_blank'" [fill]="marcadas().has(chave(c))" /></span>
+          } @else {
             <span class="ico" [style.background]="c.cor + '22'" [style.color]="c.cor"><app-icon [name]="c.icone" /></span>
-            <div class="grow">
-              <div class="t">{{ c.descricao }}</div>
-              <div class="s">Vence {{ c.vencimento | dia }}{{ c.media ? ' · pela média' : '' }}{{ c.informado ? ' · valor do mês' : '' }}{{ c.beneficio_id ? ' · ' + beneficioNome(c.beneficio_id) : '' }}{{ c.mes > s.mes() ? ' · paga com o salário deste mês' : c.mes < s.mes() ? ' · de ' + (c.mes | mes: true) : '' }}@if (c.tipo === 'fatura' && reservaCartao().get(c.ref_id); as rv) { · <span class="fl">⚑ +{{ rv | brl }} reservado</span>}</div>
-            </div>
-            <div class="dir">
-              <span class="v" [class.riscado]="c.pago">{{ c.valor | brl }}</span>
-              <span class="badge" [class]="st(c).c">{{ st(c).r }}</span>
-            </div>
-          </button>
-          </app-deslizar>
+          }
+          <div class="grow">
+            <div class="t">{{ c.descricao }}</div>
+            <div class="s">Vence {{ c.vencimento | dia }}{{ c.media ? ' · pela média' : '' }}{{ c.informado ? ' · valor do mês' : '' }}{{ c.beneficio_id ? ' · ' + beneficioNome(c.beneficio_id) : '' }}{{ c.mes > s.mes() ? ' · paga com o salário deste mês' : c.mes < s.mes() ? ' · de ' + (c.mes | mes: true) : '' }}@if (c.tipo === 'fatura' && reservaCartao().get(c.ref_id); as rv) { · <span class="fl">⚑ +{{ rv | brl }} reservado</span>}</div>
+          </div>
+          <div class="dir">
+            <span class="v" [class.riscado]="c.pago">{{ c.valor | brl }}</span>
+            <span class="badge" [class]="st(c).c">{{ st(c).r }}</span>
+          </div>
+        </button>
+      </ng-template>
+
+      <section class="card list">
+        @for (c of visiveis(); track c.tipo + c.ref_id) {
+          @if (selecionando()) {
+            <ng-container *ngTemplateOutlet="linha; context: { $implicit: c }" />
+          } @else {
+            <app-deslizar [esquerda]="c.pago ? desfazerAcao : pagarAcao" (esquerdaFeito)="c.pago ? desfazer(c) : pagarRapido(c)">
+              <ng-container *ngTemplateOutlet="linha; context: { $implicit: c }" />
+            </app-deslizar>
+          }
         }
-        @for (r of reservasLista(); track r.orcamento_id) {
+        @if (filtro() === 'todas' && pagas().length) {
+          <button type="button" class="row sep" (click)="alternarPagas()" [attr.aria-expanded]="verPagas()">
+            <span class="ico"><app-icon name="task_alt" /></span>
+            <div class="grow"><div class="t">Pagas ({{ pagas().length }})</div><div class="s">{{ totalPagas() | brl }}</div></div>
+            <app-icon [name]="verPagas() ? 'expand_less' : 'expand_more'" />
+          </button>
+          @if (verPagas()) {
+            @for (c of pagas(); track c.tipo + c.ref_id) {
+              <app-deslizar [esquerda]="desfazerAcao" (esquerdaFeito)="desfazer(c)">
+                <ng-container *ngTemplateOutlet="linha; context: { $implicit: c }" />
+              </app-deslizar>
+            }
+          }
+        }
+        @if (filtro() !== 'todas' && contasBase().length && !visiveis().length) {
+          <p class="small muted vazio">{{ filtro() === 'vencidas' ? 'Nenhuma conta vencida.' : filtro() === 'pagas' ? 'Nenhuma conta paga ainda.' : 'Tudo pago neste mês.' }}</p>
+        }
+        @for (r of mostraReservas() ? reservasLista() : []; track r.orcamento_id) {
           <app-deslizar [esquerda]="desconsiderarAcao" (esquerdaFeito)="desconsiderar(r.orcamento_id, r.nome)">
             <a class="row" routerLink="/orcamentos">
               <span class="ico flag"><app-icon name="flag" [fill]="true" /></span>
@@ -79,18 +132,28 @@ import { Moeda } from '../shared/moeda';
             </a>
           </app-deslizar>
         }
-        @if (!contasLista().length && !reservasLista().length && s.carregandoMes()) {
+        @if (!contasBase().length && !reservasLista().length && s.carregandoMes()) {
           @for (i of [1, 2, 3]; track i) { <span class="esqueleto" style="height: 44px; margin: 8px 0"></span> }
-        } @else if (!contasLista().length && !reservasLista().length) {
+        } @else if (!contasBase().length && !reservasLista().length) {
           <div class="empty"><app-icon class="big" name="calendar_month" [size]="40" />Nenhuma conta neste mês.<br />
             <span class="small">Cadastre contas fixas (aluguel, luz, internet) e as faturas dos cartões aparecem aqui sozinhas.</span>
           </div>
         }
       </section>
-      @if (contasLista().length || reservasLista().length) {
+      @if (marcadas().size) {
+        <div class="lote">
+          <span>{{ marcadas().size }} {{ marcadas().size === 1 ? 'conta' : 'contas' }} · <b>{{ totalMarcadas() | brl }}</b></span>
+          <button type="button" class="btn sm" (click)="pagarMarcadas()" [disabled]="pagando()"><app-icon name="check" [size]="16" />Marcar como pagas</button>
+        </div>
+      } @else if (selecionando()) {
+        <p class="small muted centro">Toque nas contas em aberto para escolher quais pagar de uma vez (com o valor previsto e a data de hoje).</p>
+      } @else if (contasBase().length || reservasLista().length) {
         <p class="small muted centro">Arraste uma conta para a esquerda para marcar como paga{{ reservasLista().length ? ', ou uma reserva para desconsiderar a sobra do orçamento' : '' }}.</p>
       }
 
+      </div>
+
+      <div class="col">
       @if (metas().length) {
         <h2>Cofrinhos do mês</h2>
         <section class="card list">
@@ -168,12 +231,19 @@ import { Moeda } from '../shared/moeda';
           </div>
         </section>
       }
+      </div>
     </div>
 
     <app-sheet [(open)]="detalhe" [titulo]="sel()?.descricao ?? ''">
       @if (sel(); as c) {
         <div class="form">
           <p class="muted">Vencimento {{ c.vencimento | dia }}</p>
+          @if (codigoFixa(c); as cod) {
+            <div class="cod">
+              <div class="grow"><div class="small muted">{{ cod.startsWith('000201') || !lido(cod) ? 'Pix' : 'Código do boleto' }}</div><div class="num txt">{{ cod }}</div></div>
+              <button type="button" class="btn sm" (click)="copiar(cod)"><app-icon name="content_copy" [size]="16" />Copiar</button>
+            </div>
+          }
           @if (c.tipo === 'fatura') {
             <div class="itens">
               @if (c.anterior) {
@@ -188,6 +258,12 @@ import { Moeda } from '../shared/moeda';
             <div class="aviso sucesso"><app-icon class="i" name="check_circle" /><div><div class="t">Paga em {{ c.pago.pago_em! | dia }}</div><div class="s">{{ c.pago.valor | brl }}@if (c.pago.resto) { · {{ c.pago.resto | brl }} foi para a fatura seguinte }</div></div></div>
             <button class="btn ghost block" (click)="desfazer(c)">Desfazer pagamento</button>
           } @else {
+            <label class="field"><span>Colar código do boleto ou Pix (opcional)</span>
+              <input [(ngModel)]="codigo" (ngModelChange)="lerColado($event)" inputmode="numeric" placeholder="Preenche o valor sozinho" />
+            </label>
+            @if (codigoLido(); as l) {
+              <p class="small muted">{{ l.tipo === 'pix' ? 'Pix' : 'Boleto' }}{{ l.valor ? ' de ' + (l.valor | brl) : ' sem valor no código' }}{{ l.vencimento ? ', vence ' + (l.vencimento | dia) : '' }}{{ l.vencimento && l.vencimento !== c.vencimento ? ' (a conta está para ' + (c.vencimento | dia) + ')' : '' }}</p>
+            }
             <div class="grid2">
               <label class="field"><span>{{ variavel(c) ? 'Valor da conta' : 'Valor pago' }}</span><input moeda inputmode="numeric" [(ngModel)]="valorPago" /></label>
               <label class="field"><span>Pago em</span><input type="date" [(ngModel)]="pagoEm" /></label>
@@ -247,6 +323,36 @@ import { Moeda } from '../shared/moeda';
   `,
   styles: `
     .list { padding-top: 4px; padding-bottom: 4px; }
+    .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    @media (min-width: 1100px) {
+      .page { max-width: 1240px; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); column-gap: 20px; align-items: start; }
+      .page-head { grid-column: 1 / -1; }
+      .col + .col { position: sticky; top: 12px; }
+    }
+    .progresso { display: flex; flex-direction: column; gap: 6px; }
+    .pl { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--ink-2); }
+    .pl b { color: var(--ok); font-variant-numeric: tabular-nums; }
+    .barra { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+    .barra span { display: block; height: 100%; background: var(--ok); border-radius: inherit; transition: width 0.4s ease; }
+    .filtros { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+    .filtros .chips { min-width: 0; }
+    .acoes { display: flex; gap: 4px; margin-left: auto; }
+    .acoes .on { color: var(--primary); }
+    .chip .n { font-size: 0.75rem; opacity: 0.75; }
+    .chip.vermelho:not(.on) { border-color: var(--danger); color: var(--danger); }
+    .row.venc { box-shadow: inset 3px 0 0 var(--danger); }
+    .ico.sel { color: var(--ink-3); background: transparent; }
+    .ico.sel.on { color: var(--primary); }
+    .row.sep { font: inherit; color: inherit; width: 100%; border: 0; background: none; text-align: left; cursor: pointer; }
+    .row.sep .t { color: var(--ink-2); }
+    .vazio { text-align: center; padding: 16px 0; margin: 0; }
+    .lote {
+      position: sticky; bottom: calc(var(--nav-h) + var(--safe-b) + 12px); z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 10px 12px 10px 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--primary); box-shadow: 0 8px 24px #0003;
+    }
+    @media (min-width: 1024px) { .lote { bottom: 16px; } }
+    .cod { display: flex; align-items: center; gap: 8px; border: 1px dashed var(--line); border-radius: 12px; padding: 8px 8px 8px 12px; }
+    .cod .txt { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .rec { font: inherit; color: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
     .rec.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
     .rec .l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
@@ -312,7 +418,93 @@ export default class Contas {
     return [...m.entries()].map(([orcamento_id, a]) => ({ orcamento_id, nome: a.nome, valor: Math.round(a.valor * 100) / 100 }));
   });
   protected diaSel = signal<string | null>(null);
-  protected contasLista = computed(() => this.recebimentos().find((g) => g.data === this.diaSel())?.contas ?? this.s.contasMes());
+  /** Contas do recebimento escolhido ou do mês, já na ordem escolhida (sort estável mantém o vencimento no empate) */
+  protected contasBase = computed(() => {
+    const l = [...(this.recebimentos().find((g) => g.data === this.diaSel())?.contas ?? this.s.contasMes())];
+    return this.ordem() === 'valor' ? l.sort((a, b) => b.valor - a.valor) : l;
+  });
+  protected abertas = computed(() => this.contasBase().filter((c) => !c.pago));
+  protected pagas = computed(() => this.contasBase().filter((c) => c.pago));
+  private vencidas = computed(() => this.abertas().filter((c) => diffDias(hoje(), c.vencimento) < 0));
+  protected totalPagas = computed(() => soma(this.pagas(), (c) => c.valor));
+
+  protected filtro = signal<'todas' | 'abrir' | 'vencidas' | 'pagas'>('todas');
+  protected ordem = signal<'venc' | 'valor'>('venc');
+  protected opcoes = computed(() => [
+    { k: 'todas' as const, r: 'Todas', n: null },
+    { k: 'abrir' as const, r: 'A pagar', n: this.abertas().length },
+    { k: 'vencidas' as const, r: 'Vencidas', n: this.vencidas().length },
+    { k: 'pagas' as const, r: 'Pagas', n: this.pagas().length },
+  ]);
+  /** Em "Todas" as pagas ficam num grupo recolhível no fim */
+  protected visiveis = computed(() => ({ todas: this.abertas(), abrir: this.abertas(), vencidas: this.vencidas(), pagas: this.pagas() })[this.filtro()]);
+  protected mostraReservas = computed(() => this.filtro() === 'todas' || this.filtro() === 'abrir');
+  protected progresso = computed(() => {
+    const base = this.contasBase().filter((c) => !c.beneficio_id);
+    const total = soma(base, (c) => c.valor);
+    const pago = soma(base.filter((c) => c.pago), (c) => c.valor);
+    return { total, pago, pct: total ? Math.min(100, Math.round((pago / total) * 100)) : 0 };
+  });
+
+  protected verPagas = signal(localStorage.getItem('cfp.contas.pagas') === '1');
+  alternarPagas() {
+    this.verPagas.update((v) => !v);
+    localStorage.setItem('cfp.contas.pagas', this.verPagas() ? '1' : '0');
+  }
+
+  protected selecionando = signal(false);
+  protected marcadas = signal(new Set<string>());
+  protected pagando = signal(false);
+  protected chave = (c: ContaMes) => c.tipo + ':' + c.ref_id + ':' + c.mes;
+  protected totalMarcadas = computed(() => soma(this.abertas().filter((c) => this.marcadas().has(this.chave(c))), (c) => c.valor));
+  alternarSelecao() {
+    this.selecionando.update((v) => !v);
+    this.marcadas.set(new Set());
+  }
+  marcar(c: ContaMes) {
+    const m = new Set(this.marcadas());
+    const k = this.chave(c);
+    if (!m.delete(k)) m.add(k);
+    this.marcadas.set(m);
+  }
+  /** Paga as marcadas com o valor previsto e a data de hoje; desfazer volta todas */
+  async pagarMarcadas() {
+    const l = this.abertas().filter((c) => this.marcadas().has(this.chave(c)));
+    const ids: string[] = [];
+    this.pagando.set(true);
+    try {
+      for (const c of l) ids.push(await this.s.pagar(c.tipo, c.ref_id, c.valor, hoje(), c.mes));
+      this.toast.feito(`${ids.length} ${ids.length === 1 ? 'conta paga' : 'contas pagas'}`, async () => {
+        for (const id of ids) await this.s.desfazerPagamento(id);
+      });
+      this.selecionando.set(false);
+      this.marcadas.set(new Set());
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.pagando.set(false);
+    }
+  }
+
+  protected codigo = '';
+  protected codigoLido = signal<CodigoLido | null>(null);
+  protected lido = (t: string) => lerCodigo(t, hoje());
+  codigoFixa(c: ContaMes) {
+    return c.tipo === 'recorrencia' ? (this.s.recorrencias().find((r) => r.id === c.ref_id)?.pagamento ?? null) : null;
+  }
+  lerColado(t: string) {
+    const l = lerCodigo(t, hoje());
+    this.codigoLido.set(l);
+    if (l?.valor) this.valorPago = l.valor.toFixed(2).replace('.', ',');
+  }
+  async copiar(t: string) {
+    try {
+      await navigator.clipboard.writeText(t);
+      this.toast.ok('Copiado');
+    } catch {
+      this.toast.erro('Não deu para copiar');
+    }
+  }
   protected total = computed(() => soma(this.s.contasMes().filter((c) => !c.beneficio_id), (c) => c.valor));
   /** Compras no crédito com data no mês, por cartão (a fatura delas pode ser de outro mês) */
   protected credito = computed(() => {
@@ -439,6 +631,8 @@ export default class Contas {
     this.valorPago = String(c.valor.toFixed(2)).replace('.', ',');
     this.pagoEm = hoje();
     this.somarJuros = true;
+    this.codigo = '';
+    this.codigoLido.set(null);
     this.detalhe.set(true);
   }
 

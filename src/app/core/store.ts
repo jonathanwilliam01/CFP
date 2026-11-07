@@ -113,7 +113,7 @@ export class Store {
   readonly divisao = computed(() => !!this.carteira()?.divisao);
   readonly meta = computed(() => metaSobra(this.resumo().entradas, this.resumo().saldo, this.carteira()?.meta_sobra));
   readonly acerto = computed(() =>
-    this.divisao() ? acertoMes(this.gastos(), this.membros().map((m) => m.user_id), this.acertos(), this.mes()) : null,
+    this.divisao() ? acertoMes(this.gastos(), this.membros().map((m) => m.user_id), this.acertos(), this.mes(), new Map(this.membros().map((m) => [m.user_id, m.peso]))) : null,
   );
   readonly gastosMes = computed(() => this.gastos().filter((g) => noMes(g.data, this.mes())));
   readonly gastosMesAnterior = computed(() => {

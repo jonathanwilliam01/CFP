@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { addMeses, diaNoMes, diffDias, inicioFatura, inicioMes, mesFatura, nomeMes } from '../core/datas';
@@ -7,6 +7,7 @@ import { ItemExtrato, Origem, lerExtrato, palpiteCategoria } from '../core/extra
 import { BrlPipe, DiaPipe, MesPipe, soma } from '../core/formato';
 import { Recorrencia } from '../core/models';
 import { Store } from '../core/store';
+import { extratoPendente } from '../core/arquivos';
 import { lerTags, normalizar, regraPara } from '../core/texto';
 import { q, supabase } from '../core/supabase';
 import { Icon } from '../shared/icon';
@@ -207,7 +208,18 @@ export default class Importar {
     const input = ev.target as HTMLInputElement;
     const f = input.files?.[0];
     input.value = '';
-    if (!f) return;
+    if (f) await this.carregar(f);
+  }
+
+  // solto na janela ou compartilhado com o app (Shell)
+  private pendente = effect(() => {
+    const f = extratoPendente();
+    if (!f || !this.s.pronto()) return;
+    extratoPendente.set(null);
+    untracked(() => this.carregar(f));
+  });
+
+  async carregar(f: File) {
     try {
       const { itens, ignorados, origem } = lerExtrato(await f.text());
       if (!itens.length) throw new Error('Nenhum gasto encontrado no arquivo');

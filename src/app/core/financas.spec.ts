@@ -1,4 +1,4 @@
-import { curvaFatura, dataEntrada, decimoTerceiro, avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, precosRepetidos, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
+import { acertoMes, curvaFatura, dataEntrada, decimoTerceiro, avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, precosRepetidos, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -609,5 +609,23 @@ describe('precosRepetidos', () => {
       g('Loja (1/4)', '2026-01-01', 50, 'p1'), g('Loja (2/4)', '2026-02-01', 50, 'p1'), g('Loja (3/4)', '2026-03-01', 50, 'p1'), g('Loja (4/4)', '2026-04-01', 50, 'p1'),
     ]);
     expect(l.map((x) => [x.nome, x.vezes, x.antes, x.agora, x.pct])).toEqual([['Posto Shell', 4, 200, 230, 15]]);
+  });
+});
+
+describe('acertoMes', () => {
+  const g = (valor: number, pago_por: string) => ({ valor, data: '2026-11-05', forma: 'debito' as const, criado_por: pago_por, pago_por, dividido: true });
+  it('por igual sem pesos', () => {
+    const a = acertoMes([g(100, 'a')], ['a', 'b'], [], '2026-11-01');
+    expect(a.parte).toBe(50);
+    expect(a.partes).toBeNull();
+    expect(a.transferencias).toEqual([{ de: 'b', para: 'a', valor: 50 }]);
+  });
+  it('pelos pesos quando todos têm', () => {
+    const a = acertoMes([g(100, 'a')], ['a', 'b'], [], '2026-11-01', new Map([['a', 70], ['b', 30]]));
+    expect(a.partes).toEqual([{ id: 'a', valor: 70, pct: 70 }, { id: 'b', valor: 30, pct: 30 }]);
+    expect(a.transferencias).toEqual([{ de: 'b', para: 'a', valor: 30 }]);
+  });
+  it('peso faltando volta para igual', () => {
+    expect(acertoMes([g(100, 'a')], ['a', 'b'], [], '2026-11-01', new Map([['a', 70]])).partes).toBeNull();
   });
 });

@@ -8,6 +8,21 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.10',
+    data: '2026-11-07',
+    itens: [
+      'Contas do mês: as que faltam pagar ficam no topo; as pagas descem para um grupo "Pagas" que abre e fecha',
+      'Contas: barra de progresso do que já foi pago, filtros A pagar, Vencidas e Pagas, ordem por vencimento ou valor e conta vencida destacada em vermelho',
+      'Contas: "Selecionar" para marcar várias e pagar todas de uma vez (desfazer volta todas)',
+      'Conta fixa guarda a chave Pix ou o código do boleto, copiado com um toque na hora de pagar; colar o código do boleto ou Pix no pagamento preenche o valor sozinho',
+      'Divisão entre os membros por percentual (ex.: 60/40), com atalho para calcular pela renda lançada no mês',
+      'Ícone do app e menu mostram quantas contas estão vencidas ou vencem em até 3 dias',
+      'Atalho "Contas do mês" ao segurar o ícone do app; compartilhar um CSV/OFX com o app abre a importação',
+      'No computador: Ctrl+K abre a busca, que também leva para as telas pelo nome; arrastar CSV/OFX para a janela abre a importação e foto/PDF vira lançamento com comprovante; tela de Contas em duas colunas',
+      'Vibração curta ao pagar ou desfazer deslizando',
+    ],
+  },
+  {
     versao: 'v1.26.11.9',
     data: '2026-11-05',
     itens: [
