@@ -98,6 +98,8 @@ interface FormLanc {
   dividido: boolean;
   /** gasto com valor negativo: abate a fatura ou o mês */
   estorno: boolean;
+  /** id do cofrinho que paga o Pix/débito ('' = nenhum) */
+  cofrinho: string;
 }
 
 @Component({
@@ -168,6 +170,15 @@ export class LancarSheet {
     const gm = g ? inicioMes(g.data) : '';
     const proprio = g?.forma === 'beneficio' && g.beneficio_id === b.id && (b.acumula ? gm <= mes : gm === mes) ? g.valor : 0;
     return { nome: b.nome, saldo: saldoBeneficio(b, this.s.usoBeneficios(), mes, this.s.cobrancasBeneficio()).saldo + proprio };
+  });
+  /** Pix/débito avulso pode sair de um cofrinho */
+  protected podeCofrinho = computed(() => this.l.modo() === 'gasto' && !this.repete() && this.f().pagamento === 'debito' && this.s.cofrinhos().length > 0);
+  /** Guardado no cofrinho escolhido, devolvendo o próprio gasto na edição */
+  protected guardadoCofrinho = computed(() => {
+    const id = this.f().cofrinho;
+    if (!id) return null;
+    const g = this.l.gasto();
+    return (this.s.guardadoPorCofrinho().get(id) ?? 0) + (g?.cofrinho_id === id && g.forma === 'debito' ? g.valor : 0);
   });
   protected parseValor = parseValor;
 
@@ -242,14 +253,14 @@ export class LancarSheet {
     return {
       valor: '', descricao: '', categoria_id: null, data: hoje(), pagamento: this.pagamentoPadrao(), parcelas: 2, valorEhTotal: true,
       repete: this.l.fixa(), variavel: false, anterior: false, fim: '', jaPago: true, tags: this.l.modo() !== 'entrada' ? (this.s.viagemAtiva()?.tag ?? '') : '',
-      pagoPor: this.auth.user()?.id ?? '', dividido: true, estorno: false,
+      pagoPor: this.auth.user()?.id ?? '', dividido: true, estorno: false, cofrinho: '',
     };
   }
 
   private deGasto(g: Gasto): FormLanc {
     const pagamento = g.forma === 'cartao' ? g.cartao_id! : g.forma === 'beneficio' ? `b:${g.beneficio_id}` : 'debito';
     return { ...this.vazio(), valor: String(Math.abs(g.valor)).replace('.', ','), descricao: g.descricao, categoria_id: g.categoria_id, data: g.data, pagamento, tags: (g.tags ?? []).join(' '),
-      pagoPor: g.pago_por ?? g.criado_por ?? '', dividido: g.dividido ?? true, estorno: g.valor < 0 };
+      pagoPor: g.pago_por ?? g.criado_por ?? '', dividido: g.dividido ?? true, estorno: g.valor < 0, cofrinho: g.cofrinho_id ?? '' };
   }
 
   private deEntrada(e: Entrada): FormLanc {
@@ -467,6 +478,8 @@ export class LancarSheet {
       // só manda a coluna quando há marcador: banco sem a migration 020 segue aceitando o lançamento
       ...(tags.length || this.l.gasto()?.tags?.length ? { tags } : {}),
       ...(this.s.divisao() ? { pago_por: f.pagoPor || null, dividido: f.dividido } : {}),
+      // idem: só com cofrinho (044)
+      ...(f.cofrinho || this.l.gasto()?.cofrinho_id ? { cofrinho_id: forma === 'debito' && f.cofrinho ? f.cofrinho : null } : {}),
     };
   }
 

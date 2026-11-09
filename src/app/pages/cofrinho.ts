@@ -4,7 +4,9 @@ import { Router, RouterLink } from '@angular/router';
 import { faltaPara, hoje } from '../core/datas';
 import { aporteMensal, depositoNecessario, simularDepositos } from '../core/financas';
 import { BrlPipe, DiaPipe, parseValor, soma } from '../core/formato';
-import { CofrinhoMov, Frequencia } from '../core/models';
+import { CofrinhoMov, Frequencia, Gasto } from '../core/models';
+import { q, supabase } from '../core/supabase';
+import { Lancar } from '../shared/lancar';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
 import { IconePicker } from '../shared/icone-picker';
@@ -108,11 +110,11 @@ import { Moeda } from '../shared/moeda';
           @if (movs().length) {
             <div class="list">
               @for (m of movs(); track m.id) {
-                <button class="row" type="button" (click)="excluirMov(m)">
+                <button class="row" type="button" (click)="tocarMov(m)">
                   <span class="ico"><app-icon [name]="m.valor >= 0 ? '⬆️' : '⬇️'" /></span>
                   <div class="grow">
                     <div class="t">{{ m.descricao || (m.valor >= 0 ? 'Depósito' : 'Retirada') }}</div>
-                    <div class="s">{{ m.data | dia }}</div>
+                    <div class="s">{{ m.data | dia }}@if (m.gasto_id) { · gasto }</div>
                   </div>
                   <div class="v" [class.pos]="m.valor >= 0" [class.neg]="m.valor < 0">{{ m.valor | brl }}</div>
                 </button>
@@ -176,6 +178,7 @@ export default class Cofrinho {
   readonly id = input.required<string>();
   protected s = inject(Store);
   private toast = inject(Toast);
+  private lancar = inject(Lancar);
   private router = inject(Router);
 
   protected movAberto = signal(false);
@@ -277,8 +280,15 @@ export default class Cofrinho {
     }
   }
 
-  excluirMov(m: CofrinhoMov) {
-    this.s.excluirAdiado('cofrinho_movs', m.id, 'Movimentação excluída');
+  /** Retirada de um gasto só muda pelo gasto: abre ele */
+  async tocarMov(m: CofrinhoMov) {
+    if (!m.gasto_id) return this.s.excluirAdiado('cofrinho_movs', m.id, 'Movimentação excluída');
+    try {
+      const g = this.s.gastos().find((x) => x.id === m.gasto_id) ?? (await q<Gasto>(supabase.from('gastos').select('*').eq('id', m.gasto_id).single()));
+      this.lancar.editarGasto(g);
+    } catch (e) {
+      this.toast.erro(e);
+    }
   }
 
   editar() {

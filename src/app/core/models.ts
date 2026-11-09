@@ -96,6 +96,8 @@ export interface Gasto {
   comprovante?: string | null;
   /** conferido na fatura (035) */
   conferido?: boolean;
+  /** Pix/débito pago com um cofrinho: o banco mantém a retirada (044) */
+  cofrinho_id?: string | null;
   criado_em?: string;
 }
 
@@ -187,6 +189,8 @@ export interface CofrinhoMov {
   valor: number;
   data: string;
   descricao: string | null;
+  /** retirada criada pelo gasto (044) */
+  gasto_id?: string | null;
 }
 
 export interface Orcamento {

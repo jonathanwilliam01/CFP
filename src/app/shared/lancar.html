@@ -127,6 +127,21 @@
       </div>
     }
 
+    @if (podeCofrinho()) {
+      <label class="field">
+        <span>Descontar de um cofrinho</span>
+        <select name="cofrinho" [ngModel]="f().cofrinho" (ngModelChange)="set('cofrinho', $event)">
+          <option value="">Não</option>
+          @for (c of s.cofrinhos(); track c.id) { <option [value]="c.id">{{ c.nome }}</option> }
+        </select>
+      </label>
+      @if (guardadoCofrinho() !== null) {
+        <p class="hint" [class.neg]="guardadoCofrinho()! < parseValor(f().valor)">
+          Sai do cofrinho como retirada e continua contando no mês · guardado <b>{{ guardadoCofrinho() | brl }}</b>
+        </p>
+      }
+    }
+
     @if (l.modo() === 'gasto' && !repete()) {
       <label class="check"><input name="est" type="checkbox" [ngModel]="f().estorno" (ngModelChange)="set('estorno', $event)" />Estorno ou crédito (abate {{ fatura() ? 'a fatura' : 'o mês' }})</label>
     }

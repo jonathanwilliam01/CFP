@@ -8,6 +8,13 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.11',
+    data: '2026-11-09',
+    itens: [
+      'Gasto no Pix/débito/dinheiro pode ser descontado de um cofrinho: vira retirada no cofrinho, acompanha edição e exclusão do gasto e continua contando no mês',
+    ],
+  },
+  {
     versao: 'v1.26.11.10',
     data: '2026-11-07',
     itens: [

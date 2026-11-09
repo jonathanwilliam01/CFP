@@ -436,6 +436,8 @@ export class Store {
   async depois(tabela: string) {
     if (tabela === 'pagamentos' || tabela === 'recorrencias') this.valoresOk = false;
     if (eCadastro(tabela)) await this.recarregar(tabela);
+    // retirada do cofrinho segue o gasto por trigger
+    if (tabela === 'gastos' && this.cofrinhos().length) await this.recarregar('cofrinho_movs');
     if (DO_MES.includes(tabela)) await this.carregarMes();
   }
 

@@ -9,5 +9,6 @@
   "040": ["acessos.dia", "erros_app.id"],
   "041": ["funcoes_status.chave", "comunicados.id"],
   "042": ["check:admin_log_acao_check:length"],
-  "043": ["recorrencias.pagamento", "carteira_membros.peso"]
+  "043": ["recorrencias.pagamento", "carteira_membros.peso"],
+  "044": ["gastos.cofrinho_id", "cofrinho_movs.gasto_id"]
 }

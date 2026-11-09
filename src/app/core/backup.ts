@@ -2,7 +2,7 @@ import { q, supabase } from './supabase';
 
 /** Tabelas da carteira, na ordem em que podem ser restauradas (quem é referenciado vem antes) */
 const TABELAS = [
-  'categorias', 'cartoes', 'beneficios', 'parcelamentos', 'recorrencias', 'gastos', 'entradas', 'pagamentos', 'cofrinhos', 'cofrinho_movs',
+  'categorias', 'cartoes', 'beneficios', 'parcelamentos', 'recorrencias', 'cofrinhos', 'gastos', 'entradas', 'pagamentos', 'cofrinho_movs',
   'orcamentos', 'orcamento_valores', 'orcamento_fechados', 'planos', 'registros', 'registro_itens', 'acertos', 'receber', 'dividas', 'desafios',
   'contas_bancarias',
 ];
@@ -47,7 +47,8 @@ export const totalLinhas = (b: Backup) => Object.values(b.tabelas).reduce((a, l)
 export async function restaurar(b: Backup, carteiraId: string) {
   for (const t of TABELAS) {
     // cartão padrão só pela RPC: o índice único não deixa dois padrões nem por um instante
-    const linhas = (b.tabelas[t] ?? []).map((l) => ({ ...l, carteira_id: carteiraId, ...(t === 'cartoes' ? { padrao: false } : {}) }));
+    // retirada ligada a gasto o trigger recria ao gravar o gasto
+    const linhas = (b.tabelas[t] ?? []).filter((l) => !(t === 'cofrinho_movs' && l['gasto_id'])).map((l) => ({ ...l, carteira_id: carteiraId, ...(t === 'cartoes' ? { padrao: false } : {}) }));
     for (let i = 0; i < linhas.length; i += 500) await q(supabase.from(t).upsert(linhas.slice(i, i + 500), { onConflict: 'id' }));
   }
   const padrao = b.tabelas['cartoes']?.find((c) => c['padrao']);

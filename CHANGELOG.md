@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.26.11.11 — 2026-11-09
+- Gasto no Pix/débito/dinheiro pode ser descontado de um cofrinho: vira retirada no cofrinho, acompanha edição e exclusão do gasto e continua contando no mês
+
 ## v1.26.11.10 — 2026-11-07
 - Contas do mês: as que faltam pagar ficam no topo; as pagas descem para um grupo "Pagas" que abre e fecha
 - Contas: barra de progresso do que já foi pago, filtros A pagar, Vencidas e Pagas, ordem por vencimento ou valor e conta vencida destacada em vermelho

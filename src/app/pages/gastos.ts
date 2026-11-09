@@ -438,6 +438,7 @@ export default class Gastos {
   forma(g: Gasto) {
     if (g.forma === 'cartao') return this.s.cartoes().find((c) => c.id === g.cartao_id)?.nome ?? 'Cartão';
     if (g.forma === 'beneficio') return this.s.beneficios().find((b) => b.id === g.beneficio_id)?.nome ?? 'Benefício';
+    if (g.cofrinho_id) return 'Cofrinho ' + (this.s.cofrinhos().find((c) => c.id === g.cofrinho_id)?.nome ?? '');
     return 'À vista';
   }
 
