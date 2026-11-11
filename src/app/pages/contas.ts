@@ -21,7 +21,7 @@ import { ColunaQuadro, MoverQuadro, Quadro } from '../shared/quadro';
   imports: [NgTemplateOutlet, Moeda, FormsModule, RouterLink, BrlPipe, PrivPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa, Deslizar, Quadro],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="page">
+    <div class="page" [class.quadro]="quadro()">
       <div class="page-head">
         <h1>Contas</h1>
         <button class="btn sm" (click)="novaFixa()"><app-icon name="add" [size]="16" />Conta fixa</button>
@@ -348,8 +348,11 @@ import { ColunaQuadro, MoverQuadro, Quadro } from '../shared/quadro';
     .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
     @media (min-width: 1100px) {
       .page { max-width: 1240px; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); column-gap: 20px; align-items: start; }
-      .page-head { grid-column: 1 / -1; }
-      .col + .col { position: sticky; top: 12px; }
+      .page-head, .page > .stats { grid-column: 1 / -1; }
+      .page > .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .col > .stats { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+      /* quadro com as 4 colunas na largura toda; o resto desce */
+      .page.quadro .col { grid-column: 1 / -1; }
     }
     .progresso { display: flex; flex-direction: column; gap: 6px; }
     .pl { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--ink-2); }
