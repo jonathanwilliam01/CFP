@@ -4,12 +4,12 @@ import { supabase } from './supabase';
 
 /** Blocos do Início na ordem padrão */
 export const BLOCOS = [
-  { id: 'recebimento', nome: 'Por recebimento' },
+  { id: 'avisos', nome: 'Avisos' },
   { id: 'proximas', nome: 'Próximas contas' },
+  { id: 'recebimento', nome: 'Por recebimento' },
   { id: 'saldos', nome: 'Saldos de benefícios e cofrinhos' },
   { id: 'comprometida', nome: 'Renda comprometida' },
   { id: 'pessoas', nome: 'Quem gastou o quê' },
-  { id: 'avisos', nome: 'Avisos' },
   { id: 'diaadia', nome: 'Saldo dia a dia' },
   { id: 'onde', nome: 'Onde está indo o dinheiro' },
   { id: 'orcamentos', nome: 'Orçamentos' },

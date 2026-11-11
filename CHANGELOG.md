@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.26.11.14 — 2026-11-11
+- Telas mais enxutas: um resumo só no topo, o resto em seções que abrem com um toque (e lembram se ficaram abertas)
+- No computador as telas ficam numa coluna central mais larga, com metas, desejos, cartões, viagens, desafios, dívidas e benefícios em grade; quadro e tabela usam a largura toda
+- Contas: abas Do mês e Cadastradas; recebimentos viram atalhos; cofrinhos e crédito do mês em "Mais do mês"
+- Gastos: só "Novo" no topo, Selecionar e Importar no menu ⋮, filtros num botão com contador; dinheiro livre e revisão em linhas compactas
+- Entradas: abas Do mês, Fixas e A receber. Cartões: fatura aberta em destaque, próximas faturas e gráfico recolhidos
+- Planejamento: abas Projeção e Eventos; "Posso comprar?" abre por botão no topo
+- Início: avisos e próximas contas no topo, análises em "Mais análises". Relatórios e Fechamento com seções recolhidas
+- Configurações organizadas em seções com o estado atual de cada uma no título
+
 ## v1.26.11.13 — 2026-11-11
 - Notificações: aviso de gasto novo, fatura que fechou, resumo do mês e saldos voltam a chegar
 - Notificações chegam na hora, mesmo com o celular em economia de bateria

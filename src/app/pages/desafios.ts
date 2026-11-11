@@ -49,6 +49,7 @@ interface FormDesafio {
         </div>
       }
 
+      <div class="grade-cards">
       @for (d of lista(); track d.d.id) {
         <article class="card">
           <div class="cab">
@@ -84,6 +85,7 @@ interface FormDesafio {
           </div>
         </div>
       }
+      </div>
     </div>
 
     <app-sheet [(open)]="aberto" [titulo]="f.id ? 'Editar desafio' : 'Novo desafio'">

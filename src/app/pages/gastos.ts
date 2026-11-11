@@ -39,93 +39,110 @@ function guardar(chave: string, v: string) {
 @Component({
   imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Deslizar, Sheet, Revisar, Autor, TabelaGastos],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:click)': 'fora($event)' },
   template: `
-    <div class="page">
+    <div class="page" [class.larga]="tabela()">
       <div class="page-head">
         <h1>Gastos</h1>
         <div class="acts">
-          <button class="btn ghost sm" type="button" (click)="alternarSelecao()" [class.on]="selecao()"><app-icon name="checklist" [size]="16" />{{ selecao() ? 'Pronto' : 'Selecionar' }}</button>
-          <a class="btn ghost sm" routerLink="/importar"><app-icon name="upload_file" [size]="16" />Importar</a>
-          <button class="btn sm" (click)="lancar.novo('gasto')"><app-icon name="add" [size]="16" />Novo</button>
-        </div>
-      </div>
-
-      <label class="busca">
-        <app-icon name="search" [size]="18" />
-        <input placeholder="Buscar" [ngModel]="busca()" (ngModelChange)="busca.set($event)" />
-      </label>
-
-      <div class="chips">
-        @for (o of opcoes; track o.k) {
-          <button class="chip" [class.on]="filtro() === o.k" (click)="filtro.set(o.k)">@if (o.i) {<app-icon [name]="o.i" [size]="18" />}{{ o.r }}</button>
-        }
-      </div>
-      @if (filtro() === 'cartao') {
-        <div class="seg">
-          <button type="button" [class.on]="fatura() === null" (click)="fatura.set(null)">Por data</button>
-          @for (i of indices; track i) {
-            <button type="button" [class.on]="fatura() === i" (click)="fatura.set(i)">Fatura de {{ faturaMes(i) | mes: true }}</button>
-          }
-        </div>
-      }
-      @if (filtro() === 'cartao' && s.cartoes().length > 1) {
-        <div class="chips">
-          <button class="chip" [class.on]="!cartao()" (click)="cartao.set(null)">Todos os cartões</button>
-          @for (c of s.cartoes(); track c.id) {
-            <button class="chip" [class.on]="cartao() === c.id" (click)="cartao.set(c.id)">{{ c.nome }}</button>
-          }
-        </div>
-      }
-      @if (tags().length) {
-        <div class="chips">
-          @for (t of tags(); track t) {
-            <button class="chip" [class.on]="tag() === t" (click)="tag.set(tag() === t ? null : t)">#{{ t }}</button>
-          }
-        </div>
-      }
-      <div class="filtros">
-        <select aria-label="Categoria" [ngModel]="cat()" (ngModelChange)="cat.set($event)">
-          <option [ngValue]="null">Todas as categorias</option>
-          @for (c of s.catGasto(); track c.id) { <option [ngValue]="c.id">{{ c.nome }}</option> }
-        </select>
-        @if (!tabela()) {
-          <select aria-label="Agrupar por" [ngModel]="agrupar()" (ngModelChange)="mudarAgrupar($event)">
-            @for (a of agrupamentos; track a.k) { <option [ngValue]="a.k">Por {{ a.r }}</option> }
-          </select>
-        }
-        @if (largo()) {
-          <button type="button" class="btn ghost sm" (click)="mudarVista(tabela() ? 'lista' : 'tabela')">
-            <app-icon [name]="tabela() ? 'view_agenda' : 'table_rows'" [size]="16" />{{ tabela() ? 'Lista' : 'Tabela' }}
-          </button>
-        }
-      </div>
-
-      @if (s.livres().length) {
-        <section class="card livres">
-          <div class="card-head"><h2><app-icon name="lock" [size]="18" />Dinheiro livre</h2></div>
-          @for (l of s.livres(); track l.id) {
-            <div class="lv">
-              <span class="nm">{{ l.eu ? 'Você' : l.nome }}</span>
-              <div class="bar" [class.estourou]="l.resta < 0"><i [style.width.%]="l.usado >= l.livre ? 100 : (l.usado / l.livre) * 100"></i></div>
-              <span class="small num">{{ l.resta < 0 ? 'passou ' : 'resta ' }}<b>{{ (l.resta < 0 ? -l.resta : l.resta) | brl }}</b> de {{ l.livre | brl }}</span>
+          @if (selecao()) {
+            <button class="btn ghost sm on" type="button" (click)="alternarSelecao()"><app-icon name="checklist" [size]="16" />Pronto</button>
+          } @else {
+            <button class="btn sm" (click)="lancar.novo('gasto')"><app-icon name="add" [size]="16" />Novo</button>
+            <div class="mais-acoes">
+              <button type="button" class="btn ghost sm ic" aria-label="Mais ações" [attr.aria-expanded]="menu()" (click)="menu.set(!menu())"><app-icon name="more_vert" [size]="18" /></button>
+              @if (menu()) {
+                <div class="menu" role="menu">
+                  <button type="button" role="menuitem" (click)="menu.set(false); alternarSelecao()"><app-icon name="checklist" [size]="18" />Selecionar</button>
+                  <a role="menuitem" routerLink="/importar"><app-icon name="upload_file" [size]="18" />Importar extrato</a>
+                </div>
+              }
             </div>
           }
+        </div>
+      </div>
+
+      <div class="busca-l">
+        <label class="busca">
+          <app-icon name="search" [size]="18" />
+          <input placeholder="Buscar" [ngModel]="busca()" (ngModelChange)="busca.set($event)" />
+        </label>
+        <button type="button" class="btn ghost sm filt" [class.on]="verFiltros() || ativos()" [attr.aria-expanded]="verFiltros()" (click)="alternarFiltros()">
+          <app-icon name="tune" [size]="18" />Filtros@if (ativos()) {<span class="n">{{ ativos() }}</span>}
+        </button>
+      </div>
+
+      @if (verFiltros()) {
+        <section class="card painel">
+          <div class="chips">
+            @for (o of opcoes; track o.k) {
+              <button class="chip" [class.on]="filtro() === o.k" (click)="filtro.set(o.k)">@if (o.i) {<app-icon [name]="o.i" [size]="18" />}{{ o.r }}</button>
+            }
+          </div>
+          @if (filtro() === 'cartao') {
+            <div class="seg">
+              <button type="button" [class.on]="fatura() === null" (click)="fatura.set(null)">Por data</button>
+              @for (i of indices; track i) {
+                <button type="button" [class.on]="fatura() === i" (click)="fatura.set(i)">Fatura de {{ faturaMes(i) | mes: true }}</button>
+              }
+            </div>
+          }
+          @if (filtro() === 'cartao' && s.cartoes().length > 1) {
+            <div class="chips">
+              <button class="chip" [class.on]="!cartao()" (click)="cartao.set(null)">Todos os cartões</button>
+              @for (c of s.cartoes(); track c.id) {
+                <button class="chip" [class.on]="cartao() === c.id" (click)="cartao.set(c.id)">{{ c.nome }}</button>
+              }
+            </div>
+          }
+          @if (tags().length) {
+            <div class="chips">
+              @for (t of tags(); track t) {
+                <button class="chip" [class.on]="tag() === t" (click)="tag.set(tag() === t ? null : t)">#{{ t }}</button>
+              }
+            </div>
+          }
+          <div class="filtros">
+            <select aria-label="Categoria" [ngModel]="cat()" (ngModelChange)="cat.set($event)">
+              <option [ngValue]="null">Todas as categorias</option>
+              @for (c of s.catGasto(); track c.id) { <option [ngValue]="c.id">{{ c.nome }}</option> }
+            </select>
+            @if (!tabela()) {
+              <select aria-label="Agrupar por" [ngModel]="agrupar()" (ngModelChange)="mudarAgrupar($event)">
+                @for (a of agrupamentos; track a.k) { <option [ngValue]="a.k">Por {{ a.r }}</option> }
+              </select>
+            }
+            @if (largo()) {
+              <button type="button" class="btn ghost sm" (click)="mudarVista(tabela() ? 'lista' : 'tabela')">
+                <app-icon [name]="tabela() ? 'view_agenda' : 'table_rows'" [size]="16" />{{ tabela() ? 'Lista' : 'Tabela' }}
+              </button>
+            }
+            @if (ativos()) {
+              <button type="button" class="btn ghost sm" (click)="limpar()"><app-icon name="filter_alt_off" [size]="16" />Limpar</button>
+            }
+          </div>
         </section>
       }
 
-      @if (aRevisar() && !selecao()) {
-        <button type="button" class="card revisar" (click)="revisando.set(true)">
-          <app-icon name="fact_check" [size]="22" />
-          <span class="grow"><b>Revisar {{ aRevisar() }} gasto(s)</b><span class="small muted">Sem categoria ou lançados por {{ outro() || 'outro membro' }}</span></span>
-          <app-icon name="chevron_right" [size]="20" />
-        </button>
+      @if (s.livres().length || (aRevisar() && !selecao())) {
+        <div class="info">
+          @for (l of s.livres(); track l.id) {
+            <span class="chip lv" [class.estourou]="l.resta < 0" [title]="'Dinheiro livre: ' + (l.usado | brl) + ' usados de ' + (l.livre | brl)">
+              <app-icon name="lock" [size]="14" />{{ l.eu ? 'Você' : l.nome }} {{ l.resta < 0 ? 'passou' : 'resta' }} <b class="num">{{ (l.resta < 0 ? -l.resta : l.resta) | brl }}</b>
+            </span>
+          }
+          @if (aRevisar() && !selecao()) {
+            <button type="button" class="chip rev" (click)="revisando.set(true)" [title]="'Sem categoria ou lançados por ' + (outro() || 'outro membro')">
+              <app-icon name="fact_check" [size]="16" />Revisar {{ aRevisar() }} gasto(s)<app-icon name="chevron_right" [size]="16" />
+            </button>
+          }
+        </div>
       }
       <app-revisar [(open)]="revisando" />
 
       @if (dups().length) {
-        <section class="card dups">
-          <div class="card-head"><h2><app-icon name="content_copy" [size]="18" />Possíveis duplicados</h2><span class="badge">{{ dups().length }}</span></div>
-          <p class="small muted">Mesmo valor e descrição com até 1 dia de diferença. Exclua o repetido ou confirme que são dois gastos.</p>
+        <details class="card mais dups" [open]="verDups()" (toggle)="lembrarDups($event)">
+          <summary title="Mesmo valor e descrição com até 1 dia de diferença"><app-icon name="content_copy" [size]="18" />Possíveis duplicados<span class="small muted">{{ dups().length }} par(es)</span></summary>
           @for (p of dups(); track p[0].id + p[1].id) {
             <div class="dup">
               <div class="grow">
@@ -138,13 +155,13 @@ function guardar(chave: string, v: string) {
               </div>
             </div>
           }
-        </section>
+        </details>
       }
 
-      <div class="total card">
+      <div class="total" title="Arraste um gasto para a esquerda para excluir ou para a direita para lançar de novo hoje. Segure para selecionar vários.">
         <span class="muted">{{ lista().length }} gasto(s)
-          @if (periodo(); as p) { <br /><small>compras de {{ p.ini | dia }} a {{ p.fim | dia }}</small> }
-          @if (fixas()) { <br /><small>+ {{ fixas() | brl }} de contas fixas no cartão</small> }
+          @if (periodo(); as p) { <small> · compras de {{ p.ini | dia }} a {{ p.fim | dia }}</small> }
+          @if (fixas()) { <small> · + {{ fixas() | brl }} de contas fixas no cartão</small> }
         </span>
         <b class="num">{{ total() | brl }}</b>
       </div>
@@ -214,9 +231,6 @@ function guardar(chave: string, v: string) {
         <div class="empty"><app-icon class="big" name="search_off" [size]="40" />Nenhum gasto encontrado.</div>
       }
       }
-      @if (!tabela() && grupos().length) {
-        <p class="small muted dica">Arraste um gasto para a esquerda para excluir ou para a direita para lançar de novo hoje. Segure para selecionar vários.</p>
-      }
     </div>
 
     @if (selecao()) {
@@ -248,39 +262,50 @@ function guardar(chave: string, v: string) {
     </app-sheet>
   `,
   styles: `
-    .acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-    .busca { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; color: var(--ink-3); }
-    .busca input { border: 0; background: none; box-shadow: none; padding: 10px 0; }
-    .total { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; }
+    .acts { display: flex; justify-content: flex-end; gap: 8px; }
+    .acts .on { color: var(--primary); }
+    .ic { padding-inline: 8px; }
+    .mais-acoes { position: relative; }
+    .menu {
+      position: absolute; z-index: 20; right: 0; top: calc(100% + 6px); min-width: 190px; display: flex; flex-direction: column;
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+    }
+    .menu > * {
+      display: flex; align-items: center; gap: 8px; border: 0; background: none; font: inherit; font-size: 0.9rem; color: var(--ink);
+      text-align: left; padding: 10px; border-radius: 8px; cursor: pointer; text-decoration: none;
+    }
+    .menu > *:hover { background: var(--card-2); }
+    .busca-l { display: flex; gap: 8px; align-items: stretch; }
+    .busca { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; color: var(--ink-3); }
+    .busca input { border: 0; background: none; box-shadow: none; padding: 10px 0; min-width: 0; }
+    .filt.on { color: var(--primary); border-color: var(--primary); }
+    .filt .n { min-width: 18px; height: 18px; border-radius: 9px; padding: 0 5px; background: var(--primary); color: #fff; font-size: 0.72rem; display: inline-grid; place-items: center; }
+    .painel { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+    .total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 0 4px; }
     .total b { font-size: 1.15rem; }
     .total small { font-size: 0.75rem; color: var(--ink-3); }
     .list { padding-top: 4px; padding-bottom: 4px; }
     .benef { color: var(--ink-3); }
     .clip { color: var(--ink-3); vertical-align: -2px; margin-left: 3px; }
-    .dica { text-align: center; }
     .filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .filtros select { flex: 1 1 160px; min-width: 0; width: auto; }
     .selo { margin-left: 6px; font-size: 0.7rem; font-weight: 700; color: var(--primary); }
     .oculto { cursor: default; }
     .oculto .t { color: var(--ink-2); }
-    .livres { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; }
-    .livres h2 { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
-    .livres .card-head { margin-bottom: 0; }
-    .lv { display: grid; grid-template-columns: minmax(0, 5rem) minmax(0, 1fr) auto; align-items: center; gap: 10px; }
-    .lv .nm { font-weight: 600; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .lv .bar { height: 6px; }
-    .lv .estourou > i { background: var(--danger); }
+    .info { display: flex; flex-wrap: wrap; gap: 6px; }
+    .info .chip { padding: 5px 10px; font-size: 0.8rem; font-weight: 500; flex-shrink: 1; white-space: normal; }
+    .lv { cursor: default; color: var(--ink-2); }
+    .lv b { color: var(--ink); }
+    .lv.estourou, .lv.estourou b { color: var(--danger); }
+    .rev { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 45%, var(--line)); font-weight: 700 !important; }
     .dups { border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
-    .dups h2 { display: flex; align-items: center; gap: 6px; color: var(--warn); }
+    .dups summary { color: var(--warn); }
     .dup { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
     .dup .t { font-weight: 700; }
     .dup .s { font-size: 0.82rem; color: var(--ink-2); }
     .dup .bts { display: flex; gap: 6px; margin-left: auto; }
-    .acts .on { color: var(--primary); }
-    .revisar, .conf { display: flex; align-items: center; gap: 12px; text-align: left; font: inherit; color: var(--ink); }
-    .revisar { cursor: pointer; width: 100%; border-color: color-mix(in srgb, var(--primary) 35%, var(--line)); }
-    .revisar > app-icon:first-child { color: var(--primary); }
-    .revisar .grow, .conf .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .conf { display: flex; align-items: center; gap: 12px; text-align: left; font: inherit; color: var(--ink); }
+    .conf .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .conf .bar { margin-top: 6px; height: 6px; }
     .marca { color: var(--ink-3); display: grid; place-items: center; }
     .marca.on { color: var(--primary); }
@@ -322,7 +347,34 @@ export default class Gastos {
       this.filtro.set('cartao');
       this.cartao.set(p.get('cartao'));
       this.fatura.set(+f as 0 | 1);
+      this.verFiltros.set(true);
     }
+  }
+
+  protected menu = signal(false);
+  fora(e: Event) {
+    if (this.menu() && !(e.target as HTMLElement).closest?.('.mais-acoes')) this.menu.set(false);
+  }
+
+  /** painel de filtros aberto (lembrado) e quantos filtros estão ligados */
+  protected verFiltros = signal(lido('cfp.gastos.filtros') === '1');
+  alternarFiltros() {
+    this.verFiltros.update((v) => !v);
+    guardar('cfp.gastos.filtros', this.verFiltros() ? '1' : '0');
+  }
+  protected ativos = computed(() => +(this.filtro() !== 'todos') + +!!this.cat() + +!!this.tag() + +(this.filtro() === 'cartao' && !!this.cartao()));
+  limpar() {
+    this.filtro.set('todos');
+    this.cat.set(null);
+    this.tag.set(null);
+    this.cartao.set(null);
+    this.fatura.set(null);
+  }
+  protected verDups = signal(lido('cfp.gastos.dups') !== '0');
+  lembrarDups(e: Event) {
+    const aberto = (e.target as HTMLDetailsElement).open;
+    this.verDups.set(aberto);
+    guardar('cfp.gastos.dups', aberto ? '1' : '0');
   }
 
   protected opcoes: { k: Filtro; r: string; i?: string }[] = [

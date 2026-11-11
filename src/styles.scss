@@ -524,7 +524,8 @@ input[type='color'] {
 }
 
 @media (min-width: 1024px) {
-  .page { max-width: 960px; padding: 12px 24px 40px; }
+  .page { max-width: 1040px; padding: 12px 32px 40px; }
+  .page.larga { max-width: 1240px; }
 }
 
 // Resumo → PDF: só o conteúdo da página, fundo branco
@@ -537,4 +538,33 @@ input[type='color'] {
   body { background: #fff; }
   .page { max-width: none; padding: 0; }
   .card { break-inside: avoid; box-shadow: none; }
+}
+
+/* Seção secundária recolhida: <details class="card mais"><summary><app-icon/>Título<span class="small muted">resumo</span></summary>... */
+details.mais > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; list-style: none; white-space: nowrap; }
+details.mais > summary::-webkit-details-marker { display: none; }
+details.mais > summary > span { margin-left: auto; font-weight: 500; white-space: normal; text-align: right; min-width: 0; }
+details.mais > summary::after { content: 'expand_more'; font-family: 'Material Symbols Rounded'; font-size: 20px; color: var(--ink-3); transition: transform 0.2s; }
+details.mais[open] > summary::after { transform: rotate(180deg); }
+details.mais[open] > summary { margin-bottom: 12px; }
+details.mais h2 { font-size: 0.95rem; margin: 4px 0 8px; }
+
+/* Abas de uma tela (Do mês | Cadastradas) */
+.seg.abas { display: flex; }
+.seg.abas > button { flex: 1; display: inline-flex; justify-content: center; align-items: center; gap: 6px; }
+
+/* Um número principal com o secundário à direita e barra embaixo */
+.resumo { display: flex; flex-direction: column; gap: 10px; }
+.resumo .rl { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.resumo .grande { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.resumo .dirr { text-align: right; }
+.page.larga { max-width: 1240px; }
+
+/* Lista de cards: uma coluna no celular, grade no computador */
+.grade-cards { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* mural: cards de alturas diferentes não deixam buraco embaixo do menor */
+@media (min-width: 1024px) {
+  .grade-cards { display: block; columns: 2 320px; column-gap: 14px; }
+  .grade-cards > * { break-inside: avoid; margin-bottom: 14px; }
+  .grade-cards > .empty, .grade-cards > p { column-span: all; }
 }

@@ -33,12 +33,147 @@ const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && 
     <div class="page">
       <div class="page-head">
         <h1>Planejamento</h1>
-        <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" /> Evento</button>
+        <div class="acts">
+          <button class="btn ghost sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Evento</button>
+          <button class="btn sm" type="button" (click)="simAberto.set(true)"><app-icon name="shopping_cart" [size]="16" />Posso comprar?</button>
+        </div>
       </div>
-      <p class="muted small">Projeção de 12 meses a partir de {{ s.mes() | mes }} com contas fixas, salário, parcelas no cartão e eventos planejados.</p>
 
-      <section class="card sim">
-        <div class="card-head"><h2>Posso comprar?</h2></div>
+      <div class="seg abas" role="tablist" aria-label="Planejamento">
+        <button type="button" role="tab" [class.on]="aba() === 'projecao'" [attr.aria-selected]="aba() === 'projecao'" (click)="trocarAba('projecao')">Projeção</button>
+        <button type="button" role="tab" [class.on]="aba() === 'eventos'" [attr.aria-selected]="aba() === 'eventos'" (click)="trocarAba('eventos')">
+          Eventos @if (planos().length) { <span class="n">{{ planos().length }}</span> }</button>
+      </div>
+
+      @if (aba() === 'projecao') {
+        @if (resultado(); as r) {
+          <div class="veredito" [class]="r.nivel">
+            <app-icon [name]="icone(r.nivel)" [size]="22" [fill]="true" />
+            <div class="grow">
+              <b>{{ veredito(r.nivel) }}</b>
+              <p class="small">Compra de {{ r.n }}x {{ r.parcela | brl }} marcada nos meses abaixo.</p>
+            </div>
+            <button class="btn ghost sm" type="button" (click)="simAberto.set(true)">Ver</button>
+            <button class="btn ghost sm" type="button" (click)="sim.set([])" aria-label="Limpar simulação"><app-icon name="close" [size]="16" /></button>
+          </div>
+        }
+
+        @if (!dados()) {
+          <div class="card empty"><span class="big">⏳</span>Carregando...</div>
+        } @else {
+          <section class="card resumo">
+            <div class="rl">
+              <div><div class="small muted" title="Soma das sobras previstas a partir deste mês, sem o saldo que já está no banco">Acumulado em 12 meses</div>
+                <b class="grande" [class.neg]="final() < 0" [class.pos]="final() >= 0">{{ final() | brl }}</b></div>
+              @if (pior(); as p) {
+                <div class="small muted dirr">Mês mais apertado<br /><span class="cap">{{ p.mes | mes: true }}</span>&ngsp;<b [class.neg]="p.saldo < 0">{{ p.saldo | brl }}</b></div>
+              }
+            </div>
+            <label class="check small">
+              <input type="checkbox" [checked]="estimar()" (change)="estimar.set(!estimar())" />
+              <span>Incluir dia a dia <span class="muted">(média {{ media() | brl }}/mês, {{ mediaTxt() }})</span></span>
+            </label>
+          </section>
+
+          <section class="card">
+            <div class="list">
+              @for (m of projecao(); track m.mes) {
+                <button type="button" class="row" (click)="aberto.set(aberto() === m.mes ? null : m.mes)" [attr.aria-expanded]="aberto() === m.mes">
+                  <div class="grow">
+                    <div class="t cap">{{ m.mes | mes }}</div>
+                    <div class="s">+{{ m.entradas | brl }} · −{{ m.saidas | brl }}@if (m.planos.length) { · {{ m.planos.length }} {{ m.planos.length > 1 ? 'eventos' : 'evento' }} }</div>
+                  </div>
+                  <div class="v">
+                    <span [class.neg]="m.saldo < 0" [class.pos]="m.saldo >= 0">{{ m.saldo | brl }}</span>
+                    <div class="s" [class.neg]="m.acumulado < 0">acum. {{ m.acumulado | brl }}</div>
+                    @if (resultado()?.porMes?.get(m.mes); as p) { <div class="s simu">compra −{{ p | brl }}</div> }
+                  </div>
+                </button>
+                @if (aberto() === m.mes) {
+                  <div class="det">
+                    <div><span>Entradas fixas</span><b>{{ m.fixas | brl }}</b></div>
+                    <div><span>Entradas lançadas</span><b>{{ m.avulsas | brl }}</b></div>
+                    <div><span>Contas fixas</span><b>{{ m.contas | brl }}</b></div>
+                    <div><span>Faturas de cartão</span><b>{{ m.faturas | brl }}</b></div>
+                    <div><span>Débitos já lançados</span><b>{{ m.debitos | brl }}</b></div>
+                    @if (m.reservado) {
+                      <div><span>Reservado em orçamentos</span><b>{{ m.reservado | brl }}</b></div>
+                    }
+                    @if (estimar()) {
+                      <div><span>Gastos do dia a dia (estimativa)</span><b>{{ m.variavel | brl }}</b></div>
+                    }
+                    @for (p of m.planos; track p.id) {
+                      <button type="button" class="plano" (click)="editar(p)">
+                        <span class="tit"><app-icon [name]="p.tipo === 'entrada' ? 'add' : 'remove'" [size]="16" />{{ p.descricao }}@if (p.anual) { <app-icon name="autorenew" [size]="14" /> }</span>
+                        <b [class.pos]="p.tipo === 'entrada'" [class.neg]="p.tipo === 'saida'">{{ p.valor | brl }}</b>
+                      </button>
+                    }
+                    <div class="bts">
+                      <button class="btn ghost sm" type="button" (click)="novo(m.mes)">+ Evento em {{ m.mes | mes: true }}</button>
+                      <button class="btn ghost sm" type="button" (click)="copiar(m.mes)"><app-icon name="content_copy" [size]="16" />Copiar de {{ anterior(m.mes) | mes: true }}</button>
+                    </div>
+                  </div>
+                }
+              }
+            </div>
+          </section>
+
+          <details class="card mais" [open]="verGrafico()" (toggle)="lembrarGrafico($event)">
+            <summary><app-icon name="bar_chart" [size]="18" />Gráfico<span class="small muted">entradas x saídas</span></summary>
+            <app-barras [colunas]="colunas()" />
+          </details>
+
+          <details class="card mais">
+            <summary><app-icon name="help" [size]="18" />Como ler<span class="small muted">sobra, acumulado e compra</span></summary>
+            <ul class="ler small">
+              <li><b>Sobra do mês</b> = entradas previstas − saídas previstas. Entradas: salário e entradas fixas, entradas lançadas e eventos. Saídas: contas fixas, faturas no mês do vencimento, débitos lançados, reservas de orçamento, eventos e, se marcado, o dia a dia estimado.</li>
+              <li><b>Acumulado</b> soma as sobras a partir deste mês. Ele começa do zero, sem o saldo que já está no banco: negativo quer dizer que, no período, sai mais do que entra.</li>
+              <li><b>A compra</b> entra como gasto extra: no cartão, cada parcela vai para a fatura do mês em que vence; no Pix/débito, uma por mês a partir de hoje. A lista mostra a sobra antes → depois em cada mês com parcela.</li>
+              <li><b>Cabe</b>: todo mês com parcela segue positivo. <b>Aperta</b>: algum mês fica negativo, mas o total dos 12 meses fecha positivo. <b>Não cabe</b>: o total dos 12 meses fica negativo.</li>
+              <li>Tudo negativo? Confira o dia a dia estimado (desmarque para ver só o que é fixo) e se as entradas fixas estão cadastradas.</li>
+            </ul>
+          </details>
+        }
+      } @else {
+        @if (provisao().itens.length) {
+          <section class="card resumo">
+            <div class="rl">
+              <div><div class="small muted" title="Contas anuais (IPVA, IPTU, seguro, matrícula) e eventos planejados: quanto guardar por mês até a data">Separar todo mês</div>
+                <b class="grande">{{ provisao().total | brl }}</b></div>
+              <div class="small muted dirr">para {{ provisao().itens.length }} {{ provisao().itens.length > 1 ? 'saídas' : 'saída' }}<br />até a data de cada uma</div>
+            </div>
+          </section>
+        }
+        <section class="card list">
+          @for (x of eventos(); track x.p.id) {
+            <div class="row">
+              <button type="button" class="grow ev" (click)="editar(x.p)">
+                <div class="t">{{ x.p.descricao }}@if (x.p.anual) {&ngsp;<app-icon name="autorenew" [size]="14" title="Repete todo ano" /> }</div>
+                <div class="s" [title]="x.prov ? 'Guardar ' + (x.prov.porMes | brl) + (x.prov.meses > 1 ? ' por mês durante ' + x.prov.meses + ' meses' : ' este mês') : ''"><span class="cap">{{ x.mes | mes }}</span>@if (x.prov; as v) { · {{ v.porMes | brl }}/mês }</div>
+              </button>
+              <div class="v">
+                <b class="num" [class.pos]="x.p.tipo === 'entrada'" [class.neg]="x.p.tipo === 'saida'">{{ x.p.tipo === 'entrada' ? '+' : '−' }}{{ x.p.valor | brl }}</b>
+                @if (x.prov; as v) {
+                  @if (v.cofrinho; as c) {
+                    <a class="s" [routerLink]="['/cofrinhos', c.id]">Ver cofrinho</a>
+                  } @else {
+                    <button type="button" class="btn ghost sm" (click)="criarCofrinho(x.p, v.mes)">Criar cofrinho</button>
+                  }
+                }
+              </div>
+            </div>
+          } @empty {
+            <div class="empty"><app-icon class="big" name="event" [size]="40" />Nenhum evento planejado.<br />
+              <span class="small">Entradas ou saídas fora do comum (13º, IPVA, viagem) entram na projeção do mês. As saídas mostram quanto separar por mês até a data.</span>
+              <button class="btn sm" type="button" (click)="novo()">Novo evento</button>
+            </div>
+          }
+        </section>
+      }
+    </div>
+
+    <app-sheet [(open)]="simAberto" titulo="Posso comprar?">
+      <form class="form sim" (ngSubmit)="simular()">
         <div class="campos">
           <label class="field"><span>Valor total</span><input name="sv" moeda inputmode="numeric" placeholder="0,00" [(ngModel)]="simValor" /></label>
           <label class="field"><span>Parcelas</span><input name="sp" type="number" min="1" max="120" [(ngModel)]="simParcelas" /></label>
@@ -50,14 +185,14 @@ const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && 
           </label>
         </div>
         <div class="bts">
-          <button class="btn sm" type="button" (click)="simular()">Simular</button>
+          <button class="btn sm" type="submit">Simular</button>
           @if (sim().length) { <button class="btn ghost sm" type="button" (click)="sim.set([])">Limpar</button> }
         </div>
         @if (resultado(); as r) {
           <div class="veredito" [class]="r.nivel">
-            <app-icon [name]="r.nivel === 'ok' ? 'check_circle' : r.nivel === 'aperta' ? 'warning' : 'cancel'" [size]="22" [fill]="true" />
+            <app-icon [name]="icone(r.nivel)" [size]="22" [fill]="true" />
             <div>
-              <b>{{ r.nivel === 'ok' ? 'Cabe no orçamento' : r.nivel === 'aperta' ? 'Cabe, mas aperta' : 'Não cabe agora' }}</b>
+              <b>{{ veredito(r.nivel) }}</b>
               <p class="small">
                 @if (r.nivel === 'ok') {
                   Todos os meses com parcela continuam com sobra.
@@ -82,108 +217,12 @@ const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && 
               <p class="small muted">{{ r.fora | brl }} caem depois dos 12 meses mostrados.</p>
             }
           </div>
+          <p class="small muted">A compra fica marcada na projeção até limpar. Sobra antes → depois em cada mês com parcela.</p>
+        } @else if (!dados()) {
+          <p class="small muted">Carregando a projeção...</p>
         }
-        <details class="ler">
-          <summary>Como ler</summary>
-          <ul class="small">
-            <li><b>Sobra do mês</b> = entradas previstas − saídas previstas. Entradas: salário e entradas fixas, entradas lançadas e eventos. Saídas: contas fixas, faturas no mês do vencimento, débitos lançados, reservas de orçamento, eventos e, se marcado, o dia a dia estimado.</li>
-            <li><b>Acumulado</b> soma as sobras a partir deste mês. Ele começa do zero, sem o saldo que já está no banco: negativo quer dizer que, no período, sai mais do que entra.</li>
-            <li><b>A compra</b> entra como gasto extra: no cartão, cada parcela vai para a fatura do mês em que vence; no Pix/débito, uma por mês a partir de hoje. A lista mostra a sobra antes → depois em cada mês com parcela.</li>
-            <li><b>Cabe</b>: todo mês com parcela segue positivo. <b>Aperta</b>: algum mês fica negativo, mas o total dos 12 meses fecha positivo. <b>Não cabe</b>: o total dos 12 meses fica negativo.</li>
-            <li>Tudo negativo? Confira o dia a dia estimado (desmarque para ver só o que é fixo) e se as entradas fixas estão cadastradas.</li>
-          </ul>
-        </details>
-      </section>
-
-      @if (provisao().itens.length) {
-        <section class="card">
-          <div class="card-head"><h2>Separar todo mês</h2><b class="num">{{ provisao().total | brl }}/mês</b></div>
-          <p class="small muted">Contas anuais (IPVA, IPTU, seguro, matrícula) e eventos planejados: quanto guardar por mês até a data.</p>
-          <div class="list">
-            @for (x of provisao().itens; track x.p.id) {
-              <div class="row">
-                <div class="grow">
-                  <div class="t">{{ x.p.descricao }}@if (x.p.anual) { <app-icon name="autorenew" [size]="14" /> }</div>
-                  <div class="s"><span class="cap">{{ x.mes | mes }}</span> · {{ x.p.valor | brl }} · {{ x.meses > 1 ? x.meses + ' meses' : 'este mês' }}</div>
-                </div>
-                <div class="v">
-                  <b class="num">{{ x.porMes | brl }}</b>
-                  @if (x.cofrinho; as c) {
-                    <a class="s" [routerLink]="['/cofrinhos', c.id]">Ver cofrinho</a>
-                  } @else {
-                    <button type="button" class="btn ghost sm" (click)="criarCofrinho(x.p, x.mes)">Criar cofrinho</button>
-                  }
-                </div>
-              </div>
-            }
-          </div>
-        </section>
-      }
-
-      <label class="card check">
-        <input type="checkbox" [checked]="estimar()" (change)="estimar.set(!estimar())" />
-        <span>Incluir gastos do dia a dia <span class="muted small">(média {{ media() | brl }}/mês, {{ mediaTxt() }})</span></span>
-      </label>
-
-      @if (!dados()) {
-        <div class="card empty"><span class="big">⏳</span>Carregando...</div>
-      } @else {
-        <div class="stats">
-          <div class="stat"><div class="l">Acumulado em 12 meses</div><div class="v" [class.neg]="final() < 0" [class.pos]="final() >= 0">{{ final() | brl }}</div></div>
-          @if (pior(); as p) {
-            <div class="stat"><div class="l">Pior mês · <span class="cap">{{ p.mes | mes: true }}</span></div><div class="v" [class.neg]="p.saldo < 0">{{ p.saldo | brl }}</div></div>
-          }
-        </div>
-
-        <section class="card">
-          <div class="card-head"><h2>Entradas x saídas previstas</h2></div>
-          <app-barras [colunas]="colunas()" />
-        </section>
-
-        <section class="card">
-          <div class="list">
-            @for (m of projecao(); track m.mes) {
-              <button type="button" class="row" (click)="aberto.set(aberto() === m.mes ? null : m.mes)">
-                <div class="grow">
-                  <div class="t cap">{{ m.mes | mes }}</div>
-                  <div class="s">+{{ m.entradas | brl }} · −{{ m.saidas | brl }}</div>
-                </div>
-                <div class="v">
-                  <span [class.neg]="m.saldo < 0" [class.pos]="m.saldo >= 0">{{ m.saldo | brl }}</span>
-                  <div class="s" [class.neg]="m.acumulado < 0">acum. {{ m.acumulado | brl }}</div>
-                  @if (resultado()?.porMes?.get(m.mes); as p) { <div class="s simu">compra −{{ p | brl }}</div> }
-                </div>
-              </button>
-              @if (aberto() === m.mes) {
-                <div class="det">
-                  <div><span>Entradas fixas</span><b>{{ m.fixas | brl }}</b></div>
-                  <div><span>Entradas lançadas</span><b>{{ m.avulsas | brl }}</b></div>
-                  <div><span>Contas fixas</span><b>{{ m.contas | brl }}</b></div>
-                  <div><span>Faturas de cartão</span><b>{{ m.faturas | brl }}</b></div>
-                  <div><span>Débitos já lançados</span><b>{{ m.debitos | brl }}</b></div>
-                  @if (m.reservado) {
-                    <div><span>Reservado em orçamentos</span><b>{{ m.reservado | brl }}</b></div>
-                  }
-                  @if (estimar()) {
-                    <div><span>Gastos do dia a dia (estimativa)</span><b>{{ m.variavel | brl }}</b></div>
-                  }
-                  @for (p of m.planos; track p.id) {
-                    <button type="button" class="plano" (click)="editar(p)">
-                      <span class="tit"><app-icon [name]="p.tipo === 'entrada' ? 'add' : 'remove'" [size]="16" />{{ p.descricao }}@if (p.anual) { <app-icon name="autorenew" [size]="14" /> }</span>
-                      <b [class.pos]="p.tipo === 'entrada'" [class.neg]="p.tipo === 'saida'">{{ p.valor | brl }}</b>
-                    </button>
-                  }
-                  <div class="bts">
-                    <button class="btn ghost sm" type="button" (click)="novo(m.mes)">+ Evento em {{ m.mes | mes: true }}</button>
-                    <button class="btn ghost sm" type="button" (click)="copiar(m.mes)"><app-icon name="content_copy" [size]="16" />Copiar de {{ anterior(m.mes) | mes: true }}</button>
-                  </div>
-                </div>
-              }
-            }
-          </div>
-        </section>
-      }
-    </div>
+      </form>
+    </app-sheet>
 
     <app-sheet [(open)]="sheet" [titulo]="form.id ? 'Editar evento' : 'Novo evento'">
       <form class="form" (ngSubmit)="salvar()">
@@ -230,15 +269,23 @@ const diaADia = (g: Gasto) => (g.forma === 'debito' || g.forma === 'cartao') && 
     .sim-res > div > b { margin-left: auto; font-variant-numeric: tabular-nums; }
     .sim-res .m { padding-left: 8px; border-left: 2px solid var(--line); }
     .simu { color: var(--warn); }
-    .ler summary { cursor: pointer; font-weight: 700; font-size: 0.88rem; color: var(--primary); }
-    .ler ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--ink-2); }
+    .ler { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--ink-2); }
+    .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+    .seg .n { font-size: 0.72rem; background: var(--card-2); border-radius: 99px; padding: 0 6px; }
+    .veredito .grow { flex: 1; min-width: 0; }
+    .veredito > .btn { flex: none; }
+    .page > .veredito { margin-bottom: 12px; align-items: center; }
+    .resumo .check { display: flex; gap: 8px; align-items: center; margin: 0; }
+    .ev { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; min-width: 0; }
+    .list .v { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+    .empty .btn { margin-top: 10px; }
   `,
 })
 export default class Planejamento {
   protected s = inject(Store);
   private toast = inject(Toast);
 
-  protected estimar = signal(localStorage.getItem('cfp.plan.estimar') !== '0');
+  protected estimar = signal(lerLocal('cfp.plan.estimar') !== '0');
   protected aberto = signal<string | null>(null);
   protected dados = signal<{ gastos: Gasto[]; entradas: Entrada[]; pagamentos: Pagamento[] } | null>(null);
   protected planos = signal<Plano[]>([]);
@@ -331,6 +378,35 @@ export default class Planejamento {
     return { itens, total: soma(itens, (x) => x.porMes) };
   });
 
+  /** Eventos pela próxima data; saídas com o quanto separar por mês */
+  protected eventos = computed(() => {
+    const atual = mesAtual();
+    const prov = new Map(this.provisao().itens.map((x) => [x.p.id, x]));
+    return this.planos()
+      .map((p) => {
+        let mes = p.mes;
+        if (p.anual) while (mes < atual) mes = addMeses(mes, 12);
+        return { p, mes, prov: prov.get(p.id) ?? null };
+      })
+      .sort((a, b) => a.mes.localeCompare(b.mes));
+  });
+
+  /** Projeção (o principal) ou Eventos (cadastro e provisão) */
+  protected aba = signal<'projecao' | 'eventos'>(lerLocal('cfp.plan.aba') === 'eventos' ? 'eventos' : 'projecao');
+  trocarAba(a: 'projecao' | 'eventos') {
+    this.aba.set(a);
+    gravarLocal('cfp.plan.aba', a);
+  }
+  protected simAberto = signal(false);
+  protected verGrafico = signal(lerLocal('cfp.plan.grafico') === '1');
+  lembrarGrafico(e: Event) {
+    const aberto = (e.target as HTMLDetailsElement).open;
+    this.verGrafico.set(aberto);
+    gravarLocal('cfp.plan.grafico', aberto ? '1' : '0');
+  }
+  protected icone = (n: string) => (n === 'ok' ? 'check_circle' : n === 'aperta' ? 'warning' : 'cancel');
+  protected veredito = (n: string) => (n === 'ok' ? 'Cabe no orçamento' : n === 'aperta' ? 'Cabe, mas aperta' : 'Não cabe agora');
+
   async criarCofrinho(p: Plano, mes: string) {
     try {
       const id = await this.s.salvar('cofrinhos', { nome: p.descricao, meta: p.valor, prazo: mes, icone: 'event', cor: '#f59e0b' });
@@ -399,12 +475,14 @@ export default class Planejamento {
       if (!this.s.carteiraId()) return;
       untracked(() => this.carregar(ms[0], ms[ms.length - 1]));
     });
-    effect(() => localStorage.setItem('cfp.plan.estimar', this.estimar() ? '1' : '0'));
+    effect(() => gravarLocal('cfp.plan.estimar', this.estimar() ? '1' : '0'));
     // vindo da lista de desejos: ?comprar=<valor>
     const v = inject(ActivatedRoute).snapshot.queryParamMap.get('comprar');
     if (v) {
       this.simValor = v.replace('.', ',');
       this.simular();
+      this.aba.set('projecao');
+      this.simAberto.set(true);
     }
   }
 
@@ -480,5 +558,21 @@ export default class Planejamento {
     this.planos.update((l) => l.filter((p) => p.id !== id));
     this.s.excluirAdiado('planos', id, 'Evento excluído', () => this.carregarPlanos());
     this.sheet.set(false);
+  }
+}
+
+function lerLocal(k: string) {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+}
+
+function gravarLocal(k: string, v: string) {
+  try {
+    localStorage.setItem(k, v);
+  } catch {
+    /* sem armazenamento: só não lembra */
   }
 }

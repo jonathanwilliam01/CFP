@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { hoje, mesAtual } from '../core/datas';
 import { ativaNoMes, dataEntrada } from '../core/financas';
-import { BrlPipe, DiaPipe, parseValor } from '../core/formato';
+import { BrlPipe, DiaPipe, parseValor, soma } from '../core/formato';
 import { Recorrencia } from '../core/models';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
@@ -10,9 +10,18 @@ import { Lancar } from '../shared/lancar';
 import { Reajuste } from '../shared/reajuste';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
-import { Abas, ENTRADAS } from '../shared/abas';
+import { NgTemplateOutlet } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Moeda } from '../shared/moeda';
 import { Autor } from '../shared/autor';
+
+function lerLocal(k: string) {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+}
 
 interface FormFixa {
   id?: string;
@@ -29,52 +38,88 @@ interface FormFixa {
 }
 
 @Component({
-  imports: [Moeda, Autor, Abas, FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Reajuste],
+  imports: [NgTemplateOutlet, RouterLink, Moeda, Autor, FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Reajuste],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
-      <app-abas titulo="Entradas" [abas]="abas">
-        <button class="btn sm" (click)="lancar.novo('entrada')"><app-icon name="add" [size]="16" />Entrada</button>
-      </app-abas>
-
-      <div class="stats">
-        <div class="stat"><div class="l">Total do mês</div><div class="v pos">{{ s.resumo().entradas | brl }}</div></div>
-        <div class="stat"><div class="l">Fixas</div><div class="v">{{ s.resumo().entradasFixas | brl }}</div></div>
+      <div class="page-head">
+        <h1>Entradas</h1>
+        @if (aba() === 'mes') {
+          <button class="btn sm" (click)="lancar.novo('entrada')"><app-icon name="add" [size]="16" />Entrada</button>
+        } @else {
+          <button class="btn sm" (click)="nova()"><app-icon name="add" [size]="16" />Entrada fixa</button>
+        }
       </div>
 
-      <div class="card-head"><h2>Entradas fixas</h2><button class="btn ghost sm" (click)="nova()">+ Fixa</button></div>
-      <section class="card list">
-        @for (r of fixas(); track r.id) {
-          <div class="row">
-            <span class="ico"><app-icon [name]="s.catMap().get(r.categoria_id ?? '')?.icone ?? 'work'" /></span>
-            <button class="grow txt" (click)="editar(r)">
-              <div class="t">{{ r.descricao }}</div>
-              <div class="s">{{ quando(r) }} · {{ recebido(r) ? 'recebida' : r.variavel ? (s.medias().has(r.id) ? 'prevista pela média' : 'variável, prevista') : 'prevista' }}</div>
-            </button>
-            <span class="v pos">{{ (recebido(r)?.valor ?? r.valor) | brl }}</span>
-            <button class="tog" [class.on]="recebido(r)" (click)="alternar(r)" [attr.aria-label]="recebido(r) ? 'Desmarcar' : 'Marcar recebida'">
-              <app-icon name="check" [size]="16" />
-            </button>
-          </div>
-        } @empty {
-          <p class="muted small vazio">Cadastre salário e outras entradas que se repetem todo mês.</p>
-        }
-      </section>
+      <div class="seg abas" role="tablist" aria-label="Entradas">
+        <button type="button" role="tab" [class.on]="aba() === 'mes'" [attr.aria-selected]="aba() === 'mes'" (click)="trocarAba('mes')">Do mês</button>
+        <button type="button" role="tab" [class.on]="aba() === 'fixas'" [attr.aria-selected]="aba() === 'fixas'" (click)="trocarAba('fixas')">Fixas</button>
+        <a routerLink="/receber" [replaceUrl]="true" title="O que emprestou ou pagou por alguém">A receber</a>
+      </div>
 
-      <h2>Outras entradas do mês</h2>
-      <section class="card list">
-        @for (e of s.entradasMes(); track e.id) {
-          <button class="row" (click)="lancar.editarEntrada(e)">
-            <span class="ico"><app-icon [name]="s.catMap().get(e.categoria_id ?? '')?.icone ?? 'attach_money'" /></span>
-            <div class="grow"><div class="t">{{ e.descricao }}</div><div class="s">{{ e.data | dia }}</div></div>
-            <app-autor [id]="e.criado_por" />
-            <span class="v pos">{{ e.valor | brl }}</span>
-          </button>
-        } @empty {
-          <p class="muted small vazio">Nenhuma entrada avulsa neste mês.</p>
+      @if (aba() === 'mes') {
+        <section class="card resumo">
+          <div class="rl">
+            <div><div class="small muted">Total do mês</div><b class="grande pos">{{ s.resumo().entradas | brl }}</b></div>
+            <div class="small muted dirr">Recebido <b class="pos">{{ prog().recebido | brl }}</b>@if (prog().falta > 0) {<br />falta {{ prog().falta | brl }}}</div>
+          </div>
+          <div class="barra" role="progressbar" [attr.aria-valuenow]="prog().pct" aria-valuemin="0" aria-valuemax="100"><span [style.width.%]="prog().pct"></span></div>
+        </section>
+
+        @if (pendentes().length) {
+          <h2>A receber</h2>
+          <section class="card list">
+            @for (r of pendentes(); track r.id) { <ng-container *ngTemplateOutlet="fixa; context: { $implicit: r }" /> }
+          </section>
         }
-      </section>
+
+        <h2>Recebidas</h2>
+        <section class="card list">
+          @for (r of recebidas(); track r.id) { <ng-container *ngTemplateOutlet="fixa; context: { $implicit: r }" /> }
+          @for (e of s.entradasMes(); track e.id) {
+            <button class="row" (click)="lancar.editarEntrada(e)">
+              <span class="ico"><app-icon [name]="s.catMap().get(e.categoria_id ?? '')?.icone ?? 'attach_money'" /></span>
+              <div class="grow"><div class="t">{{ e.descricao }}</div><div class="s">{{ e.data | dia }}</div></div>
+              <app-autor [id]="e.criado_por" />
+              <span class="v pos">{{ e.valor | brl }}</span>
+            </button>
+          }
+          @if (!recebidas().length && !s.entradasMes().length) {
+            <p class="muted small vazio">Nada recebido ainda neste mês.</p>
+          }
+        </section>
+      } @else {
+        <section class="card list">
+          @for (r of cadastro(); track r.id) {
+            <button class="row" (click)="editar(r)">
+              <span class="ico"><app-icon [name]="s.catMap().get(r.categoria_id ?? '')?.icone ?? 'work'" /></span>
+              <div class="grow">
+                <div class="t">{{ r.descricao }}</div>
+                <div class="s">{{ r.dia_util ? r.dia + 'º dia útil' : 'Dia ' + r.dia }}{{ r.variavel ? ' · variável' : '' }}{{ r.paga_mes_anterior ? ' · cai no mês seguinte' : '' }}{{ situacao(r) }}</div>
+              </div>
+              <span class="v" [class.pos]="r.ativo">{{ r.valor | brl }}</span>
+            </button>
+          } @empty {
+            <div class="empty"><app-icon class="big" name="work" [size]="40" />Nenhuma entrada fixa.<br />
+              <span class="small">Cadastre salário e outras entradas que se repetem todo mês.</span></div>
+          }
+        </section>
+      }
     </div>
+
+    <ng-template #fixa let-r>
+      <div class="row">
+        <span class="ico"><app-icon [name]="s.catMap().get(r.categoria_id ?? '')?.icone ?? 'work'" /></span>
+        <button class="grow txt" (click)="editar(r)">
+          <div class="t">{{ r.descricao }}</div>
+          <div class="s">{{ quando(r) }}{{ recebido(r) ? '' : r.variavel ? (s.medias().has(r.id) ? ' · pela média' : ' · variável') : '' }}</div>
+        </button>
+        <span class="v pos">{{ (recebido(r)?.valor ?? r.valor) | brl }}</span>
+        <button class="tog" [class.on]="recebido(r)" (click)="alternar(r)" [attr.aria-label]="recebido(r) ? 'Desmarcar' : 'Marcar recebida'">
+          <app-icon name="check" [size]="16" />
+        </button>
+      </div>
+    </ng-template>
 
     <app-sheet [(open)]="aberto" [titulo]="form.id ? 'Editar entrada fixa' : 'Nova entrada fixa'">
       <form class="form" (ngSubmit)="salvar()">
@@ -136,10 +181,13 @@ interface FormFixa {
     }
     .tog.on { background: var(--ok); border-color: var(--ok); color: #fff; }
     .vazio { padding: 10px 0; }
+    .abas > a { display: inline-flex; justify-content: center; align-items: center; text-decoration: none; }
+    .barra { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+    .barra span { display: block; height: 100%; background: var(--ok); border-radius: inherit; transition: width 0.4s ease; }
+    .v:not(.pos) { color: var(--ink-3); }
   `,
 })
 export default class Entradas {
-  protected abas = ENTRADAS;
   protected s = inject(Store);
   protected lancar = inject(Lancar);
   private toast = inject(Toast);
@@ -150,6 +198,35 @@ export default class Entradas {
 
   /** com a média no lugar do valor nas variáveis */
   protected fixas = computed(() => this.s.recorrenciasPrev().filter((r) => r.tipo === 'entrada' && ativaNoMes(r, this.s.mes())));
+  protected pendentes = computed(() => this.fixas().filter((r) => !this.recebido(r)));
+  protected recebidas = computed(() => this.fixas().filter((r) => this.recebido(r)));
+  protected prog = computed(() => {
+    const recebido = soma(this.recebidas(), (r) => this.recebido(r)!.valor) + soma(this.s.entradasMes(), (e) => e.valor);
+    const falta = soma(this.pendentes(), (r) => r.valor);
+    return { recebido, falta, pct: recebido + falta ? Math.round((recebido / (recebido + falta)) * 100) : 0 };
+  });
+  /** cadastro: todas as fixas de entrada, ativas primeiro */
+  protected cadastro = computed(() => {
+    const l = this.s.recorrencias().filter((r) => r.tipo === 'entrada');
+    // versão antiga de um reajuste some (a nova segue no lugar)
+    const velhas = new Set(l.map((r) => r.reajuste_de).filter(Boolean));
+    return l.filter((r) => !velhas.has(r.id)).sort((a, b) => +b.ativo - +a.ativo || a.dia - b.dia || a.descricao.localeCompare(b.descricao));
+  });
+  situacao(r: Recorrencia) {
+    if (!r.ativo) return ' · inativa';
+    if (r.fim && r.fim < this.s.mes()) return ' · encerrada';
+    if (r.inicio > this.s.mes()) return ' · começa depois';
+    return '';
+  }
+
+  /** Do mês (receber) ou Fixas (cadastro) */
+  protected aba = signal<'mes' | 'fixas'>(lerLocal('cfp.entradas.aba') === 'fixas' ? 'fixas' : 'mes');
+  trocarAba(a: 'mes' | 'fixas') {
+    this.aba.set(a);
+    try {
+      localStorage.setItem('cfp.entradas.aba', a);
+    } catch {}
+  }
   protected recebendo = signal<Recorrencia | null>(null);
   protected valorRecebido = '';
 

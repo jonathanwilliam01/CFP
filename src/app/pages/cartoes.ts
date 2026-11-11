@@ -47,70 +47,84 @@ interface FormCartao {
         </div>
       </div>
 
+      @if (total(); as t) {
+        <section class="card resumo">
+          <div class="rl">
+            <div><div class="small muted">Faturas abertas</div><b class="grande">{{ t.aberto | brl }}</b></div>
+            @if (t.limite) { <div class="small muted dirr">Disponível <b>{{ t.limite - t.usado | brl }}</b><br />de {{ t.limite | brl }}</div> }
+          </div>
+          @if (t.limite) {
+            <div class="bar" [class.alerta]="t.pct >= 80" [class.estourado]="t.pct >= 100"><i [style.width.%]="t.pct > 100 ? 100 : t.pct"></i></div>
+          }
+        </section>
+      }
+
+      <div class="grade-cards">
       @for (c of lista(); track c.cartao.id) {
         <article class="card cc" [class.off]="!c.cartao.ativo">
           <div class="topo" [style.background]="c.cartao.cor">
             <div>
               <b>{{ c.cartao.nome }}</b>
-              <small>Fecha {{ c.fecha }}{{ c.cartao.fecha_dias ? ' (' + c.cartao.fecha_dias + ' dias antes do vencimento)' : '' }} · vence dia {{ c.cartao.vencimento_dia }} · melhor dia de compra {{ c.fecha }}</small>
+              <small [title]="'Melhor dia de compra: ' + c.fecha + '. Compras no dia do fechamento ou depois vão para a fatura seguinte.' + (c.cartao.fecha_dias ? ' Fecha ' + c.cartao.fecha_dias + ' dias antes do vencimento, então o dia muda conforme o mês.' : '')">Fecha {{ c.fecha }} · vence dia {{ c.cartao.vencimento_dia }}</small>
             </div>
             <div class="acts">
               <button type="button" class="star" [class.on]="c.cartao.padrao" (click)="padrao(c.cartao)"
+                [title]="c.cartao.padrao ? 'Cartão padrão: já vem selecionado ao lançar um gasto' : 'Definir como padrão'"
                 [attr.aria-label]="c.cartao.padrao ? 'Cartão padrão' : 'Definir como padrão'"><app-icon name="star" [size]="20" [fill]="c.cartao.padrao" /></button>
               <button type="button" class="star" (click)="editar(c.cartao)" aria-label="Editar"><app-icon name="edit" [size]="18" /></button>
             </div>
           </div>
 
           <div class="corpo">
-            <a class="linha ver" routerLink="/gastos" [queryParams]="{ cartao: c.cartao.id, fatura: c.faturaRef === s.mes() ? 0 : 1 }">
-              <span class="muted small">Fatura de {{ c.faturaRef | mes }} <app-icon name="chevron_right" [size]="16" /></span>
-              <span class="num">
-                <b>{{ c.faturaMes | brl }}</b>
-                @if (c.pagaMes) { <span class="badge ok">Paga</span> }
-              </span>
+            <a class="rl ver" routerLink="/gastos" [queryParams]="{ cartao: c.cartao.id, fatura: c.linkAberta }">
+              <div><div class="small muted">Fatura aberta · <span class="cap">{{ c.aberta | mes: true }}</span> <app-icon name="chevron_right" [size]="14" /></div>
+                <b class="grande num">{{ c.valorAberta | brl }}</b></div>
+              @if (c.projecao; as p) {
+                <div class="small muted dirr">No ritmo atual<br />fecha em <b class="num">{{ p.projetada | brl }}</b></div>
+              }
             </a>
 
             @if (c.cartao.limite) {
-              <div class="linha">
-                <span class="muted small">Limite usado</span>
-                <span class="num small">{{ c.usado | brl }} de {{ c.cartao.limite | brl }}</span>
-              </div>
-              <div class="bar" [class.alerta]="c.pctLimite >= 80" [class.estourado]="c.pctLimite >= 100">
+              <div class="bar" [class.alerta]="c.pctLimite >= 80" [class.estourado]="c.pctLimite >= 100" [title]="'Limite usado: ' + (c.usado | brl)">
                 <i [style.width.%]="c.pctLimite > 100 ? 100 : c.pctLimite"></i>
               </div>
-              <p class="small muted">Disponível: <b class="num">{{ c.cartao.limite - c.usado | brl }}</b></p>
+              <p class="small muted">Disponível <b class="num">{{ c.cartao.limite - c.usado | brl }}</b> de {{ c.cartao.limite | brl }}</p>
             }
 
-            @if (c.projecao; as p) {
-              <div class="proj">
-                <app-icon name="trending_up" [size]="18" />
-                <span>Fatura de <b class="cap">{{ p.mes | mes: true }}</b> tem <b class="num">{{ p.atual | brl }}</b>; no ritmo atual fecha em <b class="num">{{ p.projetada | brl }}</b> (dia {{ p.fecha.slice(8) }})</span>
-              </div>
-              <app-curvas [series]="[{ nome: 'Real', cor: c.cartao.cor, valores: p.real }, { nome: 'Prevista', cor: 'var(--ink-3)', valores: p.prevista, tracejada: true }]"
-                [rotulos]="rotulosCiclo(p.dias)" [marca]="p.hoje" rotulo="Fatura real e prevista no ciclo" />
+            @if (c.faturaRef !== c.aberta) {
+              <a class="linha ver small" routerLink="/gastos" [queryParams]="{ cartao: c.cartao.id, fatura: c.faturaRef === s.mes() ? 0 : 1 }">
+                <span class="muted">Fatura de {{ c.faturaRef | mes }} <app-icon name="chevron_right" [size]="14" /></span>
+                <span class="num"><b>{{ c.faturaMes | brl }}</b>@if (c.pagaMes) { <span class="badge ok">Paga</span> }</span>
+              </a>
             }
 
-            <h3 class="sub">Próximas faturas</h3>
-            <div class="faturas">
-              @for (f of c.proximas; track f.mes) {
-                <div class="fat" [class.zero]="!f.total">
-                  <small>{{ f.mes | mes: true }}</small>
-                  <b class="num">{{ f.total | brl }}</b>
-                </div>
+            <details class="mais" [open]="verMais()" (toggle)="lembrarMais($event)">
+              <summary><app-icon name="insights" [size]="18" />Próximas faturas<span class="small muted">{{ c.proximasTotal | brl }} em 6 meses</span></summary>
+              @if (c.projecao; as p) {
+                <app-curvas [series]="[{ nome: 'Real', cor: c.cartao.cor, valores: p.real }, { nome: 'Prevista', cor: 'var(--ink-3)', valores: p.prevista, tracejada: true }]"
+                  [rotulos]="rotulosCiclo(p.dias)" [marca]="p.hoje" rotulo="Fatura real e prevista no ciclo" />
               }
-            </div>
-            <button class="btn ghost sm" type="button" (click)="conferir(c.cartao)"><app-icon name="fact_check" [size]="16" />Conferir com o banco</button>
+              <div class="faturas">
+                @for (f of c.proximas; track f.mes) {
+                  <div class="fat" [class.zero]="!f.total">
+                    <small>{{ f.mes | mes: true }}</small>
+                    <b class="num">{{ f.total | brl }}</b>
+                  </div>
+                }
+              </div>
+              <button class="btn ghost sm" type="button" (click)="conferir(c.cartao)"><app-icon name="fact_check" [size]="16" />Conferir com o banco</button>
+            </details>
           </div>
         </article>
       } @empty {
         <div class="card empty">
           <app-icon class="big" name="credit_card" [size]="40" />
           <p>Nenhum cartão cadastrado.</p>
+          <p class="small muted">Cadastre o fechamento e o vencimento: cada compra cai sozinha na fatura certa. Nubank, C6, Inter e Itaú fecham um número fixo de dias antes do vencimento.</p>
           <button class="btn sm" type="button" (click)="novo()">Cadastrar cartão</button>
         </div>
       }
-
-      <p class="small muted">A estrela marca o cartão padrão, já selecionado ao lançar um gasto. Compras no dia do fechamento ou depois vão para a fatura seguinte. Nubank, C6, Inter e Itaú fecham um número fixo de dias antes do vencimento, então o dia muda conforme o mês.</p>
+      </div>
     </div>
 
     <app-sheet [open]="!!conf()" (openChange)="conf.set(null)" [titulo]="'Conferir ' + (conf()?.nome ?? '')">
@@ -203,18 +217,23 @@ interface FormCartao {
     .corpo { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
     .linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .linha .num { display: inline-flex; gap: 6px; align-items: center; }
-    .sub { margin-top: 6px; font-size: 0.8rem; color: var(--ink-2); }
-    .ver { color: inherit; }
-    .ver .small { display: inline-flex; align-items: center; }
-    .faturas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .corpo p { margin: 0; }
+    .rl { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+    .grande { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+    .dirr { text-align: right; }
+    .ver { color: inherit; text-decoration: none; }
+    .ver app-icon { vertical-align: middle; }
+    .mais { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 2px; display: flex; flex-direction: column; gap: 8px; }
+    details.mais[open] { display: flex; }
+    details.mais[open] > summary { margin-bottom: 4px; }
+    .faturas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 4px 0 8px; }
+    @media (min-width: 720px) { .faturas { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
     .fat { background: var(--card-2); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; }
     .fat small { font-size: 0.7rem; color: var(--ink-2); text-transform: capitalize; font-weight: 600; }
     .fat b { font-size: 0.85rem; }
     .fat.zero { opacity: 0.55; }
-    .proj { display: flex; gap: 8px; align-items: flex-start; font-size: 0.85rem; color: var(--ink-2); background: var(--card-2); border-radius: 10px; padding: 8px 10px; }
-    .proj app-icon { color: var(--primary); }
     .cap { text-transform: capitalize; }
-    .corpo > .btn { align-self: flex-start; }
+    .mais .btn { align-self: flex-start; }
     .itens { max-height: 45dvh; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px; }
     .it { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; cursor: pointer; }
     .it:last-child { border-bottom: 0; }
@@ -276,6 +295,13 @@ export default class Cartoes {
       const restos = soma(pagas.filter((p) => p.ref_id === cartao.id && p.resto && !paga(addMeses(p.mes, 1))), (p) => p.resto ?? 0);
       const usado = soma(dele.filter((g) => !paga(g.fatura_mes)), (g) => g.valor) + restos;
       const fatura = this.s.contasMes().find((c) => c.tipo === 'fatura' && c.ref_id === cartao.id);
+      const aberta = mesFatura(hoje(), cartao);
+      const proximas = meses.map((mes) => ({
+        mes,
+        total: soma(dele.filter((g) => g.fatura_mes === mes), (g) => g.valor) + soma(fixasNaFatura(mes, cartao, this.s.recorrenciasPrev()), (f) => f.valor)
+          + (pagas.find((p) => p.ref_id === cartao.id && p.mes === addMeses(mes, -1))?.resto ?? 0),
+      }));
+      const ref = this.s.mes();
       return {
         cartao,
         fecha: fechamentoFatura(mesFatura(hoje(), cartao), cartao).split('-').reverse().slice(0, 2).join('/'),
@@ -285,14 +311,33 @@ export default class Cartoes {
         faturaMes: fatura?.valor ?? 0,
         pagaMes: !!fatura?.pago,
         projecao: cartao.ativo ? projetar(cartao, dele, this.s.recorrenciasPrev()) : null,
-        proximas: meses.map((mes) => ({
-          mes,
-          total: soma(dele.filter((g) => g.fatura_mes === mes), (g) => g.valor) + soma(fixasNaFatura(mes, cartao, this.s.recorrenciasPrev()), (f) => f.valor)
-            + (pagas.find((p) => p.ref_id === cartao.id && p.mes === addMeses(mes, -1))?.resto ?? 0),
-        })),
+        aberta,
+        valorAberta: proximas.find((f) => f.mes === aberta)?.total ?? 0,
+        linkAberta: aberta === ref ? 0 : aberta === addMeses(ref, 1) ? 1 : null,
+        proximas,
+        proximasTotal: soma(proximas, (f) => f.total),
       };
     });
   });
+
+  /** Soma dos cartões ativos: só com mais de um */
+  protected total = computed(() => {
+    const l = this.lista().filter((c) => c.cartao.ativo);
+    if (l.length < 2) return null;
+    const comLimite = l.filter((c) => c.cartao.limite);
+    const limite = soma(comLimite, (c) => c.cartao.limite ?? 0);
+    const usado = soma(comLimite, (c) => c.usado);
+    return { aberto: soma(l, (c) => c.valorAberta), limite, usado, pct: limite ? pct(usado, limite) : 0 };
+  });
+
+  /** curva, próximas faturas e conferir ficam recolhidos */
+  protected verMais = signal(lerLocal('cfp.cartoes.mais') === '1');
+  lembrarMais(e: Event) {
+    const aberto = (e.target as HTMLDetailsElement).open;
+    if (aberto === this.verMais()) return;
+    this.verMais.set(aberto);
+    gravarLocal('cfp.cartoes.mais', aberto ? '1' : '0');
+  }
 
   constructor() {
     effect(() => {
@@ -403,4 +448,20 @@ export default class Cartoes {
     this.aberto.set(false);
   }
 
+}
+
+function lerLocal(k: string) {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+}
+
+function gravarLocal(k: string, v: string) {
+  try {
+    localStorage.setItem(k, v);
+  } catch {
+    /* sem armazenamento: só não lembra */
+  }
 }

@@ -28,12 +28,12 @@ interface FormBeneficio {
   template: `
     <div class="page">
       <div class="page-head">
-        <h1>Benefícios</h1>
+        <h1 title="Gastos e contas fixas pagos com benefício (VR, VA...) são descontados do saldo dele e não entram nas saídas do mês. Escolha o benefício em “Pagamento” ao lançar ou cadastrar a conta fixa.">Benefícios</h1>
         <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Novo</button>
       </div>
 
-      <p class="small muted">Gastos e contas fixas pagos com benefício (VR, VA...) são descontados do saldo dele e não entram nas saídas do mês. Escolha o benefício em “Pagamento” ao lançar ou cadastrar a conta fixa.</p>
 
+      <div class="grade-cards">
       @for (b of lista(); track b.beneficio.id) {
         <article class="card" [class.off]="!b.beneficio.ativo">
           <div class="card-head">
@@ -79,6 +79,7 @@ interface FormBeneficio {
           <button class="btn sm" type="button" (click)="novo()">Cadastrar benefício</button>
         </div>
       }
+      </div>
     </div>
 
     <app-sheet [(open)]="aberto" [titulo]="f.id ? 'Editar benefício' : 'Novo benefício'">

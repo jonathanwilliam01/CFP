@@ -32,6 +32,7 @@ const diaLocal = (ts: string) => iso(new Date(ts));
         <button class="btn sm" type="button" (click)="nova()"><app-icon name="add" [size]="16" />Meta</button>
       </div>
 
+      <div class="grade-cards">
       @for (m of ativas(); track m.m.id) {
         <article class="card meta">
           <button type="button" class="cab" (click)="editar(m.m)">
@@ -80,6 +81,7 @@ const diaLocal = (ts: string) => iso(new Date(ts));
           <button class="btn sm" type="button" (click)="nova()">Criar meta</button>
         </div>
       }
+      </div>
 
       @if (concluidas().length) {
         <details class="card">

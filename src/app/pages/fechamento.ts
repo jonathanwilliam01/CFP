@@ -1,14 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { addMeses, fimMes, hoje, mesAtual, nomeMes } from '../core/datas';
 import { contasDoMes, noMes, orcamentosNoMes, porCategoria, resumoMes, statusOrcamentos } from '../core/financas';
-import { BrlPipe, DiaPipe, MesPipe, pct, soma } from '../core/formato';
+import { BrlPipe, DiaPipe, MesPipe, moeda, pct, soma } from '../core/formato';
 import { Entrada, Gasto, Pagamento } from '../core/models';
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
 import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
+
+const SECOES = ['abertas', 'orcamentos', 'onde', 'cofrinhos'];
 
 /** Balanço de um mês já fechado: o anterior ao atual, ou o mês passado que estiver selecionado */
 @Component({
@@ -28,34 +30,32 @@ import { Toast } from '../shared/toast';
         <div class="card empty"><span class="big">⏳</span>Carregando...</div>
       }
       @if (!antes() && f(); as f) {
-        <section class="card hero">
-          <span class="small muted">Saldo de {{ mes() | mes }}</span>
-          <b class="saldo num" [class.neg]="f.r.saldo < 0" [class.pos]="f.r.saldo >= 0">{{ f.r.saldo | brl }}</b>
-          <div class="io">
-            <span>Entradas <b class="pos num">{{ f.r.entradas | brl }}</b></span>
-            <span>Saídas <b class="neg num">{{ f.r.saidas | brl }}</b></span>
+        <section class="card resumo">
+          <div class="rl">
+            <div><div class="small muted">Saldo de {{ mes() | mes: true }}</div><b class="grande" [class.neg]="f.r.saldo < 0" [class.pos]="f.r.saldo >= 0">{{ f.r.saldo | brl }}</b></div>
+            <div class="small muted dirr">Entradas <b class="pos">{{ f.r.entradas | brl }}</b><br />Saídas <b class="neg">{{ f.r.saidas | brl }}</b></div>
           </div>
           @if (f.r.entradas > 0) {
-            <span class="small muted">{{ f.r.saldo >= 0 ? 'Sobrou' : 'Faltou' }} {{ f.sobra < 0 ? -f.sobra : f.sobra }}% das entradas</span>
+            <div class="barra" role="progressbar" [attr.aria-valuenow]="gastoPct()" aria-valuemin="0" aria-valuemax="100" title="Saídas sobre as entradas"><span [class.estourou]="f.r.saldo < 0" [style.width.%]="gastoPct()"></span></div>
           }
-          @if (f.variacao !== null) {
-            <span class="small">Consumo <b [class.neg]="f.variacao > 0" [class.pos]="f.variacao <= 0">{{ f.variacao > 0 ? '↑' : '↓' }} {{ f.variacao < 0 ? -f.variacao : f.variacao }}%</b> em relação a {{ anterior() | mes }}</span>
+          @if (f.r.entradas > 0 || f.variacao !== null) {
+            <span class="small muted">
+              @if (f.r.entradas > 0) { {{ f.r.saldo >= 0 ? 'Sobrou' : 'Faltou' }} {{ f.sobra < 0 ? -f.sobra : f.sobra }}% das entradas }
+              @if (f.r.entradas > 0 && f.variacao !== null) { · }
+              @if (f.variacao !== null) { consumo <b [class.neg]="f.variacao > 0" [class.pos]="f.variacao <= 0">{{ f.variacao > 0 ? '↑' : '↓' }} {{ f.variacao < 0 ? -f.variacao : f.variacao }}%</b> sobre {{ anterior() | mes: true }} }
+            </span>
           }
         </section>
 
         <section class="card combinado">
           <div class="card-head"><h2 class="tit"><app-icon name="handshake" [size]="20" />Combinado do mês</h2></div>
-          <ul class="pauta small">
-            <li>{{ f.r.saldo >= 0 ? 'Sobrou' : 'Faltou' }} <b class="num" [class.pos]="f.r.saldo >= 0" [class.neg]="f.r.saldo < 0">{{ (f.r.saldo < 0 ? -f.r.saldo : f.r.saldo) | brl }}</b> em {{ mes() | mes: true }}</li>
-            @if (estourados().length) {
-              <li>Orçamento estourado: {{ estourados().join(', ') }}</li>
-            } @else if (f.orcamentos.length) {
-              <li>Nenhum orçamento estourado</li>
-            }
-            @if (f.categorias.length) {
-              <li>Mais gasto em {{ top3() }}</li>
-            }
-          </ul>
+          @if (estourados().length || f.categorias.length) {
+            <p class="pauta small muted">
+              @if (estourados().length) { Estourou: <b class="neg">{{ estourados().join(', ') }}</b> }
+              @if (estourados().length && f.categorias.length) { · }
+              @if (f.categorias.length) { Mais gasto em {{ top3() }} }
+            </p>
+          }
           @if (combinadoAnterior().length) {
             <div class="lembra small">
               <b>Combinado de {{ anterior() | mes: true }}</b>
@@ -80,8 +80,8 @@ import { Toast } from '../shared/toast';
             <app-icon name="check" [size]="16" />{{ minha() ? 'Atualizar minha parte' : 'Fechar minha parte' }}</button>
         </section>
 
-        <section class="card">
-          <div class="card-head"><h2 class="tit"><app-icon name="pending_actions" [size]="20" />Contas em aberto</h2></div>
+        <details class="card mais" [open]="aberto('abertas')" (toggle)="lembrar('abertas', $event)">
+          <summary><app-icon name="pending_actions" [size]="18" />Contas em aberto<span class="small muted" [class.neg]="f.abertas.length">{{ f.abertas.length ? f.abertas.length + (f.abertas.length > 1 ? ' contas · ' : ' conta · ') + (totalAbertas() | brl) : 'tudo pago' }}</span></summary>
           @for (c of f.abertas; track c.ref_id) {
             <div class="row">
               <span class="ico" [style.background]="c.cor + '22'" [style.color]="c.cor"><app-icon [name]="c.icone" /></span>
@@ -94,35 +94,35 @@ import { Toast } from '../shared/toast';
           @if (f.abertas.length) {
             <a class="btn ghost sm" routerLink="/contas" (click)="irContas()">Ver contas de {{ mes() | mes: true }}</a>
           }
-        </section>
+        </details>
 
-        <section class="card">
-          <div class="card-head"><h2 class="tit"><app-icon name="flag" [size]="20" />Orçamentos</h2></div>
-          @for (o of f.orcamentos; track o.orcamento.id) {
-            <div class="lin"><span class="tit"><app-icon [name]="o.icone" [size]="16" [style.color]="o.cor" />{{ o.nome }}{{ o.pagamento ? ' · ' + o.pagamento : '' }}</span>
-              <span class="badge" [class.perigo]="o.nivel === 'estourado'" [class.alerta]="o.nivel === 'alerta'" [class.ok]="o.nivel === 'ok'">{{ o.pct }}%</span></div>
-          } @empty {
-            <p class="muted small">Nenhum orçamento definido.</p>
-          }
-        </section>
-
-        <section class="card">
-          <div class="card-head"><h2 class="tit"><app-icon name="donut_large" [size]="20" />Para onde foi</h2></div>
-          @for (c of f.categorias; track c.nome) {
-            <div class="lin"><span class="tit"><app-icon [name]="c.icone" [size]="16" [style.color]="c.cor" />{{ c.nome }}</span><span class="num">{{ c.total | brl }} · {{ c.pct }}%</span></div>
-          } @empty {
-            <p class="muted small">Nenhum gasto no mês.</p>
-          }
-          @if (f.maiores.length) {
-            <h3 class="sub">Maiores gastos</h3>
-            @for (g of f.maiores; track g.id) {
-              <div class="lin"><span>{{ g.descricao }} <span class="muted small">· {{ g.data | dia }}</span></span><span class="num">{{ g.valor | brl }}</span></div>
+        @if (f.orcamentos.length) {
+          <details class="card mais" [open]="aberto('orcamentos')" (toggle)="lembrar('orcamentos', $event)">
+            <summary><app-icon name="flag" [size]="18" />Orçamentos<span class="small muted" [class.neg]="estourados().length">{{ estourados().length ? estourados().length + (estourados().length > 1 ? ' estourados' : ' estourado') : 'nenhum estourado' }}</span></summary>
+            @for (o of f.orcamentos; track o.orcamento.id) {
+              <div class="lin"><span class="tit"><app-icon [name]="o.icone" [size]="16" [style.color]="o.cor" />{{ o.nome }}{{ o.pagamento ? ' · ' + o.pagamento : '' }}</span>
+                <span class="badge" [class.perigo]="o.nivel === 'estourado'" [class.alerta]="o.nivel === 'alerta'" [class.ok]="o.nivel === 'ok'">{{ o.pct }}%</span></div>
             }
-          }
-        </section>
+          </details>
+        }
 
-        <section class="card">
-          <div class="card-head"><h2 class="tit"><app-icon name="savings" [size]="20" />Cofrinhos</h2><a routerLink="/cofrinhos" class="small">Ver</a></div>
+        @if (f.categorias.length) {
+          <details class="card mais" [open]="aberto('onde')" (toggle)="lembrar('onde', $event)">
+            <summary><app-icon name="donut_large" [size]="18" />Para onde foi<span class="small muted">{{ f.categorias[0].nome }} {{ f.categorias[0].pct }}%</span></summary>
+            @for (c of f.categorias; track c.nome) {
+              <div class="lin"><span class="tit"><app-icon [name]="c.icone" [size]="16" [style.color]="c.cor" />{{ c.nome }}</span><span class="num">{{ c.total | brl }} · {{ c.pct }}%</span></div>
+            }
+            @if (f.maiores.length) {
+              <h3 class="sub">Maiores gastos</h3>
+              @for (g of f.maiores; track g.id) {
+                <div class="lin"><span>{{ g.descricao }} <span class="muted small">· {{ g.data | dia }}</span></span><span class="num">{{ g.valor | brl }}</span></div>
+              }
+            }
+          </details>
+        }
+
+        <details class="card mais" [open]="aberto('cofrinhos')" (toggle)="lembrar('cofrinhos', $event)">
+          <summary><app-icon name="savings" [size]="18" />Cofrinhos<span class="small muted">{{ cofResumo() }}</span></summary>
           @if (guardado() || retirado()) {
             <div class="lin"><span>Guardado no mês</span><b class="num pos">{{ guardado() | brl }}</b></div>
             @if (retirado()) { <div class="lin"><span>Retirado</span><b class="num neg">{{ retirado() | brl }}</b></div> }
@@ -132,7 +132,7 @@ import { Toast } from '../shared/toast';
           @if (auto(); as a) {
             <p class="small muted"><app-icon name="autorenew" [size]="14" /> {{ a.pct }}% da sobra vai sozinha para {{ a.cofrinho }}.</p>
           }
-          @if (f.r.saldo > 0 && s.cofrinhos().length && !sobraGuardada()) {
+          @if (podeGuardar()) {
             <div class="sobra">
               <span class="small">Sobrou <b class="pos">{{ f.r.saldo | brl }}</b>. Guardar no cofrinho:</span>
               <div class="linha">
@@ -143,7 +143,8 @@ import { Toast } from '../shared/toast';
               </div>
             </div>
           }
-        </section>
+          <a routerLink="/cofrinhos" class="small">Ver cofrinhos</a>
+        </details>
       }
     </div>
   `,
@@ -154,15 +155,16 @@ import { Toast } from '../shared/toast';
     .sobra .linha { display: flex; gap: 8px; }
     .sobra select { flex: 1; }
     .cap { text-transform: capitalize; }
-    .hero { display: flex; flex-direction: column; gap: 6px; }
-    .saldo { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
-    .io { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.9rem; color: var(--ink-2); }
+    .barra { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+    .barra span { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
+    .barra .estourou { background: var(--danger); }
+    details.mais > .btn, details.mais > a.small { margin-top: 8px; display: inline-flex; }
     .lin { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; font-size: 0.9rem; border-bottom: 1px solid var(--line); }
     .lin:last-child { border-bottom: 0; }
     .ok { display: flex; align-items: center; gap: 6px; color: var(--ok); font-weight: 600; }
     .sub { margin: 12px 0 2px; font-size: 0.8rem; color: var(--ink-2); }
     .combinado { display: flex; flex-direction: column; gap: 10px; }
-    .pauta { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+    .pauta { margin: 0; }
     .lembra { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 12px; background: var(--card-2); }
     .membros { display: flex; flex-direction: column; gap: 8px; }
     .parte { display: flex; align-items: flex-start; gap: 8px; }
@@ -174,9 +176,33 @@ import { Toast } from '../shared/toast';
 export default class Fechamento {
   protected hojeTxt = new Date().toLocaleDateString('pt-BR');
 
-  /** "Salvar como PDF" na janela de impressão do navegador */
+  private el: HTMLElement = inject(ElementRef).nativeElement;
+
+  /** "Salvar como PDF" na janela de impressão do navegador, com as seções abertas */
   imprimir() {
+    const fechados = Array.from(this.el.querySelectorAll<HTMLDetailsElement>('details.mais:not([open])'));
+    this.imprimindo = true;
+    fechados.forEach((d) => (d.open = true));
     print();
+    fechados.forEach((d) => (d.open = false));
+    setTimeout(() => (this.imprimindo = false));
+  }
+  private imprimindo = false;
+
+  /** Seções recolhidas: estado lembrado em cfp.fechamento.<secao> */
+  private abertos = signal(new Set(SECOES.filter((k) => lerLocal('cfp.fechamento.' + k) === '1')));
+  protected aberto = (k: string) => this.abertos().has(k);
+  lembrar(k: string, e: Event) {
+    if (this.imprimindo) return;
+    const aberto = (e.target as HTMLDetailsElement).open;
+    if (aberto === this.aberto(k)) return;
+    this.abertos.update((s) => {
+      const n = new Set(s);
+      if (aberto) n.add(k);
+      else n.delete(k);
+      return n;
+    });
+    gravarLocal('cfp.fechamento.' + k, aberto ? '1' : '0');
   }
 
   protected s = inject(Store);
@@ -261,6 +287,17 @@ export default class Fechamento {
     return { pct: c.sobra_pct, cofrinho: this.s.cofrinhos().find((x) => x.id === c.sobra_cofrinho)?.nome ?? 'o cofrinho' };
   });
 
+  protected gastoPct = computed(() => {
+    const r = this.f()?.r;
+    return r && r.entradas > 0 ? Math.min(100, pct(r.saidas, r.entradas)) : 0;
+  });
+  protected totalAbertas = computed(() => soma(this.f()?.abertas ?? [], (c) => c.valor));
+  protected podeGuardar = computed(() => (this.f()?.r.saldo ?? 0) > 0 && this.s.cofrinhos().length > 0 && !this.sobraGuardada());
+  protected cofResumo = computed(() => {
+    if (this.guardado()) return 'guardado ' + moeda(this.guardado());
+    return this.podeGuardar() ? 'sobra para guardar' : 'nada guardado';
+  });
+
   protected guardado = computed(() => soma(this.movs().filter((m) => m.valor > 0), (m) => m.valor));
   protected retirado = computed(() => -soma(this.movs().filter((m) => m.valor < 0), (m) => m.valor));
 
@@ -289,5 +326,21 @@ export default class Fechamento {
 
   irContas() {
     this.s.mes.set(this.mes());
+  }
+}
+
+function lerLocal(k: string) {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+}
+
+function gravarLocal(k: string, v: string) {
+  try {
+    localStorage.setItem(k, v);
+  } catch {
+    /* sem armazenamento */
   }
 }

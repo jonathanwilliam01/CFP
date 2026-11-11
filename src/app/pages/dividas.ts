@@ -57,6 +57,7 @@ interface FormDivida {
         </section>
       }
 
+      <div class="grade-cards">
       @for (d of lista(); track d.d.id) {
         <article class="card">
           <div class="cab">
@@ -85,6 +86,7 @@ interface FormDivida {
           <p>Nenhuma dívida cadastrada.</p>
         </div>
       }
+      </div>
     </div>
 
     <app-sheet [(open)]="aberto" [titulo]="f.id ? 'Editar dívida' : 'Nova dívida'">

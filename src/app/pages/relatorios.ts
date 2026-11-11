@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { addDias, addMeses, fimMes, hoje, nomeMes } from '../core/datas';
 import { contasDoMes, noMes, porCategoria, resumoMes } from '../core/financas';
-import { BrlPipe, MesPipe, baixarCsv, csvData, csvTexto, csvValor, pct, soma } from '../core/formato';
+import { BrlPipe, MesPipe, PrivPipe, moeda, baixarCsv, csvData, csvTexto, csvValor, pct, soma } from '../core/formato';
 import { Entrada, Gasto, Pagamento } from '../core/models';
 import { Store } from '../core/store';
 import { Barras, BlocoMapa, Calor, Coluna, Donut, Empilhadas, Pilha, Treemap } from '../shared/graficos';
@@ -18,7 +18,7 @@ interface Grupo {
 }
 
 @Component({
-  imports: [Abas, BrlPipe, MesPipe, Donut, Barras, Empilhadas, Calor, Icon, Treemap],
+  imports: [Abas, BrlPipe, MesPipe, PrivPipe, Donut, Barras, Empilhadas, Calor, Icon, Treemap],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -28,149 +28,165 @@ interface Grupo {
         </button>
       </app-abas>
 
-      <div class="seg">
-        <button type="button" [class.on]="vista() === 'geral'" (click)="trocarVista('geral')"><app-icon name="bar_chart" [size]="16" />Gráficos</button>
-        <button type="button" [class.on]="vista() === 'mapa'" (click)="trocarVista('mapa')"><app-icon name="dashboard" [size]="16" />Mapa</button>
+      <div class="ctl">
+        <div class="seg">
+          @for (n of [3, 6, 12]; track n) {
+            <button type="button" [class.on]="meses() === n" (click)="meses.set(n)">{{ n }} meses</button>
+          }
+        </div>
+        <div class="seg vista" role="group" aria-label="Visualização">
+          <button type="button" [class.on]="vista() === 'geral'" (click)="trocarVista('geral')" aria-label="Gráficos" title="Gráficos"><app-icon name="bar_chart" [size]="18" /></button>
+          <button type="button" [class.on]="vista() === 'mapa'" (click)="trocarVista('mapa')" aria-label="Mapa" title="Mapa"><app-icon name="dashboard" [size]="18" /></button>
+        </div>
       </div>
-
-      <div class="seg">
-        @for (n of [3, 6, 12]; track n) {
-          <button type="button" [class.on]="meses() === n" (click)="meses.set(n)">{{ n }} meses</button>
-        }
-      </div>
-      <p class="muted small">{{ lista()[0] | mes }} até {{ s.mes() | mes }}</p>
 
       @if (!dados()) {
         <div class="card empty"><span class="big">⏳</span>Carregando...</div>
-      } @else if (vista() === 'mapa') {
-        <section class="card">
-          <div class="card-head"><h2>Mapa dos gastos</h2><span class="muted small">consumo no período</span></div>
-          <app-treemap [itens]="mapa()" />
-          <p class="small muted">Cada bloco é uma categoria, do tamanho do que saiu nela. Toque para ver os estabelecimentos.</p>
-        </section>
       } @else {
-        <div class="stats">
-          <div class="stat"><div class="l">Entradas</div><div class="v pos">{{ totais().entradas | brl }}</div></div>
-          <div class="stat"><div class="l">Saídas</div><div class="v neg">{{ totais().saidas | brl }}</div></div>
-          <div class="stat"><div class="l">Saldo</div><div class="v" [class.neg]="totais().saldo < 0">{{ totais().saldo | brl }}</div></div>
-          <div class="stat"><div class="l">Média de saídas/mês</div><div class="v">{{ totais().media | brl }}</div></div>
-        </div>
-
-        <section class="card">
-          <div class="card-head"><h2>Entradas x saídas</h2></div>
-          <app-barras [colunas]="colunas()" />
-        </section>
-
-        <section class="card">
-          <div class="card-head"><h2>Categorias mês a mês</h2><span class="muted small">consumo</span></div>
-          <app-empilhadas [colunas]="pilhas()" [tendencia]="true" />
-        </section>
-
-        @if (comparar().length) {
-          <section class="card">
-            <div class="card-head"><h2>Comparar meses</h2><span class="muted small cap">{{ s.mes() | mes: true }} x {{ anterior() | mes: true }} x média</span></div>
-            <div class="seg mini">
-              <button type="button" [class.on]="base() === 'anterior'" (click)="base.set('anterior')">Contra o mês anterior</button>
-              <button type="button" [class.on]="base() === 'media'" (click)="base.set('media')">Contra a média</button>
+        <section class="card resumo">
+          <div class="rl">
+            <div><div class="small muted">Saídas de {{ lista()[0] | mes: true }} a {{ s.mes() | mes: true }}</div><b class="grande neg">{{ totais().saidas | brl }}</b></div>
+            <div class="small muted dirr">Média <b>{{ totais().media | brl }}</b>/mês
+              @if (variacao(); as v) { <br /><span class="cap">{{ s.mes() | mes: true }}</span> <b [class.neg]="v > 0" [class.pos]="v < 0">{{ v > 0 ? '▲' : '▼' }}{{ v > 0 ? v : -v }}%</b> da média }
             </div>
-            @for (c of comparar(); track c.id) {
-              <div class="cmp">
-                <div class="l">
-                  <span class="tit"><app-icon [name]="c.icone" [size]="16" [style.color]="c.cor" />{{ c.nome }}</span>
-                  <span class="num small">{{ c.atual | brl }}
-                    @if (c.var !== null) { <b [class.neg]="c.var > 0" [class.pos]="c.var < 0">{{ c.var > 0 ? '▲' : '▼' }}{{ c.var > 0 ? c.var : -c.var }}%</b> } @else { <b>novo</b> }
-                  </span>
-                </div>
-                <div class="par">
-                  <i [style.width.%]="(c.atual / maxCmp()) * 100" [style.background]="c.cor"></i>
-                  <i class="ref" [style.width.%]="(c.ref / maxCmp()) * 100" [title]="(base() === 'media' ? 'Média: ' : 'Mês anterior: ') + (c.ref | brl)"></i>
+          </div>
+          <div class="barra" role="progressbar" [attr.aria-valuenow]="usoPct()" aria-valuemin="0" aria-valuemax="100" [title]="'Saídas: ' + usoPct() + '% das entradas'"><span [style.width.%]="usoPct()"></span></div>
+          <div class="small muted">Entradas <b class="pos">{{ totais().entradas | brl }}</b> · saldo <b [class.neg]="totais().saldo < 0">{{ totais().saldo | brl }}</b></div>
+        </section>
+
+        @if (vista() === 'mapa') {
+          <section class="card">
+            <div class="card-head"><h2>Mapa dos gastos</h2><span class="muted small">toque para ver os estabelecimentos</span></div>
+            <app-treemap [itens]="mapa()" />
+          </section>
+        } @else {
+          <section class="card">
+            <div class="card-head"><h2>Entradas x saídas</h2></div>
+            <app-barras [colunas]="colunas()" />
+          </section>
+
+          <section class="card">
+            <div class="card-head"><h2>Por categoria</h2>@if (categorias()[0]; as c) { <span class="muted small">{{ c.nome }} lidera com {{ c.pct }}%</span> }</div>
+            @if (categorias().length) {
+              <div class="cats">
+                <div class="donut"><app-donut [fatias]="fatias()" rotulo="Consumo" /></div>
+                <div class="list">
+                  @for (c of categorias(); track c.id) {
+                    <div class="row">
+                      <span class="ico" [style.background]="c.cor + '22'" [style.color]="c.cor"><app-icon [name]="c.icone" /></span>
+                      <div class="grow">
+                        <div class="t">{{ c.nome }}</div>
+                        <div class="bar"><i [style.width.%]="c.pct" [style.background]="c.cor"></i></div>
+                      </div>
+                      <div class="v">{{ c.total | brl }}<div class="s">{{ c.pct }}% · {{ c.total / meses() | brl }}/mês</div></div>
+                    </div>
+                  }
                 </div>
               </div>
+            } @else {
+              <div class="empty">Nenhum gasto no período</div>
             }
-            <p class="small muted">Barra colorida: {{ s.mes() | mes }}. Cinza: {{ base() === 'media' ? 'média dos outros meses do período' : 'mês anterior' }}.</p>
           </section>
-        }
 
-        @if (lojas().length) {
-          <section class="card">
-            <div class="card-head"><h2>Onde mais gastam</h2><span class="muted small">no período</span></div>
-            <div class="list">
-              @for (l of lojas(); track l.nome; let i = $index) {
-                <div class="row">
-                  <span class="pos-n">{{ i + 1 }}</span>
-                  <div class="grow">
-                    <div class="t">{{ l.nome }}</div>
-                    <div class="s">{{ l.qtd }}x · média {{ l.total / l.qtd | brl }}@if (l.cat) { · {{ l.cat }}}</div>
+          <details class="card mais" [open]="aberto('pilhas')" (toggle)="lembrar('pilhas', $event)">
+            <summary><app-icon name="stacked_bar_chart" [size]="18" />Categorias mês a mês<span class="small muted">{{ resumoPilhas() | priv }}</span></summary>
+            <app-empilhadas [colunas]="pilhas()" [tendencia]="true" />
+          </details>
+
+          @if (comparar().length) {
+            <details class="card mais" [open]="aberto('comparar')" (toggle)="lembrar('comparar', $event)">
+              <summary><app-icon name="compare_arrows" [size]="18" />Comparar meses<span class="small muted">{{ resumoComparar() }}</span></summary>
+              <div class="seg mini">
+                <button type="button" [class.on]="base() === 'anterior'" (click)="base.set('anterior')">Contra o mês anterior</button>
+                <button type="button" [class.on]="base() === 'media'" (click)="base.set('media')">Contra a média</button>
+              </div>
+              @for (c of comparar(); track c.id) {
+                <div class="cmp">
+                  <div class="l">
+                    <span class="tit"><app-icon [name]="c.icone" [size]="16" [style.color]="c.cor" />{{ c.nome }}</span>
+                    <span class="num small">{{ c.atual | brl }}
+                      @if (c.var !== null) { <b [class.neg]="c.var > 0" [class.pos]="c.var < 0">{{ c.var > 0 ? '▲' : '▼' }}{{ c.var > 0 ? c.var : -c.var }}%</b> } @else { <b>novo</b> }
+                    </span>
                   </div>
-                  <div class="v">{{ l.total | brl }}<div class="s">{{ l.pct }}%</div></div>
+                  <div class="par">
+                    <i [style.width.%]="(c.atual / maxCmp()) * 100" [style.background]="c.cor"></i>
+                    <i class="ref" [style.width.%]="(c.ref / maxCmp()) * 100" [title]="(base() === 'media' ? 'Média: ' : 'Mês anterior: ') + (c.ref | brl)"></i>
+                  </div>
                 </div>
               }
-            </div>
-          </section>
-        }
-
-        <section class="card">
-          <div class="card-head"><h2>Gastos por dia</h2><span class="muted small">{{ calorDe() | mes }} até hoje</span></div>
-          <app-calor [dias]="calor()" />
-        </section>
-
-        <section class="card">
-          <div class="card-head"><h2>Por categoria</h2><span class="muted small">consumo no período</span></div>
-          @if (categorias().length) {
-            <div class="donut"><app-donut [fatias]="fatias()" rotulo="Consumo" /></div>
-            <div class="list">
-              @for (c of categorias(); track c.id) {
-                <div class="row">
-                  <span class="ico" [style.background]="c.cor + '22'" [style.color]="c.cor"><app-icon [name]="c.icone" /></span>
-                  <div class="grow">
-                    <div class="t">{{ c.nome }}</div>
-                    <div class="bar"><i [style.width.%]="c.pct" [style.background]="c.cor"></i></div>
-                  </div>
-                  <div class="v">{{ c.total | brl }}<div class="s">{{ c.pct }}% · {{ c.total / meses() | brl }}/mês</div></div>
-                </div>
-              }
-            </div>
-          } @else {
-            <div class="empty">Nenhum gasto no período</div>
+              <p class="small muted">Colorida: {{ s.mes() | mes }}. Cinza: {{ base() === 'media' ? 'média dos outros meses' : 'mês anterior' }}.</p>
+            </details>
           }
-        </section>
 
-        @for (b of blocos(); track b.titulo) {
-          @if (b.itens.length) {
-            <section class="card">
-              <div class="card-head"><h2>{{ b.titulo }}</h2></div>
+          @if (lojas()[0]; as l) {
+            <details class="card mais" [open]="aberto('lojas')" (toggle)="lembrar('lojas', $event)">
+              <summary><app-icon name="storefront" [size]="18" />Onde mais gastam<span class="small muted">{{ l.nome }} lidera com {{ l.pct }}%</span></summary>
               <div class="list">
-                @for (g of b.itens; track g.nome) {
+                @for (l of lojas(); track l.nome; let i = $index) {
                   <div class="row">
-                    <i class="dot" [style.background]="g.cor"></i>
+                    <span class="pos-n">{{ i + 1 }}</span>
                     <div class="grow">
-                      <div class="t">{{ g.nome }}</div>
-                      <div class="bar"><i [style.width.%]="g.pct" [style.background]="g.cor"></i></div>
+                      <div class="t">{{ l.nome }}</div>
+                      <div class="s">{{ l.qtd }}x · média {{ l.total / l.qtd | brl }}@if (l.cat) { · {{ l.cat }}}</div>
                     </div>
-                    <div class="v">{{ g.total | brl }}<div class="s">{{ g.pct }}%</div></div>
+                    <div class="v">{{ l.total | brl }}<div class="s">{{ l.pct }}%</div></div>
                   </div>
                 }
               </div>
-            </section>
+            </details>
           }
-        }
 
-        <section class="card">
-          <div class="card-head"><h2>Mês a mês</h2></div>
-          <div class="list">
-            @for (m of porMes(); track m.mes) {
-              <div class="row">
-                <div class="grow"><div class="t cap">{{ m.mes | mes }}</div>
-                  <div class="s">Entradas {{ m.r.entradas | brl }} · Saídas {{ m.r.saidas | brl }}</div></div>
-                <div class="v" [class.neg]="m.r.saldo < 0" [class.pos]="m.r.saldo >= 0">{{ m.r.saldo | brl }}</div>
-              </div>
-            }
-          </div>
-        </section>
+          <details class="card mais" [open]="aberto('calor')" (toggle)="lembrar('calor', $event)">
+            <summary><app-icon name="calendar_view_month" [size]="18" />Gastos por dia<span class="small muted">{{ resumoCalor() | priv }}</span></summary>
+            <app-calor [dias]="calor()" />
+          </details>
+
+          @if (divisoes().length) {
+            <details class="card mais" [open]="aberto('divisoes')" (toggle)="lembrar('divisoes', $event)">
+              <summary><app-icon name="donut_small" [size]="18" />Forma, cartão e pessoa<span class="small muted">{{ resumoDivisoes() }}</span></summary>
+              @for (b of divisoes(); track b.titulo) {
+                <h2>{{ b.titulo }}</h2>
+                <div class="list">
+                  @for (g of b.itens; track g.nome) {
+                    <div class="row">
+                      <i class="dot" [style.background]="g.cor"></i>
+                      <div class="grow">
+                        <div class="t">{{ g.nome }}</div>
+                        <div class="bar"><i [style.width.%]="g.pct" [style.background]="g.cor"></i></div>
+                      </div>
+                      <div class="v">{{ g.total | brl }}<div class="s">{{ g.pct }}%</div></div>
+                    </div>
+                  }
+                </div>
+              }
+            </details>
+          }
+
+          <details class="card mais" [open]="aberto('meses')" (toggle)="lembrar('meses', $event)">
+            <summary><app-icon name="view_list" [size]="18" />Mês a mês<span class="small muted">{{ resumoMeses() }}</span></summary>
+            <div class="list">
+              @for (m of porMes(); track m.mes) {
+                <div class="row">
+                  <div class="grow"><div class="t cap">{{ m.mes | mes }}</div>
+                    <div class="s">Entradas {{ m.r.entradas | brl }} · Saídas {{ m.r.saidas | brl }}</div></div>
+                  <div class="v" [class.neg]="m.r.saldo < 0" [class.pos]="m.r.saldo >= 0">{{ m.r.saldo | brl }}</div>
+                </div>
+              }
+            </div>
+          </details>
+        }
       }
     </div>
   `,
   styles: `
+    .barra { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+    .barra span { display: block; height: 100%; background: var(--danger); border-radius: inherit; transition: width 0.4s ease; }
+    .ctl { display: flex; gap: 8px; }
+    .ctl .seg { margin: 0; }
+    .ctl .seg:first-child { flex: 1; }
+    .vista button { padding: 6px 10px; display: grid; place-items: center; }
+    .cats { display: grid; gap: 8px; }
+    @media (min-width: 720px) { .cats { grid-template-columns: 220px minmax(0, 1fr); align-items: center; } }
     .donut { display: grid; place-items: center; margin: 4px 0 12px; }
     .bar { margin-top: 6px; height: 6px; }
     .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
@@ -234,6 +250,55 @@ export default class Relatorios {
     const entradas = soma(l, (m) => m.r.entradas);
     const saidas = soma(l, (m) => m.r.saidas);
     return { entradas, saidas, saldo: entradas - saidas, media: l.length ? saidas / l.length : 0 };
+  });
+
+  /** Mês do topo contra a média dos outros meses do período */
+  protected variacao = computed(() => {
+    const l = this.porMes();
+    const atual = l.find((m) => m.mes === this.s.mes());
+    const outros = l.filter((m) => m !== atual);
+    const media = outros.length ? soma(outros, (m) => m.r.saidas) / outros.length : 0;
+    return atual && media ? Math.round((atual.r.saidas / media - 1) * 100) || null : null;
+  });
+  protected usoPct = computed(() => Math.min(100, pct(this.totais().saidas, this.totais().entradas)));
+
+  /** Seções recolhidas, lembradas em cfp.relatorios.<secao> */
+  protected abertos = signal<Record<string, boolean>>(lerAbertos());
+  aberto(id: string) {
+    return !!this.abertos()[id];
+  }
+  lembrar(id: string, e: Event) {
+    const v = (e.target as HTMLDetailsElement).open;
+    if (v === this.aberto(id)) return;
+    this.abertos.update((a) => ({ ...a, [id]: v }));
+    try {
+      localStorage.setItem('cfp.relatorios.' + id, v ? '1' : '0');
+    } catch {}
+  }
+
+  protected resumoPilhas = computed(() => {
+    const l = this.pilhas().map((p) => ({ r: p.rotulo, v: soma(p.partes, (x) => x.valor) }));
+    const m = l.reduce((a, b) => (b.v > a.v ? b : a), l[0]);
+    return m?.v ? `Maior: ${m.r} ${moeda(m.v)}` : 'Sem gastos';
+  });
+  protected resumoComparar = computed(() => {
+    const c = this.comparar().filter((x) => x.var !== null && x.var > 0).sort((a, b) => b.atual - b.ref - (a.atual - a.ref))[0];
+    return c ? `${c.nome} ▲${c.var}%` : 'Nenhuma categoria subiu';
+  });
+  protected resumoCalor = computed(() => {
+    const d = this.calor().reduce((a, b) => (b.valor > a.valor ? b : a), { data: '', valor: 0 });
+    return d.valor ? `Mais caro: ${d.data.slice(8)}/${d.data.slice(5, 7)} ${moeda(d.valor)}` : 'Sem gastos';
+  });
+  protected divisoes = computed(() => this.blocos().filter((b) => b.itens.length));
+  protected resumoDivisoes = computed(() =>
+    this.divisoes()
+      .filter((b) => b.titulo !== 'Por cartão' && b.titulo !== 'Por marcador')
+      .map((b) => `${b.itens[0].nome.replace(/ \(.*\)$/, '')} ${b.itens[0].pct}%`)
+      .join(' · ') || 'Marcadores e cartões',
+  );
+  protected resumoMeses = computed(() => {
+    const n = this.porMes().filter((m) => m.r.saldo < 0).length;
+    return n ? `${n} ${n === 1 ? 'mês' : 'meses'} no vermelho` : 'Sobra em todos os meses';
   });
 
   protected colunas = computed<Coluna[]>(() =>
@@ -434,6 +499,14 @@ function lerVista(): 'geral' | 'mapa' {
   } catch {
     return 'geral';
   }
+}
+
+function lerAbertos(): Record<string, boolean> {
+  const a: Record<string, boolean> = {};
+  try {
+    for (const k of ['pilhas', 'comparar', 'lojas', 'calor', 'divisoes', 'meses']) a[k] = localStorage.getItem('cfp.relatorios.' + k) === '1';
+  } catch {}
+  return a;
 }
 
 /** Gasto com vários marcadores conta em cada um */

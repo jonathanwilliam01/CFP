@@ -67,6 +67,7 @@ const PRIORIDADES = [
         </app-quadro>
         <p class="small muted centro">Arraste para "Comprei" quando comprar (no celular, segure antes) ou use <app-icon name="swap_horiz" [size]="14" /> no cartão.</p>
       } @else {
+      <div class="grade-cards">
       @for (d of pendentes(); track d.d.id) {
         <article class="card desejo">
           <button type="button" class="cab" (click)="editar(d.d)">
@@ -94,6 +95,7 @@ const PRIORIDADES = [
           <button class="btn sm" type="button" (click)="novo()">Adicionar desejo</button>
         </div>
       }
+      </div>
 
       @if (comprados().length) {
         <details class="card">

@@ -40,6 +40,7 @@ const tagDe = (nome: string) => normalizar(nome).replace(/[^a-z0-9]+/g, '-').rep
       </div>
       <p class="muted small">Com a viagem ativa, todo gasto lançado ganha o marcador dela (dá para tirar no lançamento) e, com moeda estrangeira, o lançamento converte com cotação e IOF.</p>
 
+      <div class="grade-cards">
       @for (v of s.viagens(); track v.id) {
         <article class="card viagem" [class.on]="v.ativa">
           <div class="cab">
@@ -89,6 +90,7 @@ const tagDe = (nome: string) => normalizar(nome).replace(/[^a-z0-9]+/g, '-').rep
           <button class="btn sm" type="button" (click)="novo()">Nova viagem</button>
         </div>
       }
+      </div>
     </div>
 
     <app-sheet [(open)]="aberto" [titulo]="f.id ? 'Editar viagem' : 'Nova viagem'">
