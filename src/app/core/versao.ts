@@ -8,6 +8,14 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.13',
+    data: '2026-11-11',
+    itens: [
+      'Notificações: aviso de gasto novo, fatura que fechou, resumo do mês e saldos voltam a chegar',
+      'Notificações chegam na hora, mesmo com o celular em economia de bateria',
+    ],
+  },
+  {
     versao: 'v1.26.11.12',
     data: '2026-11-11',
     itens: [

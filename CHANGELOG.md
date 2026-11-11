@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.26.11.13 — 2026-11-11
+- Notificações: aviso de gasto novo, fatura que fechou, resumo do mês e saldos voltam a chegar
+- Notificações chegam na hora, mesmo com o celular em economia de bateria
+
 ## v1.26.11.12 — 2026-11-11
 - Quadro (kanban) em Contas (Atrasada, Vence em 7 dias, Depois, Paga), na Lista de desejos (Quero, Juntando, Dá pra comprar, Comprei) e no Revisar: arraste o cartão para mudar de coluna
 - Gastos: agrupar por dia, categoria, estabelecimento ou pessoa; no computador, visão em tabela com colunas ordenáveis e edição direto na célula

@@ -25,7 +25,7 @@ create function cron.unschedule(p_nome text) returns boolean
 
 create schema net;
 create table net._chamadas (id bigserial primary key, url text, body jsonb);
-create function net.http_post(url text, body jsonb default '{}', headers jsonb default '{}') returns bigint
+create function net.http_post(url text, body jsonb default '{}', headers jsonb default '{}', params jsonb default '{}', timeout_milliseconds int default 5000) returns bigint
   language sql as $$ insert into net._chamadas (url, body) values (url, body) returning id $$;
 
 create schema storage;

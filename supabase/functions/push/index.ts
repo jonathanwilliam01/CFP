@@ -25,8 +25,7 @@ Deno.serve(async (req) => {
     : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : ev.tipo === 'resumo' ? await resumo()
     : ev.tipo === 'fatura' ? await faturas() : ev.tipo === 'saldos' ? await saldos()
     : ev.tipo === 'comunicado' ? await comunicado(ev) : [];
-  let n = 0;
-  for (const e of envios) n += await enviar(e);
+  const n = (await Promise.all(envios.map(enviar))).reduce((a: number, b) => a + b, 0);
   return Response.json({ enviados: n });
 });
 
@@ -193,16 +192,18 @@ async function enviar(e: Envio) {
       data: { onActionClick: { default: { operation: 'navigateLastFocusedOrOpen', url: e.url } } },
     },
   });
-  let n = 0;
-  for (const s of data) {
+  // urgency high: sem ele o Android segura o aviso até sair da economia de bateria (chegava atrasado)
+  const r = await Promise.all(data.map(async (s) => {
     try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
-      n++;
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 86400, urgency: 'high' });
+      return 1;
     } catch (err) {
       const status = (err as { statusCode?: number }).statusCode;
       if (status === 404 || status === 410) await db.from('push_inscricoes').delete().eq('endpoint', s.endpoint);
-      else console.error(s.endpoint, err);
+      else console.error(s.endpoint, status, err);
+      return 0;
     }
-  }
+  }));
+  const n = r.reduce((a: number, b) => a + b, 0);
   return n;
 }
