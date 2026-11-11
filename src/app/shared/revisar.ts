@@ -7,7 +7,9 @@ import { Gasto } from '../core/models';
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
 import { normalizar, regraPara } from '../core/texto';
+import { Autor } from './autor';
 import { Icon } from './icon';
+import { ColunaQuadro, MoverQuadro, Quadro } from './quadro';
 import { Sheet } from './sheet';
 import { Toast } from './toast';
 
@@ -37,12 +39,24 @@ export function paraRevisar(gastos: Gasto[], eu: string | undefined, rev: { desd
 /** Um gasto por vez: confirma ou troca a categoria, e pode virar regra da carteira */
 @Component({
   selector: 'app-revisar',
-  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
+  imports: [FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Quadro, Autor],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-sheet [(open)]="open" titulo="Revisar gastos">
-      @if (atual(); as g) {
-        <p class="small muted">{{ i() + 1 }} de {{ fila().length }}</p>
+      @if (quadro()) {
+        <div class="topo"><span class="small muted">Arraste para "Revisado" ou toque para revisar um</span>
+          <button type="button" class="btn ghost sm" (click)="quadro.set(false)"><app-icon name="view_agenda" [size]="16" />Um por vez</button></div>
+        <app-quadro [colunas]="colunas()" [chave]="chave" vazio="Nenhum" (mover)="mover($event)">
+          <ng-template #cartao let-g>
+            <button type="button" class="qc" (click)="revisarUm(g)">
+              <span class="ql"><b class="qt">{{ g.descricao }}</b><b class="num">{{ g.valor | brl }}</b></span>
+              <span class="ql small muted"><app-autor [id]="g.criado_por" [size]="16" /><span class="qt">{{ g.data | dia }} · {{ s.catMap().get(g.categoria_id ?? '')?.nome ?? 'Sem categoria' }}</span></span>
+            </button>
+          </ng-template>
+        </app-quadro>
+      } @else if (atual(); as g) {
+        <div class="topo"><span class="small muted">{{ i() + 1 }} de {{ fila().length }}</span>
+          <button type="button" class="btn ghost sm" (click)="quadro.set(true)"><app-icon name="view_kanban" [size]="16" />Ver em quadro</button></div>
         <div class="card gasto">
           <b class="desc">{{ g.descricao }}</b>
           <b class="num valor">{{ g.valor | brl }}</b>
@@ -67,7 +81,8 @@ export function paraRevisar(gastos: Gasto[], eu: string | undefined, rev: { desd
           <button type="button" class="btn" [disabled]="salvando()" (click)="confirmar(g)">Confirmar</button>
         </div>
       } @else {
-        <div class="empty"><app-icon class="big" name="task_alt" [size]="40" />Tudo revisado.</div>
+        <div class="empty"><app-icon class="big" name="task_alt" [size]="40" />Tudo revisado.
+          @if (fila().length) { <button type="button" class="btn ghost sm" (click)="quadro.set(true)"><app-icon name="view_kanban" [size]="16" />Ver em quadro</button> }</div>
       }
     </app-sheet>
   `,
@@ -78,6 +93,10 @@ export function paraRevisar(gastos: Gasto[], eu: string | undefined, rev: { desd
     .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
     .chip app-icon { margin-right: 4px; }
     .check { margin-top: 10px; }
+    .topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+    .qc { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 9px 0; background: none; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+    .ql { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .qt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .bts { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 14px; }
   `,
 })
@@ -93,6 +112,26 @@ export class Revisar {
   protected cat = signal<string | null>(null);
   protected sempre = signal(false);
   protected salvando = signal(false);
+  protected quadro = signal(false);
+  /** marcados como vistos nesta abertura */
+  private vistosAgora = signal(new Set<string>());
+  protected chave = (g: Gasto) => g.id;
+
+  /** Pendentes por motivo (dados atuais do gasto) e os revisados nesta abertura */
+  protected colunas = computed<ColunaQuadro<Gasto>[]>(() => {
+    const mapa = new Map(this.s.gastosMes().map((g) => [g.id, g]));
+    const vistos = this.vistosAgora();
+    const sem: Gasto[] = [], outro: Gasto[] = [], feitos: Gasto[] = [];
+    for (const f of this.fila()) {
+      const g = mapa.get(f.id);
+      if (g) (vistos.has(g.id) ? feitos : g.categoria_id ? outro : sem).push(g);
+    }
+    return [
+      { id: 'sem', titulo: 'Sem categoria', icone: 'help', cor: 'var(--warn)', aceita: false, itens: sem },
+      { id: 'outro', titulo: 'Do outro', icone: 'group', cor: 'var(--info)', aceita: false, itens: outro },
+      { id: 'revisado', titulo: 'Revisado', icone: 'task_alt', cor: 'var(--ok)', itens: feitos },
+    ];
+  });
 
   /** as mais usadas no mês, com a sugerida primeiro */
   protected opcoes = computed(() => {
@@ -109,8 +148,10 @@ export class Revisar {
       if (!this.open()) return;
       untracked(() => {
         const rev = lerRevisao(this.s.carteiraId()!);
-        this.fila.set(paraRevisar(this.s.gastosMes(), this.auth.user()?.id, rev));
+        this.fila.set(paraRevisar(this.s.gastosMes(), this.auth.user()?.id, rev).filter((g) => !this.s.livreDeOutro(g)));
         this.i.set(0);
+        this.quadro.set(false);
+        this.vistosAgora.set(new Set());
         this.preparar();
       });
     });
@@ -137,14 +178,34 @@ export class Revisar {
   private marcar(id: string) {
     const k = `${VISTOS}.${this.s.carteiraId()}`;
     const rev = lerRevisao(this.s.carteiraId()!);
-    localStorage.setItem(k, JSON.stringify({ ...rev, vistos: [...rev.vistos, id].slice(-500) }));
+    if (!rev.vistos.includes(id)) localStorage.setItem(k, JSON.stringify({ ...rev, vistos: [...rev.vistos, id].slice(-500) }));
+    this.vistosAgora.update((v) => new Set(v).add(id));
   }
 
+  /** avança pulando os já marcados no quadro */
   proximo() {
     const g = this.atual();
     if (g) this.marcar(g.id);
-    this.i.update((i) => i + 1);
+    let i = this.i() + 1;
+    while (i < this.fila().length && this.vistosAgora().has(this.fila()[i].id)) i++;
+    this.i.set(i);
     this.preparar();
+  }
+
+  protected mover({ item, para }: MoverQuadro<Gasto>) {
+    if (para === 'revisado') this.marcar(item.id);
+  }
+
+  /** do quadro para o um-por-vez, já no gasto tocado */
+  protected revisarUm(g: Gasto) {
+    const j = this.fila().findIndex((x) => x.id === g.id);
+    const i = j >= 0 && j < this.i() ? this.i() - 1 : this.i();
+    const l = this.fila().filter((x) => x.id !== g.id);
+    l.splice(i, 0, g);
+    this.fila.set(l);
+    this.i.set(i);
+    this.preparar();
+    this.quadro.set(false);
   }
 
   async confirmar(g: Gasto) {
@@ -178,5 +239,5 @@ export class Revisar {
 /** Quantos esperam revisão no mês (badge em Gastos); lê o aparelho a cada mudança dos gastos */
 export function contarRevisao(s: Store, eu: string | undefined) {
   const id = s.carteiraId();
-  return id ? paraRevisar(s.gastosMes(), eu, lerRevisao(id)).length : 0;
+  return id ? paraRevisar(s.gastosMes(), eu, lerRevisao(id)).filter((g) => !s.livreDeOutro(g)).length : 0;
 }

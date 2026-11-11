@@ -174,7 +174,8 @@ export class Buscador {
           : q<Entrada[]>(supabase.from('entradas').select('*').eq('carteira_id', id).or(filtroEntrada).order('data', { ascending: false }).limit(LIMITE)),
       ]);
       if (req !== this.req) return;
-      this.gastos.set(g);
+      // livre de outro fica de fora: achar pela descrição já revelaria o que foi
+      this.gastos.set(g.filter((x) => !this.s.livreDeOutro(x)));
       this.entradas.set(e);
     } catch {
       if (req === this.req) this.gastos.set([]);

@@ -1061,3 +1061,61 @@ export function precosRepetidos(gastos: Pick<Gasto, 'descricao' | 'valor' | 'dat
   }
   return l.sort((a, b) => b.pct - a.pct);
 }
+
+/** Tempo de trabalho que um valor custa; jornada mensal como na CLT (44 h/semana = 220 h). null sem ganho informado */
+export function tempoDeTrabalho(valor: number, ganhoMensal: number, horasSemana = 44) {
+  if (valor <= 0 || ganhoMensal <= 0 || horasSemana <= 0) return null;
+  const horas = valor / (ganhoMensal / (horasSemana * 5));
+  const h = Math.floor(horas);
+  const min = Math.round((horas - h) * 60);
+  const dias = horas / (horasSemana / 5);
+  const texto = dias >= 1 ? `${dias.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ${dias < 2 ? 'dia' : 'dias'} de trabalho` : h ? `${h} h${min ? ` ${min} min` : ''} de trabalho` : `${Math.max(min, 1)} min de trabalho`;
+  return { horas, dias, texto };
+}
+
+export interface Aumento {
+  chave: string;
+  descricao: string;
+  antes: number;
+  agora: number;
+  pct: number;
+  data: string;
+}
+
+/**
+ * Cobrança que se repete (mesma descrição em 3 meses ou mais, sem parcela) e cujo último valor subiu ≥ 3% e ≥ R$ 1
+ * sobre os anteriores, que estavam estáveis (até 10% de diferença). Pega aumento de assinatura lançada à mão ou importada.
+ */
+export function aumentosRecorrentes(gastos: GastoHist[], mes: string): Aumento[] {
+  const grupos = new Map<string, GastoHist[]>();
+  for (const g of gastos) {
+    if (g.parcelamento_id || g.valor <= 0 || g.forma === 'beneficio') continue;
+    const k = normalizar(g.descricao);
+    if (k) grupos.set(k, [...(grupos.get(k) ?? []), g]);
+  }
+  const l: Aumento[] = [];
+  for (const [chave, gs] of grupos) {
+    const porMes = new Map<string, GastoHist>();
+    for (const g of [...gs].sort((a, b) => a.data.localeCompare(b.data))) porMes.set(inicioMes(g.data), g);
+    const ult = porMes.get(mes);
+    const ant = [...porMes.entries()].filter(([m]) => m < mes).map(([, g]) => g.valor);
+    if (!ult || ant.length < 2 || gs.filter((g) => noMes(g.data, mes)).length > 1) continue;
+    const min = Math.min(...ant);
+    const max = Math.max(...ant);
+    if (max > min * 1.1) continue;
+    const antes = ant.at(-1)!;
+    if (ult.valor >= antes * 1.03 && ult.valor - antes >= 1)
+      l.push({ chave, descricao: ult.descricao, antes, agora: ult.valor, pct: Math.round((ult.valor / antes - 1) * 100), data: ult.data });
+  }
+  return l.sort((a, b) => b.agora - b.antes - (a.agora - a.antes));
+}
+
+/** Contas fixas reajustadas para cima com início no mês (assinatura que subiu de preço) */
+export function reajustesNoMes(recorrencias: Recorrencia[], mes: string) {
+  const porId = new Map(recorrencias.map((r) => [r.id, r]));
+  return recorrencias
+    .filter((r) => r.tipo === 'conta' && r.reajuste_de && inicioMes(r.inicio) === mes)
+    .map((r) => ({ r, antes: porId.get(r.reajuste_de!)?.valor ?? 0 }))
+    .filter((x) => x.antes > 0 && x.r.valor > x.antes)
+    .map((x) => ({ ...x, pct: Math.round((x.r.valor / x.antes - 1) * 100) }));
+}

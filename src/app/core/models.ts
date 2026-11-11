@@ -13,6 +13,10 @@ export interface Carteira {
   divisao?: boolean;
   /** meta de sobra do mês, em % das entradas (033) */
   meta_sobra?: number | null;
+  /** sobra automática: % da sobra do mês fechado vai para o cofrinho; sobra_feita = último mês processado (045) */
+  sobra_pct?: number | null;
+  sobra_cofrinho?: string | null;
+  sobra_feita?: string | null;
   criado_em?: string;
 }
 
@@ -34,6 +38,8 @@ export interface Membro {
   lembrete_saldos?: boolean;
   /** % do membro na divisão; null em todos = por igual (043) */
   peso?: number | null;
+  /** dinheiro livre do mês: gastos marcados aparecem para o outro só no total (045) */
+  livre?: number | null;
 }
 
 export interface Categoria {
@@ -98,6 +104,8 @@ export interface Gasto {
   conferido?: boolean;
   /** Pix/débito pago com um cofrinho: o banco mantém a retirada (044) */
   cofrinho_id?: string | null;
+  /** gasto do dinheiro livre de quem lançou (045) */
+  livre?: boolean;
   criado_em?: string;
 }
 
@@ -374,6 +382,50 @@ export interface FotoPatrimonio {
   parcelas: number;
 }
 
+/** Meta do casal (045); check-ins dizem como está indo */
+export interface Meta {
+  id: string;
+  titulo: string;
+  valor: number | null;
+  cofrinho_id: string | null;
+  prazo: string | null;
+  concluida_em: string | null;
+  criado_por: string | null;
+  criado_em: string;
+}
+
+/** humor: 1 difícil, 2 ok, 3 bem */
+export interface MetaCheckin {
+  id: string;
+  meta_id: string;
+  user_id: string | null;
+  humor: 1 | 2 | 3;
+  nota: string | null;
+  criado_em: string;
+}
+
+/** Ritual do fechamento: decisão de cada membro sobre o mês (045) */
+export interface Fechamento {
+  id: string;
+  mes: string;
+  user_id: string;
+  decisao: string | null;
+  criado_em: string;
+}
+
+/** Linha do histórico (045): um comando de uma pessoa; qtd > 1 = lote */
+export interface Atividade {
+  id: number;
+  user_id: string | null;
+  tabela: string;
+  acao: 'insert' | 'update' | 'delete';
+  qtd: number;
+  valor: number | null;
+  descricao: string | null;
+  ref_id: string | null;
+  criado_em: string;
+}
+
 /** Tabelas gravadas pelo Store.salvar/excluir */
 export interface Tabelas {
   categorias: Categoria;
@@ -401,6 +453,9 @@ export interface Tabelas {
   viagens: Viagem;
   desejos: Desejo;
   patrimonio: FotoPatrimonio;
+  metas: Meta;
+  meta_checkins: MetaCheckin;
+  fechamentos: Fechamento;
 }
 
 export type Tabela = keyof Tabelas;

@@ -4,7 +4,7 @@ import { q, supabase } from './supabase';
 const TABELAS = [
   'categorias', 'cartoes', 'beneficios', 'parcelamentos', 'recorrencias', 'cofrinhos', 'gastos', 'entradas', 'pagamentos', 'cofrinho_movs',
   'orcamentos', 'orcamento_valores', 'orcamento_fechados', 'planos', 'registros', 'registro_itens', 'acertos', 'receber', 'dividas', 'desafios',
-  'contas_bancarias',
+  'contas_bancarias', 'metas',
 ];
 const PAGINA = 1000;
 

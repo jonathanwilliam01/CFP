@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { addDias, diffDias, hoje, inicioFatura, inicioMes, mesFatura } from '../core/datas';
-import { inicioFixa, saldoBeneficio } from '../core/financas';
+import { inicioFixa, saldoBeneficio, tempoDeTrabalho } from '../core/financas';
 import { BrlPipe, MesPipe, moeda, parseValor } from '../core/formato';
 import { Entrada, Forma, Gasto } from '../core/models';
 import { Chat } from '../core/chat';
@@ -100,6 +100,19 @@ interface FormLanc {
   estorno: boolean;
   /** id do cofrinho que paga o Pix/débito ('' = nenhum) */
   cofrinho: string;
+  /** sai do meu dinheiro livre (045) */
+  livre: boolean;
+}
+
+/** Ganho mensal e horas por semana salvos na calculadora de horas; sem ganho, null */
+function ganhoSalvo() {
+  try {
+    const ganho = parseValor(localStorage.getItem('cfp.ganho') ?? '');
+    const horas = +(localStorage.getItem('cfp.horas.semana') ?? 44) || 44;
+    return ganho > 0 ? { ganho, horas } : null;
+  } catch {
+    return null;
+  }
 }
 
 @Component({
@@ -182,6 +195,28 @@ export class LancarSheet {
   });
   protected parseValor = parseValor;
 
+  /** Do meu dinheiro livre: gasto avulso meu, com valor combinado no mês (ou edição de um que já é livre) */
+  protected podeLivre = computed(() => {
+    const g = this.l.gasto();
+    if (this.l.modo() !== 'gasto' || this.repete() || (g && g.criado_por !== this.s.eu())) return false;
+    return !!this.s.meuLivre() || !!g?.livre;
+  });
+  /** quanto resta do livre, devolvendo o próprio gasto na edição */
+  protected restaLivre = computed(() => {
+    const m = this.s.meuLivre();
+    if (!m) return null;
+    const g = this.l.gasto();
+    return m.resta + (g?.livre && this.s.gastosMes().some((x) => x.id === g.id) ? g.valor : 0);
+  });
+
+  /** ganho lido ao abrir o painel (salvo pela calculadora de horas) */
+  private ganho = signal<{ ganho: number; horas: number } | null>(null);
+  /** Quanto tempo de trabalho o gasto custa */
+  protected custoHoras = computed(() => {
+    const g = this.ganho();
+    return g && this.l.modo() !== 'entrada' ? tempoDeTrabalho(parseValor(this.f().valor), g.ganho, g.horas) : null;
+  });
+
   /** viagem ativa com moeda: digita no valor de lá e converte com cotação + IOF */
   protected estrangeiro = signal('');
   protected cambio = computed(() => {
@@ -228,6 +263,7 @@ export class LancarSheet {
       this.l.modo();
       untracked(() => {
         this.f.set(g ? this.deGasto(g) : e ? this.deEntrada(e) : (this.proxima ?? this.vazio()));
+        this.ganho.set(ganhoSalvo());
         this.proxima = null;
         this.estrangeiro.set('');
         const compartilhado = this.l.arquivo();
@@ -253,14 +289,14 @@ export class LancarSheet {
     return {
       valor: '', descricao: '', categoria_id: null, data: hoje(), pagamento: this.pagamentoPadrao(), parcelas: 2, valorEhTotal: true,
       repete: this.l.fixa(), variavel: false, anterior: false, fim: '', jaPago: true, tags: this.l.modo() !== 'entrada' ? (this.s.viagemAtiva()?.tag ?? '') : '',
-      pagoPor: this.auth.user()?.id ?? '', dividido: true, estorno: false, cofrinho: '',
+      pagoPor: this.auth.user()?.id ?? '', dividido: true, estorno: false, cofrinho: '', livre: false,
     };
   }
 
   private deGasto(g: Gasto): FormLanc {
     const pagamento = g.forma === 'cartao' ? g.cartao_id! : g.forma === 'beneficio' ? `b:${g.beneficio_id}` : 'debito';
     return { ...this.vazio(), valor: String(Math.abs(g.valor)).replace('.', ','), descricao: g.descricao, categoria_id: g.categoria_id, data: g.data, pagamento, tags: (g.tags ?? []).join(' '),
-      pagoPor: g.pago_por ?? g.criado_por ?? '', dividido: g.dividido ?? true, estorno: g.valor < 0, cofrinho: g.cofrinho_id ?? '' };
+      pagoPor: g.pago_por ?? g.criado_por ?? '', dividido: g.dividido ?? true, estorno: g.valor < 0, cofrinho: g.cofrinho_id ?? '', livre: !!g.livre };
   }
 
   private deEntrada(e: Entrada): FormLanc {
@@ -480,6 +516,8 @@ export class LancarSheet {
       ...(this.s.divisao() ? { pago_por: f.pagoPor || null, dividido: f.dividido } : {}),
       // idem: só com cofrinho (044)
       ...(f.cofrinho || this.l.gasto()?.cofrinho_id ? { cofrinho_id: forma === 'debito' && f.cofrinho ? f.cofrinho : null } : {}),
+      // livre só vai quando marcado ou ao desmarcar um que era (045); livre não entra no acerto
+      ...(f.livre && this.podeLivre() ? { livre: true, dividido: false } : this.l.gasto()?.livre ? { livre: false } : {}),
     };
   }
 

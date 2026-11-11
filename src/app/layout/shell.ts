@@ -14,8 +14,8 @@ import { Atualizacao } from '../shared/atualizar';
 import { Patrimonios } from '../core/patrimonio';
 import { Tema } from '../core/tema';
 import { VERSAO } from '../core/versao';
-import { addMeses, diffDias, hoje, mesAtual } from '../core/datas';
-import { alternarPrivado, privado } from '../core/formato';
+import { addMeses, diffDias, hoje, mesAtual, nomeMes } from '../core/datas';
+import { alternarPrivado, moeda, privado } from '../core/formato';
 import { Avatar } from '../shared/avatar';
 import { BloqueioTela } from './bloqueio';
 import { eExtrato, extratoPendente, tirarCompartilhado } from '../core/arquivos';
@@ -448,6 +448,18 @@ export class Shell {
       const n = this.urgentes();
       const nav = navigator as Navigator & { setAppBadge?: (n: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
       (n ? nav.setAppBadge?.(n) : nav.clearAppBadge?.())?.catch(() => {});
+    });
+    // sobra automática: uma vez por sessão e carteira, com os dados carregados
+    const sobraVista = new Set<string>();
+    effect(() => {
+      const c = this.s.carteira();
+      if (!this.s.pronto() || !c?.sobra_cofrinho || sobraVista.has(c.id)) return;
+      sobraVista.add(c.id);
+      untracked(() =>
+        this.s.guardarSobraAuto().then((d) => {
+          if (d) this.toast.feito(`Guardamos ${moeda(d.valor)} da sobra de ${nomeMes(addMeses(mesAtual(), -1))} em ${d.cofrinho}`, () => this.s.excluir('cofrinho_movs', d.id));
+        }).catch((e) => console.error('Sobra automática', e)),
+      );
     });
     inject(DestroyRef).onDestroy(() => (sub.unsubscribe(), nav.unsubscribe()));
   }

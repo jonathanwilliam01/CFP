@@ -4,7 +4,7 @@ import { contasDoMes, noMes, porCategoria, resumoMes } from '../core/financas';
 import { BrlPipe, MesPipe, baixarCsv, csvData, csvTexto, csvValor, pct, soma } from '../core/formato';
 import { Entrada, Gasto, Pagamento } from '../core/models';
 import { Store } from '../core/store';
-import { Barras, Calor, Coluna, Donut, Empilhadas, Pilha } from '../shared/graficos';
+import { Barras, BlocoMapa, Calor, Coluna, Donut, Empilhadas, Pilha, Treemap } from '../shared/graficos';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
 import { Abas, RELATORIOS } from '../shared/abas';
@@ -18,7 +18,7 @@ interface Grupo {
 }
 
 @Component({
-  imports: [Abas, BrlPipe, MesPipe, Donut, Barras, Empilhadas, Calor, Icon],
+  imports: [Abas, BrlPipe, MesPipe, Donut, Barras, Empilhadas, Calor, Icon, Treemap],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -29,6 +29,11 @@ interface Grupo {
       </app-abas>
 
       <div class="seg">
+        <button type="button" [class.on]="vista() === 'geral'" (click)="trocarVista('geral')"><app-icon name="bar_chart" [size]="16" />Gráficos</button>
+        <button type="button" [class.on]="vista() === 'mapa'" (click)="trocarVista('mapa')"><app-icon name="dashboard" [size]="16" />Mapa</button>
+      </div>
+
+      <div class="seg">
         @for (n of [3, 6, 12]; track n) {
           <button type="button" [class.on]="meses() === n" (click)="meses.set(n)">{{ n }} meses</button>
         }
@@ -37,6 +42,12 @@ interface Grupo {
 
       @if (!dados()) {
         <div class="card empty"><span class="big">⏳</span>Carregando...</div>
+      } @else if (vista() === 'mapa') {
+        <section class="card">
+          <div class="card-head"><h2>Mapa dos gastos</h2><span class="muted small">consumo no período</span></div>
+          <app-treemap [itens]="mapa()" />
+          <p class="small muted">Cada bloco é uma categoria, do tamanho do que saiu nela. Toque para ver os estabelecimentos.</p>
+        </section>
       } @else {
         <div class="stats">
           <div class="stat"><div class="l">Entradas</div><div class="v pos">{{ totais().entradas | brl }}</div></div>
@@ -180,6 +191,14 @@ export default class Relatorios {
   private toast = inject(Toast);
 
   protected meses = signal(6);
+  protected vista = signal<'geral' | 'mapa'>(lerVista());
+
+  trocarVista(v: 'geral' | 'mapa') {
+    this.vista.set(v);
+    try {
+      localStorage.setItem('cfp.relatorios.vista', v);
+    } catch {}
+  }
   protected dados = signal<{ gastos: Gasto[]; entradas: Entrada[]; pagamentos: Pagamento[] } | null>(null);
   private req = 0;
 
@@ -300,12 +319,42 @@ export default class Relatorios {
   });
   protected maxCmp = computed(() => Math.max(1, ...this.comparar().flatMap((c) => [c.atual, c.ref])));
 
+  /** Categorias → estabelecimentos; dinheiro livre do outro entra só no total */
+  protected mapa = computed<BlocoMapa[]>(() => {
+    const cats = this.s.catMap();
+    const m = new Map<string, { nome: string; cor: string; valor: number; filhos: Map<string, { nome: string; valor: number }> | null }>();
+    for (const g of this.consumo()) {
+      if (g.valor <= 0) continue;
+      const livre = this.s.livreDeOutro(g);
+      const c = livre ? undefined : cats.get(g.categoria_id ?? '');
+      const k = livre ? '\u0000livre' : (g.categoria_id ?? '');
+      const a = m.get(k) ?? { nome: livre ? 'Dinheiro livre' : (c?.nome ?? 'Sem categoria'), cor: livre ? '#94a3b8' : (c?.cor ?? '#64748b'), valor: 0, filhos: livre ? null : new Map() };
+      a.valor += g.valor;
+      if (a.filhos) {
+        const desc = g.descricao.replace(PARCELA, '').trim() || 'Sem descrição';
+        const kf = normalizar(desc);
+        const f = a.filhos.get(kf) ?? { nome: desc, valor: 0 };
+        f.valor += g.valor;
+        a.filhos.set(kf, f);
+      }
+      m.set(k, a);
+    }
+    return [...m.values()].map((a) => {
+      if (!a.filhos) return { nome: a.nome, cor: a.cor, valor: a.valor };
+      // muitos estabelecimentos pequenos viram um bloco só
+      const l = [...a.filhos.values()].sort((x, y) => y.valor - x.valor);
+      const resto = l.slice(14);
+      const filhos = resto.length > 1 ? [...l.slice(0, 14), { nome: `Outros (${resto.length})`, valor: soma(resto, (f) => f.valor) }] : l;
+      return { nome: a.nome, cor: a.cor, valor: a.valor, filhos };
+    });
+  });
+
   /** Estabelecimentos pela descrição (sem acento e número de parcela), do maior total para o menor */
   protected lojas = computed(() => {
     const m = new Map<string, { nome: string; total: number; qtd: number; cats: Map<string, number> }>();
     for (const g of this.consumo()) {
-      if (g.valor <= 0) continue;
-      const k = normalizar(g.descricao).replace(/\s*\(?\d+\s*\/\s*\d+\)?$/, '');
+      if (g.valor <= 0 || this.s.livreDeOutro(g)) continue;
+      const k = normalizar(g.descricao).replace(PARCELA, '');
       if (!k) continue;
       const a = m.get(k) ?? { nome: g.descricao, total: 0, qtd: 0, cats: new Map() };
       a.total += g.valor;
@@ -373,6 +422,17 @@ export default class Relatorios {
         ].join(';'),
       );
     baixarCsv(`cfp-gastos-${this.lista()[0].slice(0, 7)}-a-${this.s.mes().slice(0, 7)}.csv`, 'Data;Descrição;Categoria;Pagamento;Fatura;Pessoa;Valor', linhas);
+  }
+}
+
+/** "(3/10)" ou "3/10" no fim da descrição de parcela */
+const PARCELA = /\s*\(?\d+\s*\/\s*\d+\)?$/;
+
+function lerVista(): 'geral' | 'mapa' {
+  try {
+    return localStorage.getItem('cfp.relatorios.vista') === 'mapa' ? 'mapa' : 'geral';
+  } catch {
+    return 'geral';
   }
 }
 

@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { addMeses, hoje, parse } from '../core/datas';
+import { addDias, addMeses, fimMes as ultimoDia, hoje, inicioMes, mesAtual, parse } from '../core/datas';
 import { ativaNoMes, dataEntrada, noMes, saldoDiario } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, soma } from '../core/formato';
 import { ContaMes, Gasto } from '../core/models';
@@ -27,6 +27,51 @@ interface Dia {
     <div class="page">
       <div class="page-head"><h1>Calendário</h1><span class="muted small cap">{{ s.mes() | mes }}</span></div>
 
+      <div class="seg">
+        <button type="button" [class.on]="vista() === 'mes'" (click)="trocarVista('mes')"><app-icon name="calendar_month" [size]="16" />Mês</button>
+        <button type="button" [class.on]="vista() === 'semana'" (click)="trocarVista('semana')"><app-icon name="view_week" [size]="16" />Semana</button>
+      </div>
+
+      @if (vista() === 'semana') {
+        <section class="card">
+          <div class="nav-sem">
+            <button class="btn ghost icon sm" type="button" (click)="mudarSemana(-1)" aria-label="Semana anterior"><app-icon name="chevron_left" /></button>
+            <div class="tit-sem"><b>{{ rotuloSemana() }}</b><span class="small muted">gastos <b class="num">{{ totalSemana() | brl }}</b></span></div>
+            <button class="btn ghost icon sm" type="button" (click)="mudarSemana(1)" aria-label="Próxima semana"><app-icon name="chevron_right" /></button>
+          </div>
+        </section>
+        <div class="semana">
+          @for (x of semana(); track x.data) {
+            <section class="card sd" [class.hoje]="x.data === dataHoje" [class.fora]="!x.d" [class.livre]="x.d && !x.d.contas.length && !x.d.entradas.length && !x.d.gastos.length">
+              <div class="sd-h">
+                <span class="cap"><b>{{ x.nome }}</b> {{ x.dia }}</span>
+                @if (x.d) { <b class="num" [class.muted]="!x.d.gasto">{{ x.d.gasto | brl }}</b> }
+              </div>
+              @if (x.d; as d) {
+                <div class="its">
+                  @for (c of d.contas; track c.ref_id) {
+                    <a class="it" routerLink="/contas"><i class="pt" [class.pago]="c.pago" [class.vencida]="!c.pago && d.data < dataHoje"></i>
+                      <span class="t">{{ c.descricao }}</span><span class="v neg">{{ c.valor | brl }}</span></a>
+                  }
+                  @for (e of d.entradas; track $index) {
+                    <a class="it" routerLink="/entradas"><i class="pt entra"></i><span class="t">{{ e.descricao }}</span><span class="v pos">{{ e.valor | brl }}</span></a>
+                  }
+                  @for (g of d.gastos; track g.id) {
+                    @if (s.livreDeOutro(g)) {
+                      <div class="it"><i class="pt" [style.background]="'#94a3b8'"></i><span class="t">Dinheiro livre de {{ s.nomeAutor(g.criado_por) }}</span><span class="v">{{ g.valor | brl }}</span></div>
+                    } @else {
+                      <button class="it" type="button" (click)="lancar.editarGasto(g)"><i class="pt" [style.background]="s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8'"></i>
+                        <span class="t">{{ g.descricao }}</span><span class="v">{{ g.valor | brl }}</span></button>
+                    }
+                  }
+                </div>
+              } @else {
+                <button class="link" type="button" (click)="s.mes.set(x.mes)">Ver <span class="cap">{{ x.mes | mes }}</span></button>
+              }
+            </section>
+          }
+        </div>
+      } @else {
       <section class="card">
         <div class="card-head"><h2>Saldo dia a dia</h2><span class="small muted">previsto</span></div>
         <app-linha [valores]="valores()" [marca]="idxHoje()" />
@@ -79,17 +124,26 @@ interface Dia {
               </a>
             }
             @for (g of d.gastos; track g.id) {
+              @if (s.livreDeOutro(g)) {
+                <div class="row">
+                  <span class="ico"><app-icon name="wallet" /></span>
+                  <div class="grow"><div class="t">Dinheiro livre de {{ s.nomeAutor(g.criado_por) }}</div><div class="s">Só o total aparece</div></div>
+                  <span class="v">{{ g.valor | brl }}</span>
+                </div>
+              } @else {
               <button class="row" type="button" (click)="lancar.editarGasto(g)">
                 <span class="ico" [style.background]="(s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8') + '22'" [style.color]="s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8'"><app-icon [name]="s.catMap().get(g.categoria_id ?? '')?.icone ?? 'help'" /></span>
                 <div class="grow"><div class="t">{{ g.descricao }}</div><div class="s">{{ s.catMap().get(g.categoria_id ?? '')?.nome ?? 'Sem categoria' }}</div></div>
                 <span class="v">{{ g.valor | brl }}</span>
               </button>
+              }
             }
             @if (!d.contas.length && !d.entradas.length && !d.gastos.length) {
               <p class="muted small">Nada neste dia.</p>
             }
           </div>
         </section>
+      }
       }
     </div>
   `,
@@ -120,6 +174,39 @@ interface Dia {
     .leg { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 12px; font-size: 0.75rem; color: var(--ink-2); }
     .leg span { display: inline-flex; align-items: center; gap: 5px; }
     .q { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: color-mix(in srgb, var(--primary) 62%, var(--card-2)); }
+    .nav-sem { display: flex; align-items: center; gap: 8px; }
+    .tit-sem { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+    .semana { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .sd { padding: 10px 12px; min-width: 0; }
+    .sd.hoje { border-color: var(--primary); }
+    .sd.fora { opacity: 0.6; }
+    .sd-h {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 0.9rem;
+      padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line);
+    }
+    .its { display: flex; flex-direction: column; }
+    .sd.livre { padding-block: 8px; opacity: 0.7; }
+    .sd.livre .sd-h { border: 0; padding: 0; margin: 0; }
+    .sd.livre .its { display: none; }
+    .it + .it { border-top: 1px dashed var(--line); }
+    .it {
+      display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 0; border: 0; background: none; font: inherit; font-size: 0.82rem;
+      color: inherit; text-align: left; text-decoration: none; cursor: pointer; width: 100%;
+    }
+    div.it { cursor: default; }
+    .it .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .it .v { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .it .pt { flex-shrink: 0; }
+    .link { background: none; border: 0; padding: 0; font: inherit; font-size: 0.82rem; font-weight: 700; color: var(--primary); cursor: pointer; }
+    @media (min-width: 900px) {
+      .semana { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+      .sd { padding: 8px; }
+      .sd-h { flex-direction: column; gap: 0; }
+      .it { padding: 5px 0; }
+      .it { flex-wrap: wrap; gap: 2px 4px; }
+      .it .t { flex-basis: calc(100% - 12px); }
+      .it .v { margin-left: 12px; font-size: 0.78rem; }
+    }
     @media (min-width: 720px) { .n { font-size: 0.95rem; } .pt { width: 7px; height: 7px; } }
   `,
 })
@@ -172,4 +259,66 @@ export default class Calendario {
 
   protected sel = signal(noMes(hoje(), this.s.mes()) ? Number(hoje().slice(8)) : 1);
   protected diaSel = computed(() => this.dias().find((d) => d.dia === this.sel()) ?? null);
+
+  protected vista = signal<'mes' | 'semana'>(lerVista());
+  /** segunda-feira da semana exibida */
+  protected semIni = signal(semanaInicial(this.s.mes()));
+
+  /** 7 dias seg–dom; dia fora do mês carregado fica sem dados (botão leva ao mês dele) */
+  protected semana = computed(() => {
+    const porData = new Map(this.dias().map((d) => [d.data, d]));
+    return Array.from({ length: 7 }, (_, i) => {
+      const data = addDias(this.semIni(), i);
+      return { data, dia: Number(data.slice(8)), nome: DIAS[i], mes: inicioMes(data), d: porData.get(data) ?? null };
+    });
+  });
+  protected totalSemana = computed(() => soma(this.semana(), (x) => x.d?.gasto ?? 0));
+  protected rotuloSemana = computed(() => {
+    const ini = parse(this.semIni());
+    const fim = parse(addDias(this.semIni(), 6));
+    const f = (d: Date, mes: boolean) => d.toLocaleDateString('pt-BR', mes ? { day: 'numeric', month: 'short' } : { day: 'numeric' });
+    return `${f(ini, ini.getMonth() !== fim.getMonth())} – ${f(fim, true)}`;
+  });
+
+  constructor() {
+    // troca de mês por fora (seletor, gesto): semana volta para a inicial se não toca o mês novo
+    effect(() => {
+      const mes = this.s.mes();
+      untracked(() => {
+        const ini = this.semIni();
+        if (addDias(ini, 6) < mes || ini > ultimoDia(mes)) this.semIni.set(semanaInicial(mes));
+      });
+    });
+  }
+
+  trocarVista(v: 'mes' | 'semana') {
+    this.vista.set(v);
+    try {
+      localStorage.setItem('cfp.calendario.vista', v);
+    } catch {}
+  }
+
+  mudarSemana(n: number) {
+    const ini = addDias(this.semIni(), 7 * n);
+    const fim = addDias(ini, 6);
+    this.semIni.set(ini);
+    const mes = this.s.mes();
+    if (fim < mes) this.s.mes.set(inicioMes(fim));
+    else if (ini > ultimoDia(mes)) this.s.mes.set(inicioMes(ini));
+  }
+}
+
+const DIAS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
+
+const segunda = (d: string) => addDias(d, -((parse(d).getDay() + 6) % 7));
+
+/** semana de hoje no mês atual; nos outros, a do dia 1 */
+const semanaInicial = (mes: string) => segunda(mes === mesAtual() ? hoje() : mes);
+
+function lerVista(): 'mes' | 'semana' {
+  try {
+    return localStorage.getItem('cfp.calendario.vista') === 'semana' ? 'semana' : 'mes';
+  } catch {
+    return 'mes';
+  }
 }

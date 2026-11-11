@@ -4,7 +4,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { addMeses, diffDias, hoje, inicioMes, mesesEntre, nomeMes } from '../core/datas';
 import { ACIMA_MEDIA, CompraRecorrente, Recebimento, aporteMensal, fixasNaFatura, mediaContas, noMes } from '../core/financas';
-import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, parseValor, soma } from '../core/formato';
+import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, parseValor, privado, soma } from '../core/formato';
 import { Cartao, Cofrinho, ContaMes, Gasto, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
 import { CodigoLido, lerCodigo } from '../core/boleto';
@@ -15,9 +15,10 @@ import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 import { taxas } from './calc/comum';
 import { Moeda } from '../shared/moeda';
+import { ColunaQuadro, MoverQuadro, Quadro } from '../shared/quadro';
 
 @Component({
-  imports: [NgTemplateOutlet, Moeda, FormsModule, RouterLink, BrlPipe, PrivPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa, Deslizar],
+  imports: [NgTemplateOutlet, Moeda, FormsModule, RouterLink, BrlPipe, PrivPipe, DiaPipe, MesPipe, Icon, Sheet, ContaFixa, Deslizar, Quadro],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -63,15 +64,21 @@ import { Moeda } from '../shared/moeda';
           <div class="barra"><span [style.width.%]="progresso().pct"></span></div>
         </div>
         <div class="filtros">
-          <div class="chips">
-            @for (o of opcoes(); track o.k) {
-              <button type="button" class="chip" [class.on]="filtro() === o.k" [class.vermelho]="o.k === 'vencidas' && o.n" (click)="filtro.set(o.k)">{{ o.r }}@if (o.n !== null) { <span class="n">{{ o.n }}</span> }</button>
-            }
-          </div>
+          @if (!quadro()) {
+            <div class="chips">
+              @for (o of opcoes(); track o.k) {
+                <button type="button" class="chip" [class.on]="filtro() === o.k" [class.vermelho]="o.k === 'vencidas' && o.n" (click)="filtro.set(o.k)">{{ o.r }}@if (o.n !== null) { <span class="n">{{ o.n }}</span> }</button>
+              }
+            </div>
+          }
           <div class="acoes">
+            <div class="seg vista" role="group" aria-label="Visualização">
+              <button type="button" [class.on]="!quadro()" (click)="trocarVista('lista')" aria-label="Lista" title="Lista"><app-icon name="view_list" [size]="18" /></button>
+              <button type="button" [class.on]="quadro()" (click)="trocarVista('quadro')" aria-label="Quadro" title="Quadro"><app-icon name="view_kanban" [size]="18" /></button>
+            </div>
             <button type="button" class="btn ghost sm" (click)="ordem.set(ordem() === 'venc' ? 'valor' : 'venc')" [attr.aria-label]="'Ordenar por ' + (ordem() === 'venc' ? 'valor' : 'vencimento')">
               <app-icon name="sort" [size]="16" />{{ ordem() === 'venc' ? 'Vencimento' : 'Valor' }}</button>
-            @if (abertas().length > 1) {
+            @if (!quadro() && abertas().length > 1) {
               <button type="button" class="btn ghost sm" [class.on]="selecionando()" (click)="alternarSelecao()"><app-icon name="checklist" [size]="16" />{{ selecionando() ? 'Cancelar' : 'Selecionar' }}</button>
             }
           </div>
@@ -96,6 +103,20 @@ import { Moeda } from '../shared/moeda';
         </button>
       </ng-template>
 
+      <ng-template #cartaoQuadro let-c>
+        <button type="button" class="row qc" (click)="abrir(c)">
+          <span class="ico" [style.background]="c.cor + '22'" [style.color]="c.cor"><app-icon [name]="c.icone" [size]="18" /></span>
+          <div class="grow"><div class="t">{{ c.descricao }}</div>
+            <div class="s"><span>{{ dm(c.vencimento) }}</span><b class="v" [class.riscado]="c.pago">{{ c.valor | brl }}</b></div></div>
+        </button>
+      </ng-template>
+
+      @if (quadro()) {
+        <app-quadro [colunas]="colunasQuadro()" [chave]="chave" [total]="totalColuna" vazio="Nenhuma conta" (mover)="moverQuadro($event)">
+          <ng-template #cartao let-c><ng-container *ngTemplateOutlet="cartaoQuadro; context: { $implicit: c }" /></ng-template>
+        </app-quadro>
+        <p class="small muted centro">Arraste para "Paga" para pagar (no celular, segure antes) ou use <app-icon name="swap_horiz" [size]="14" /> no cartão.</p>
+      } @else {
       <section class="card list">
         @for (c of visiveis(); track c.tipo + c.ref_id) {
           @if (selecionando()) {
@@ -149,6 +170,7 @@ import { Moeda } from '../shared/moeda';
         <p class="small muted centro">Toque nas contas em aberto para escolher quais pagar de uma vez (com o valor previsto e a data de hoje).</p>
       } @else if (contasBase().length || reservasLista().length) {
         <p class="small muted centro">Arraste uma conta para a esquerda para marcar como paga{{ reservasLista().length ? ', ou uma reserva para desconsiderar a sobra do orçamento' : '' }}.</p>
+      }
       }
 
       </div>
@@ -338,6 +360,12 @@ import { Moeda } from '../shared/moeda';
     .filtros .chips { min-width: 0; }
     .acoes { display: flex; gap: 4px; margin-left: auto; }
     .acoes .on { color: var(--primary); }
+    .vista { padding: 2px; }
+    .vista button { padding: 4px 8px; }
+    .qc { min-height: 0; gap: 8px; padding: 8px 0; }
+    .qc .ico { width: 30px; height: 30px; border-radius: 9px; }
+    .qc .s { display: flex; justify-content: space-between; gap: 6px; }
+    .qc .v { color: var(--ink); }
     .chip .n { font-size: 0.75rem; opacity: 0.75; }
     .chip.vermelho:not(.on) { border-color: var(--danger); color: var(--danger); }
     .row.venc { box-shadow: inset 3px 0 0 var(--danger); }
@@ -445,6 +473,36 @@ export default class Contas {
     const pago = soma(base.filter((c) => c.pago), (c) => c.valor);
     return { total, pago, pct: total ? Math.min(100, Math.round((pago / total) * 100)) : 0 };
   });
+
+  protected vista = signal(localStorage.getItem('cfp.contas.vista') === 'quadro' ? 'quadro' : 'lista');
+  protected quadro = computed(() => this.vista() === 'quadro' && this.contasBase().length > 0);
+  trocarVista(v: 'lista' | 'quadro') {
+    this.vista.set(v);
+    localStorage.setItem('cfp.contas.vista', v);
+    this.selecionando.set(false);
+    this.marcadas.set(new Set());
+  }
+  /** Atrasada/7 dias/Depois são calculadas: só recebem o que sai de Paga (desfaz) */
+  protected colunasQuadro = computed<ColunaQuadro<ContaMes>[]>(() => {
+    const atrasada: ContaMes[] = [], semana: ContaMes[] = [], depois: ContaMes[] = [];
+    for (const c of this.abertas()) {
+      const d = diffDias(hoje(), c.vencimento);
+      (d < 0 ? atrasada : d <= 7 ? semana : depois).push(c);
+    }
+    const volta = ['paga'];
+    return [
+      { id: 'atrasada', titulo: 'Atrasada', icone: 'warning', cor: 'var(--danger)', aceita: volta, itens: atrasada },
+      { id: 'semana', titulo: 'Vence em 7 dias', icone: 'schedule', cor: 'var(--warn)', aceita: volta, itens: semana },
+      { id: 'depois', titulo: 'Depois', icone: 'event', cor: 'var(--info)', aceita: volta, itens: depois },
+      { id: 'paga', titulo: 'Paga', icone: 'task_alt', cor: 'var(--ok)', itens: this.pagas() },
+    ];
+  });
+  protected totalColuna = (l: ContaMes[]) => (privado() ? 'R$ •••' : moeda(soma(l, (c) => c.valor)));
+  /** Soltar em Paga: variável abre o detalhe para informar o valor; sair de Paga desfaz */
+  moverQuadro({ item: c, de, para }: MoverQuadro<ContaMes>) {
+    if (para === 'paga') return this.variavel(c) ? this.abrir(c) : this.pagarRapido(c);
+    if (de === 'paga') return this.desfazer(c);
+  }
 
   protected verPagas = signal(localStorage.getItem('cfp.contas.pagas') === '1');
   alternarPagas() {

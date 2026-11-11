@@ -12,6 +12,9 @@ import { Store } from '../core/store';
 import { CORES, Cor, Tema } from '../core/tema';
 import { q, supabase } from '../core/supabase';
 import { parseValor } from '../core/formato';
+import { addMeses, mesAtual } from '../core/datas';
+import { Moeda } from '../shared/moeda';
+import { ganho, lembrado } from './calc/comum';
 import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
 import { IconePicker } from '../shared/icone-picker';
@@ -26,7 +29,7 @@ import { Compartilhar, TEXTO_APP } from '../shared/compartilhar';
 import { Saida } from '../shared/sair';
 
 @Component({
-  imports: [FormsModule, Avatar, Icon, IconePicker, Sheet, Visor, Ordenar, Compartilhar],
+  imports: [FormsModule, Avatar, Icon, IconePicker, Sheet, Visor, Ordenar, Compartilhar, Moeda],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -126,6 +129,36 @@ import { Saida } from '../shared/sair';
             @if (s.souDono()) {
               <button class="btn danger" type="button" (click)="sairCarteira(true)" [disabled]="ocupado()"><app-icon name="delete" [size]="18" />Excluir carteira</button>
             }
+          </div>
+        </div>
+
+        <div class="card form" [class.fechado]="!aberto('casal')">
+          <div class="card-head">
+            <button type="button" class="tit" (click)="alternar('casal')" [attr.aria-expanded]="aberto('casal')"><h2>Casal</h2><app-icon [name]="aberto('casal') ? 'expand_less' : 'expand_more'" /></button>
+          </div>
+          <h3>Dinheiro livre do mês</h3>
+          <p class="small muted">Gastos marcados como livres aparecem para o outro só no total. Vazio desliga.</p>
+          @for (m of s.membros(); track m.user_id) {
+            <label class="peso livre"><span>{{ m.nome }}</span><input moeda="numero" inputmode="numeric" placeholder="0,00" [ngModel]="livreDe(m)" (ngModelChange)="mudarLivre(m.user_id, $event)" /></label>
+          }
+          <button class="btn ghost" type="button" (click)="salvarLivres()" [disabled]="ocupado()">Salvar</button>
+
+          <h3>Sobra automática</h3>
+          <p class="small muted">No começo do mês, parte da sobra do mês que fechou vai sozinha para o cofrinho (dá para desfazer).</p>
+          <div class="linha">
+            <select name="sobraCof" aria-label="Cofrinho" [(ngModel)]="sobraCofrinho">
+              <option [ngValue]="null">Desligada</option>
+              @for (k of s.cofrinhos(); track k.id) { <option [ngValue]="k.id">{{ k.nome }}</option> }
+            </select>
+            @if (sobraCofrinho) { <input name="sobraPct" inputmode="numeric" aria-label="Percentual da sobra" placeholder="%" [(ngModel)]="sobraPct" /> }
+          </div>
+          <button class="btn ghost" type="button" (click)="salvarSobraAuto()" [disabled]="ocupado()">Salvar</button>
+
+          <h3>Custo em horas</h3>
+          <p class="small muted">Mostra no lançamento quanto tempo de trabalho o gasto custa. Fica só neste aparelho.</p>
+          <div class="linha">
+            <label class="field"><span>Ganho por mês</span><input moeda inputmode="numeric" placeholder="3.000,00" [ngModel]="ganho()" (ngModelChange)="ganho.guardar($event)" /></label>
+            <label class="field"><span>Horas por semana</span><input inputmode="numeric" placeholder="44" [ngModel]="semana()" (ngModelChange)="semana.guardar($event)" /></label>
           </div>
         </div>
       }
@@ -379,6 +412,8 @@ import { Saida } from '../shared/sair';
     .pesos { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
     .peso { display: grid; grid-template-columns: minmax(0, 1fr) 80px auto; align-items: center; gap: 8px; }
     .peso input { text-align: right; }
+    .livre { grid-template-columns: minmax(0, 1fr) 130px; }
+    .linha .field { flex: 1; min-width: 0; }
     .linha { display: flex; gap: 8px; }
     .cores { display: flex; gap: 10px; flex-wrap: wrap; }
     .cores button {
@@ -691,7 +726,42 @@ export default class Config {
     }, lembrete ? 'Lembrete ligado' : 'Lembrete desligado');
   }
 
+  protected ganho = ganho;
+  protected semana = lembrado('cfp.horas.semana', '44');
+  sobraCofrinho: string | null = this.s.carteira()?.sobra_cofrinho ?? null;
+  sobraPct = String(this.s.carteira()?.sobra_pct ?? '').replace('.', ',');
+  private livres = signal<Record<string, number | null>>({});
+  protected livreDe = (m: Membro) => (m.user_id in this.livres() ? this.livres()[m.user_id] : (m.livre ?? null));
+  mudarLivre(id: string, v: number | null) {
+    this.livres.update((l) => ({ ...l, [id]: v }));
+  }
+
+  salvarLivres() {
+    const valores = Object.fromEntries(this.s.membros().map((m) => [m.user_id, this.livreDe(m) || null]));
+    return this.exec(async () => {
+      await this.s.definirLivres(valores);
+      this.livres.set({});
+    }, 'Dinheiro livre salvo');
+  }
+
+  salvarSobraAuto() {
+    const c = this.s.carteira();
+    if (!c) return;
+    const pct = parseValor(this.sobraPct);
+    if (this.sobraCofrinho && (pct < 1 || pct > 100)) return this.toast.erro('Percentual entre 1 e 100');
+    // ao ligar, começa no próximo fechamento: meses já fechados não são guardados
+    const dados = this.sobraCofrinho
+      ? { sobra_cofrinho: this.sobraCofrinho, sobra_pct: pct, ...(c.sobra_feita ? {} : { sobra_feita: addMeses(mesAtual(), -1) }) }
+      : { sobra_cofrinho: null, sobra_pct: null };
+    return this.exec(async () => {
+      await q(supabase.from('carteiras').update(dados).eq('id', c.id));
+      await this.s.iniciar();
+    }, this.sobraCofrinho ? 'Sobra automática ligada' : 'Sobra automática desligada');
+  }
+
   private lerCarteira() {
+    this.sobraCofrinho = this.s.carteira()?.sobra_cofrinho ?? null;
+    this.sobraPct = String(this.s.carteira()?.sobra_pct ?? '').replace('.', ',');
     this.nomeCarteira = this.s.carteira()?.nome ?? '';
     this.inicioUso = this.s.inicio()?.slice(0, 7) ?? '';
     this.metaSobra = String(this.s.carteira()?.meta_sobra ?? '').replace('.', ',');

@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { addDias, diffDias, fechamentoFatura, hoje, inicioFatura, mesAtual, mesFatura, nomeMes } from './datas';
-import { aporteMensal, ativaNoMes, dataEntrada, categoriasAcima, duplicados, faturaProjetada, fixasNaFatura, porCategoria, saldoBeneficio, variaveisAcima } from './financas';
+import { aporteMensal, ativaNoMes, dataEntrada, categoriasAcima, duplicados, faturaProjetada, fixasNaFatura, porCategoria, reajustesNoMes, saldoBeneficio, variaveisAcima } from './financas';
 import { moeda, pct, soma } from './formato';
 import { Chat } from './chat';
 import { Store } from './store';
@@ -123,6 +123,11 @@ export class Insights {
 
     for (const v of variaveisAcima(s.recorrencias(), s.valoresFixas(), mes))
       l.push({ id: `var-${v.r.id}-${v.mes}`, nivel: 'alerta', icone: 'trending_up', titulo: `${v.r.descricao} veio ${v.pct}% acima da média`, texto: `${moeda(v.valor)} contra média de ${moeda(v.media)}.`, link: '/contas' });
+
+    for (const a of s.aumentos())
+      l.push({ id: `aum-${a.chave}-${mes}`, nivel: 'alerta', icone: 'price_change', titulo: `${a.descricao} subiu ${a.pct}%`, texto: `De ${moeda(a.antes)} para ${moeda(a.agora)} (${moeda((a.agora - a.antes) * 12)} a mais por ano).`, link: '/assinaturas' });
+    for (const x of reajustesNoMes(s.recorrencias(), mes))
+      l.push({ id: `reaj-${x.r.id}`, nivel: 'info', icone: 'price_change', titulo: `${x.r.descricao} subiu ${x.pct}%`, texto: `De ${moeda(x.antes)} para ${moeda(x.r.valor)} a partir deste mês.`, link: '/assinaturas' });
 
     for (const c of categoriasAcima(s.gastosMes(), s.gastosAnteriores(), s.catMap()))
       l.push({ id: `cat-${c.id}-${mes}`, nivel: 'alerta', icone: 'trending_up', titulo: `${c.nome} ${c.acima}% acima do normal`, texto: `${moeda(c.total)} no mês contra média de ${moeda(c.media)} nos meses anteriores.`, link: '/relatorios' });

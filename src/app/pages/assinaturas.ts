@@ -25,6 +25,18 @@ const SERVICOS = /netflix|spotify|disney|hbo|\bmax\b|prime|amazon|youtube|deezer
         <div class="stat"><div class="l">Por ano</div><div class="v neg">{{ mensal() * 12 | brl }}</div></div>
       </div>
 
+      @if (s.aumentos().length) {
+        <section class="card">
+          <div class="card-head"><h2>Subiram de preço</h2></div>
+          <p class="muted small">Cobranças que se repetem todo mês e vieram mais caras em {{ s.mes() | mes: true }}.</p>
+          @for (a of s.aumentos(); track a.chave) {
+            <div class="lin"><span>{{ a.descricao }} <span class="neg small">+{{ a.pct }}%</span></span>
+              <span class="num">{{ a.antes | brl }} → <b class="neg">{{ a.agora | brl }}</b></span></div>
+            <div class="muted small ano">{{ (a.agora - a.antes) * 12 | brl }} a mais por ano</div>
+          }
+        </section>
+      }
+
       <section class="card list">
         @for (a of lista(); track a.r.id) {
           <a class="row" routerLink="/contas">
@@ -58,6 +70,7 @@ const SERVICOS = /netflix|spotify|disney|hbo|\bmax\b|prime|amazon|youtube|deezer
   styles: `
     .vazio { padding: 12px 0; margin: 0; }
     .lin { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; font-size: 0.92rem; }
+    .ano { margin: -4px 0 6px; }
   `,
 })
 export default class Assinaturas {

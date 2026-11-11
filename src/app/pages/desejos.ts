@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { hoje } from '../core/datas';
-import { BrlPipe, DiaPipe, parseValor, pct, soma } from '../core/formato';
+import { BrlPipe, DiaPipe, moeda, parseValor, pct, privado, soma } from '../core/formato';
 import { Desejo } from '../core/models';
 import { Store } from '../core/store';
 import { Icon } from '../shared/icon';
@@ -10,6 +10,7 @@ import { Lancar } from '../shared/lancar';
 import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 import { Moeda } from '../shared/moeda';
+import { ColunaQuadro, MoverQuadro, Quadro } from '../shared/quadro';
 
 interface FormDesejo {
   id?: string;
@@ -20,6 +21,8 @@ interface FormDesejo {
   cofrinho_id: string | null;
 }
 
+type ItemDesejo = ReturnType<Desejos['info']>;
+
 const PRIORIDADES = [
   { v: 1, r: 'Alta', cor: 'var(--danger)' },
   { v: 2, r: 'Média', cor: 'var(--warn)' },
@@ -28,13 +31,21 @@ const PRIORIDADES = [
 
 /** O que o casal quer comprar: prioridade, quanto já tem guardado e se cabe no planejamento */
 @Component({
-  imports: [Moeda, FormsModule, BrlPipe, DiaPipe, Icon, Sheet],
+  imports: [Moeda, FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Quadro],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <div class="page-head">
         <h1>Lista de desejos</h1>
-        <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Desejo</button>
+        <div class="topo">
+          @if (s.desejos().length) {
+            <div class="seg vista" role="group" aria-label="Visualização">
+              <button type="button" [class.on]="!quadro()" (click)="trocarVista('lista')" aria-label="Lista" title="Lista"><app-icon name="view_list" [size]="18" /></button>
+              <button type="button" [class.on]="quadro()" (click)="trocarVista('quadro')" aria-label="Quadro" title="Quadro"><app-icon name="view_kanban" [size]="18" /></button>
+            </div>
+          }
+          <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Desejo</button>
+        </div>
       </div>
 
       @if (pendentes().length) {
@@ -44,6 +55,18 @@ const PRIORIDADES = [
         </div>
       }
 
+      @if (quadro()) {
+        <app-quadro [colunas]="colunas()" [chave]="chave" [total]="totalColuna" (mover)="mover($event)">
+          <ng-template #cartao let-d>
+            <button type="button" class="qc" (click)="editar(d.d)">
+              <span class="ql"><i class="pri" [style.background]="d.pri.cor" [title]="'Prioridade ' + d.pri.r"></i><b class="qt">{{ d.d.descricao }}</b></span>
+              <span class="ql small muted"><span class="qt">{{ d.d.comprado_em ? 'comprado ' + (d.d.comprado_em | dia) : d.cofrinho ?? '' }}</span><b class="num">{{ d.d.valor | brl }}</b></span>
+              @if (d.guardado !== null && !d.d.comprado_em) { <span class="bar"><i [style.width.%]="d.pct > 100 ? 100 : d.pct"></i></span> }
+            </button>
+          </ng-template>
+        </app-quadro>
+        <p class="small muted centro">Arraste para "Comprei" quando comprar (no celular, segure antes) ou use <app-icon name="swap_horiz" [size]="14" /> no cartão.</p>
+      } @else {
       @for (d of pendentes(); track d.d.id) {
         <article class="card desejo">
           <button type="button" class="cab" (click)="editar(d.d)">
@@ -83,6 +106,7 @@ const PRIORIDADES = [
           }
         </details>
       }
+      }
     </div>
 
     <app-sheet [(open)]="aberto" [titulo]="f.id ? 'Editar desejo' : 'Novo desejo'">
@@ -119,6 +143,14 @@ const PRIORIDADES = [
     .bts app-icon { margin-right: 4px; }
     p { margin: 0; }
     summary { cursor: pointer; }
+    .topo { display: flex; gap: 6px; align-items: center; }
+    .vista { padding: 2px; }
+    .vista button { padding: 4px 8px; }
+    .qc { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 9px 0; background: none; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+    .ql { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .qt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .qc .bar { display: block; }
+    .centro { text-align: center; }
     .row { background: none; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; }
   `,
 })
@@ -132,25 +164,63 @@ export default class Desejos {
   protected salvando = signal(false);
   f: FormDesejo = this.vazio();
 
-  protected pendentes = computed(() => {
-    const sobra = this.s.resumo().saldo;
-    return this.s
+  protected pendentes = computed(() =>
+    this.s
       .desejos()
       .filter((d) => !d.comprado_em)
       .sort((a, b) => a.prioridade - b.prioridade || a.valor - b.valor)
-      .map((d) => {
-        const guardado = d.cofrinho_id ? (this.s.guardadoPorCofrinho().get(d.cofrinho_id) ?? 0) : null;
-        const falta = Math.max(0, d.valor - (guardado ?? 0));
-        return {
-          d,
-          pri: PRIORIDADES[d.prioridade - 1],
-          cofrinho: d.cofrinho_id ? this.s.cofrinhos().find((c) => c.id === d.cofrinho_id)?.nome : undefined,
-          guardado,
-          pct: pct(guardado ?? 0, d.valor),
-          meses: !falta ? 0 : sobra > 0 ? Math.ceil(falta / sobra) : null,
-        };
-      });
+      .map((d) => this.info(d)),
+  );
+
+  info(d: Desejo) {
+    const sobra = this.s.resumo().saldo;
+    const guardado = d.cofrinho_id ? (this.s.guardadoPorCofrinho().get(d.cofrinho_id) ?? 0) : null;
+    const falta = Math.max(0, d.valor - (guardado ?? 0));
+    return {
+      d,
+      pri: PRIORIDADES[d.prioridade - 1],
+      cofrinho: d.cofrinho_id ? this.s.cofrinhos().find((c) => c.id === d.cofrinho_id)?.nome : undefined,
+      guardado,
+      pct: pct(guardado ?? 0, d.valor),
+      meses: !falta ? 0 : sobra > 0 ? Math.ceil(falta / sobra) : null,
+    };
+  }
+
+  protected vista = signal(localStorage.getItem('cfp.desejos.vista') === 'quadro' ? 'quadro' : 'lista');
+  protected quadro = computed(() => this.vista() === 'quadro' && this.s.desejos().length > 0);
+  trocarVista(v: 'lista' | 'quadro') {
+    this.vista.set(v);
+    localStorage.setItem('cfp.desejos.vista', v);
+  }
+  protected chave = (x: ItemDesejo) => x.d.id;
+  protected totalColuna = (l: ItemDesejo[]) => (privado() ? 'R$ •••' : moeda(soma(l, (x) => x.d.valor)));
+  /** Quero e Dá pra comprar são calculadas: só recebem o que sai de Comprei */
+  protected colunas = computed<ColunaQuadro<ItemDesejo>[]>(() => {
+    const quero: ItemDesejo[] = [], juntando: ItemDesejo[] = [], da: ItemDesejo[] = [];
+    for (const x of this.pendentes()) (x.meses === 0 ? da : x.guardado !== null ? juntando : quero).push(x);
+    return [
+      { id: 'quero', titulo: 'Quero', icone: 'favorite', cor: 'var(--danger)', aceita: ['comprei'], itens: quero },
+      { id: 'juntando', titulo: 'Juntando', icone: 'savings', cor: 'var(--warn)', aceita: ['quero', 'comprei'], itens: juntando },
+      { id: 'da', titulo: 'Dá pra comprar', icone: 'thumb_up', cor: 'var(--info)', aceita: ['comprei'], itens: da },
+      { id: 'comprei', titulo: 'Comprei', icone: 'shopping_bag', cor: 'var(--ok)', itens: this.comprados().map((d) => this.info(d)) },
+    ];
   });
+
+  /** Comprei: ação existente; sair de Comprei limpa a data; Juntando sem cofrinho abre o form para escolher */
+  async mover({ item: { d }, de, para }: MoverQuadro<ItemDesejo>) {
+    if (para === 'comprei') return this.comprei(d);
+    if (de === 'comprei') {
+      try {
+        await this.s.salvar('desejos', { id: d.id, comprado_em: null });
+      } catch (e) {
+        return this.toast.erro(e);
+      }
+    }
+    if (para === 'juntando' && !d.cofrinho_id) {
+      this.editar({ ...d, comprado_em: null });
+      this.toast.ok('Escolha o cofrinho onde está juntando');
+    }
+  }
   protected comprados = computed(() => this.s.desejos().filter((d) => d.comprado_em).sort((a, b) => b.comprado_em!.localeCompare(a.comprado_em!)));
   protected total = computed(() => soma(this.pendentes(), (d) => d.d.valor));
 

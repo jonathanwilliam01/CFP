@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { addDias, addMeses, fechamentoFatura, hoje, inicioFatura } from '../core/datas';
+import { addDias, addMeses, fechamentoFatura, hoje, inicioFatura, rotuloDia } from '../core/datas';
 import { duplicados, fixasNaFatura } from '../core/financas';
 import { q, supabase } from '../core/supabase';
 import { BrlPipe, DiaPipe, MesPipe, bateValor, soma } from '../core/formato';
@@ -16,11 +16,28 @@ import { Sheet } from '../shared/sheet';
 import { Revisar, contarRevisao } from '../shared/revisar';
 import { Auth } from '../core/auth';
 import { lerTags } from '../core/texto';
+import { Autor } from '../shared/autor';
+import { TabelaGastos, formaGasto } from '../shared/tabela-gastos';
 
 type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
+type Agrupar = 'dia' | 'categoria' | 'estab' | 'pessoa';
+
+function lido(chave: string) {
+  try {
+    return localStorage.getItem(chave);
+  } catch {
+    return null;
+  }
+}
+
+function guardar(chave: string, v: string) {
+  try {
+    localStorage.setItem(chave, v);
+  } catch {}
+}
 
 @Component({
-  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Deslizar, Sheet, Revisar],
+  imports: [FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Deslizar, Sheet, Revisar, Autor, TabelaGastos],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -66,10 +83,35 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
           }
         </div>
       }
-      <select aria-label="Categoria" [ngModel]="cat()" (ngModelChange)="cat.set($event)">
-        <option [ngValue]="null">Todas as categorias</option>
-        @for (c of s.catGasto(); track c.id) { <option [ngValue]="c.id">{{ c.nome }}</option> }
-      </select>
+      <div class="filtros">
+        <select aria-label="Categoria" [ngModel]="cat()" (ngModelChange)="cat.set($event)">
+          <option [ngValue]="null">Todas as categorias</option>
+          @for (c of s.catGasto(); track c.id) { <option [ngValue]="c.id">{{ c.nome }}</option> }
+        </select>
+        @if (!tabela()) {
+          <select aria-label="Agrupar por" [ngModel]="agrupar()" (ngModelChange)="mudarAgrupar($event)">
+            @for (a of agrupamentos; track a.k) { <option [ngValue]="a.k">Por {{ a.r }}</option> }
+          </select>
+        }
+        @if (largo()) {
+          <button type="button" class="btn ghost sm" (click)="mudarVista(tabela() ? 'lista' : 'tabela')">
+            <app-icon [name]="tabela() ? 'view_agenda' : 'table_rows'" [size]="16" />{{ tabela() ? 'Lista' : 'Tabela' }}
+          </button>
+        }
+      </div>
+
+      @if (s.livres().length) {
+        <section class="card livres">
+          <div class="card-head"><h2><app-icon name="lock" [size]="18" />Dinheiro livre</h2></div>
+          @for (l of s.livres(); track l.id) {
+            <div class="lv">
+              <span class="nm">{{ l.eu ? 'Você' : l.nome }}</span>
+              <div class="bar" [class.estourou]="l.resta < 0"><i [style.width.%]="l.usado >= l.livre ? 100 : (l.usado / l.livre) * 100"></i></div>
+              <span class="small num">{{ l.resta < 0 ? 'passou ' : 'resta ' }}<b>{{ (l.resta < 0 ? -l.resta : l.resta) | brl }}</b> de {{ l.livre | brl }}</span>
+            </div>
+          }
+        </section>
+      }
 
       @if (aRevisar() && !selecao()) {
         <button type="button" class="card revisar" (click)="revisando.set(true)">
@@ -126,10 +168,28 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
           </section>
         }
       }
-      @for (d of dias(); track d.data) {
-        <div class="day-label">{{ d.data | dia }} · <span class="num">{{ d.total | brl }}</span></div>
+      @if (tabela()) {
+        @if (lista().length) {
+          <app-tabela-gastos [gastos]="lista()" [marca]="selecao() ? 'sel' : conferindo() ? 'conf' : null" [marcados]="marcados()" (tocar)="tocar($event)" (abrirGasto)="lancar.editarGasto($event)" />
+        } @else {
+          <div class="empty"><app-icon class="big" name="search_off" [size]="40" />Nenhum gasto encontrado.</div>
+        }
+      } @else {
+      @for (d of grupos(); track d.k) {
+        <div class="day-label">{{ d.rotulo }} · <span class="num">{{ d.total | brl }}</span> · {{ d.itens.length }}</div>
         <section class="card list">
           @for (g of d.itens; track g.id) {
+            @if (s.livreDeOutro(g)) {
+              <div class="row oculto">
+                <span class="ico"><app-icon name="lock" /></span>
+                <div class="grow">
+                  <div class="t">Dinheiro livre de {{ s.nomeAutor(g.criado_por) }}</div>
+                  <div class="s">{{ g.data | dia }}</div>
+                </div>
+                <app-autor [id]="g.criado_por" />
+                <span class="v">{{ g.valor | brl }}</span>
+              </div>
+            } @else {
             <app-deslizar [esquerda]="modoLista() ? null : excluirAcao" [direita]="modoLista() || g.parcelamento_id ? null : repetirAcao" (esquerdaFeito)="excluir(g)" (direitaFeito)="repetir(g)">
               <button class="row" [class.selecionado]="marcados().has(g.id)" [style.--cor]="cat_(g)?.cor ?? '#94a3b8'"
                 (click)="tocar(g)" (pointerdown)="segurar(g, $event)" (pointerup)="soltar()" (pointercancel)="soltar()" (pointerleave)="soltar()" (contextmenu)="$event.preventDefault()">
@@ -140,18 +200,21 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
                 }
                 <span class="ico" [style.background]="(cat_(g)?.cor ?? '#94a3b8') + '22'" [style.color]="(cat_(g)?.cor ?? '#94a3b8')"><app-icon [name]="cat_(g)?.icone ?? 'help'" /></span>
                 <div class="grow">
-                  <div class="t">{{ g.descricao }}@if (g.comprovante) {<app-icon class="clip" name="attach_file" [size]="14" />}@for (t of g.tags ?? []; track t) {<span class="tag">#{{ t }}</span>}</div>
-                  <div class="s">{{ cat_(g)?.nome ?? 'Sem categoria' }} · {{ forma(g) }}{{ quem(g) }}</div>
+                  <div class="t">{{ g.descricao }}@if (g.livre) {<span class="selo">livre</span>}@if (g.comprovante) {<app-icon class="clip" name="attach_file" [size]="14" />}@for (t of g.tags ?? []; track t) {<span class="tag">#{{ t }}</span>}</div>
+                  <div class="s">@if (agrupar() !== 'dia') {<span>{{ g.data | dia }} · </span>}{{ cat_(g)?.nome ?? 'Sem categoria' }} · {{ forma(g) }}</div>
                 </div>
+                <app-autor [id]="g.criado_por" />
                 <span class="v" [class.benef]="g.forma === 'beneficio'">{{ g.valor | brl }}</span>
               </button>
             </app-deslizar>
+            }
           }
         </section>
       } @empty {
         <div class="empty"><app-icon class="big" name="search_off" [size]="40" />Nenhum gasto encontrado.</div>
       }
-      @if (dias().length) {
+      }
+      @if (!tabela() && grupos().length) {
         <p class="small muted dica">Arraste um gasto para a esquerda para excluir ou para a direita para lançar de novo hoje. Segure para selecionar vários.</p>
       }
     </div>
@@ -160,7 +223,7 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
       <div class="massa">
         <div class="cab">
           <b>{{ marcados().size }} selecionado(s)</b><span class="num">{{ totalMarcados() | brl }}</span>
-          <button type="button" class="btn ghost sm" (click)="marcarTodos()">{{ marcados().size === lista().length ? 'Nenhum' : 'Todos' }}</button>
+          <button type="button" class="btn ghost sm" (click)="marcarTodos()">{{ marcados().size === marcaveis().length ? 'Nenhum' : 'Todos' }}</button>
         </div>
         <div class="acoes">
           <select aria-label="Mudar categoria" [disabled]="!marcados().size" [ngModel]="undefined" (ngModelChange)="mudarCategoria($event)">
@@ -195,6 +258,18 @@ type Filtro = 'todos' | 'debito' | 'cartao' | 'beneficio';
     .benef { color: var(--ink-3); }
     .clip { color: var(--ink-3); vertical-align: -2px; margin-left: 3px; }
     .dica { text-align: center; }
+    .filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .filtros select { flex: 1 1 160px; min-width: 0; width: auto; }
+    .selo { margin-left: 6px; font-size: 0.7rem; font-weight: 700; color: var(--primary); }
+    .oculto { cursor: default; }
+    .oculto .t { color: var(--ink-2); }
+    .livres { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; }
+    .livres h2 { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+    .livres .card-head { margin-bottom: 0; }
+    .lv { display: grid; grid-template-columns: minmax(0, 5rem) minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+    .lv .nm { font-weight: 600; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lv .bar { height: 6px; }
+    .lv .estourou > i { background: var(--danger); }
     .dups { border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
     .dups h2 { display: flex; align-items: center; gap: 6px; color: var(--warn); }
     .dup { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
@@ -233,6 +308,13 @@ export default class Gastos {
   protected repetirAcao: AcaoDeslizar = { rotulo: 'Lançar hoje', icone: 'content_copy', cor: 'var(--primary)' };
 
   constructor() {
+    const mq = globalThis.matchMedia?.('(min-width: 1024px)');
+    if (mq) {
+      this.largo.set(mq.matches);
+      const ouvir = (e: MediaQueryListEvent) => this.largo.set(e.matches);
+      mq.addEventListener('change', ouvir);
+      inject(DestroyRef).onDestroy(() => mq.removeEventListener('change', ouvir));
+    }
     // vindo de Cartões: ?cartao=<id>&fatura=0|1
     const p = inject(ActivatedRoute).snapshot.queryParamMap;
     const f = p.get('fatura');
@@ -253,10 +335,10 @@ export default class Gastos {
   protected cat = signal<string | null>(null);
   protected cartao = signal<string | null>(null);
   protected ocupado = signal(false);
-  protected dups = computed(() => duplicados(this.s.gastosMes()));
+  protected dups = computed(() => duplicados(this.s.gastosMes().filter((g) => !this.s.livreDeOutro(g))));
   protected busca = signal('');
   protected tag = signal<string | null>(null);
-  protected tags = computed(() => [...new Set(this.s.gastosMes().flatMap((g) => g.tags ?? []))].sort());
+  protected tags = computed(() => [...new Set(this.s.gastosMes().filter((g) => !this.s.livreDeOutro(g)).flatMap((g) => g.tags ?? []))].sort());
 
   /** Por fatura (0 = vence no mês, 1 = no seguinte; as duas já vêm carregadas): compras pelo ciclo do cartão, não pela data */
   protected fatura = signal<0 | 1 | null>(null);
@@ -281,23 +363,77 @@ export default class Gastos {
     const cats = this.s.catMap();
     const fm = this.porFatura();
     const base = fm ? this.s.gastos().filter((g) => g.forma === 'cartao' && g.fatura_mes === fm) : this.s.gastosMes();
-    return base.filter(
-      (g) =>
+    return base.filter((g) => {
+      // livre de outro: sem categoria, marcador nem descrição para filtrar; na busca, só pelo valor
+      const oculto = this.s.livreDeOutro(g);
+      return (
         (this.filtro() === 'todos' || g.forma === this.filtro()) &&
         (this.filtro() !== 'cartao' || !this.cartao() || g.cartao_id === this.cartao()) &&
-        (!this.cat() || g.categoria_id === this.cat()) &&
-        (!this.tag() || !!g.tags?.includes(this.tag()!)) &&
-        (!b || normalizar(g.descricao).includes(b) || normalizar(cats.get(g.categoria_id ?? '')?.nome ?? '').includes(b) || bateValor(g.valor, b)),
-    );
+        (!this.cat() || (!oculto && g.categoria_id === this.cat())) &&
+        (!this.tag() || (!oculto && !!g.tags?.includes(this.tag()!))) &&
+        (!b || bateValor(g.valor, b) || (!oculto && (normalizar(g.descricao).includes(b) || normalizar(cats.get(g.categoria_id ?? '')?.nome ?? '').includes(b))))
+      );
+    });
   });
+  /** o que pode ser selecionado (livre de outro não) */
+  protected marcaveis = computed(() => this.lista().filter((g) => !this.s.livreDeOutro(g)));
 
   protected total = computed(() => soma(this.lista(), (g) => g.valor));
 
-  protected dias = computed(() => {
-    const m = new Map<string, Gasto[]>();
-    for (const g of this.lista()) m.set(g.data, [...(m.get(g.data) ?? []), g]);
-    return [...m.entries()].map(([data, itens]) => ({ data, itens, total: soma(itens, (g) => g.valor) }));
+  protected agrupamentos: { k: Agrupar; r: string }[] = [
+    { k: 'dia', r: 'dia' },
+    { k: 'categoria', r: 'categoria' },
+    { k: 'estab', r: 'estabelecimento' },
+    { k: 'pessoa', r: 'pessoa' },
+  ];
+  protected agrupar = signal<Agrupar>(this.agrupamentos.some((a) => a.k === lido('cfp.gastos.agrupar')) ? (lido('cfp.gastos.agrupar') as Agrupar) : 'dia');
+  mudarAgrupar(v: Agrupar) {
+    this.agrupar.set(v);
+    guardar('cfp.gastos.agrupar', v);
+  }
+
+  /** Grupos da lista: por dia na ordem das datas; os outros pelo total, maior primeiro */
+  protected grupos = computed(() => {
+    const modo = this.agrupar();
+    const m = new Map<string, { k: string; rotulo: string; itens: Gasto[]; total: number; data: string }>();
+    for (const g of this.lista()) {
+      const oculto = this.s.livreDeOutro(g);
+      const k =
+        modo === 'dia' ? g.data
+        : modo === 'pessoa' ? (g.criado_por ?? '')
+        : oculto ? 'livre:' + g.criado_por
+        : modo === 'categoria' ? (g.categoria_id ?? '')
+        : normalizar(g.descricao);
+      let x = m.get(k);
+      if (!x) {
+        const rotulo =
+          modo === 'dia' ? rotuloDia(g.data)
+          : modo === 'pessoa' ? this.s.nomeAutor(g.criado_por)
+          : oculto ? 'Dinheiro livre de ' + this.s.nomeAutor(g.criado_por)
+          : modo === 'categoria' ? (this.cat_(g)?.nome ?? 'Sem categoria')
+          : g.descricao;
+        m.set(k, (x = { k, rotulo, itens: [], total: 0, data: g.data }));
+      }
+      x.itens.push(g);
+      x.total += g.valor;
+      // estabelecimento: mostra a descrição mais recente
+      if (modo === 'estab' && !oculto && g.data > x.data) {
+        x.data = g.data;
+        x.rotulo = g.descricao;
+      }
+    }
+    const l = [...m.values()];
+    return l.sort(modo === 'dia' ? (a, b) => b.k.localeCompare(a.k) : (a, b) => b.total - a.total);
   });
+
+  /** Tabela só em tela larga (≥1024px) */
+  protected largo = signal(false);
+  protected vista = signal<'lista' | 'tabela'>(lido('cfp.gastos.vista') === 'tabela' ? 'tabela' : 'lista');
+  protected tabela = computed(() => this.largo() && this.vista() === 'tabela');
+  mudarVista(v: 'lista' | 'tabela') {
+    this.vista.set(v);
+    guardar('cfp.gastos.vista', v);
+  }
 
   private auth = inject(Auth);
   protected revisando = signal(false);
@@ -328,7 +464,7 @@ export default class Gastos {
   }
 
   segurar(g: Gasto, e: PointerEvent) {
-    if (this.modoLista() || e.button !== 0) return;
+    if (this.modoLista() || e.button !== 0 || this.s.livreDeOutro(g)) return;
     this.segurou = false;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {
@@ -345,6 +481,7 @@ export default class Gastos {
 
   tocar(g: Gasto) {
     if (this.segurou) return void (this.segurou = false);
+    if (this.s.livreDeOutro(g)) return;
     if (this.selecao()) {
       const m = new Set(this.marcados());
       if (!m.delete(g.id)) m.add(g.id);
@@ -355,7 +492,8 @@ export default class Gastos {
   }
 
   marcarTodos() {
-    this.marcados.set(this.marcados().size === this.lista().length ? new Set() : new Set(this.lista().map((g) => g.id)));
+    const l = this.marcaveis();
+    this.marcados.set(this.marcados().size === l.length ? new Set() : new Set(l.map((g) => g.id)));
   }
 
   async mudarCategoria(cat: string | null) {
@@ -424,7 +562,7 @@ export default class Gastos {
   async repetir(g: Gasto) {
     try {
       const { descricao, categoria_id, valor, forma, cartao_id, beneficio_id, tags } = g;
-      const novo = await this.s.salvar('gastos', { descricao, categoria_id, valor, forma, cartao_id, beneficio_id, data: hoje(), ...(tags?.length ? { tags } : {}) });
+      const novo = await this.s.salvar('gastos', { descricao, categoria_id, valor, forma, cartao_id, beneficio_id, data: hoje(), ...(tags?.length ? { tags } : {}), ...(g.livre ? { livre: true, dividido: false } : {}) });
       this.toast.feito(`${g.descricao} lançado hoje`, () => this.s.excluir('gastos', novo));
     } catch (e) {
       this.toast.erro(e);
@@ -436,10 +574,7 @@ export default class Gastos {
   }
 
   forma(g: Gasto) {
-    if (g.forma === 'cartao') return this.s.cartoes().find((c) => c.id === g.cartao_id)?.nome ?? 'Cartão';
-    if (g.forma === 'beneficio') return this.s.beneficios().find((b) => b.id === g.beneficio_id)?.nome ?? 'Benefício';
-    if (g.cofrinho_id) return 'Cofrinho ' + (this.s.cofrinhos().find((c) => c.id === g.cofrinho_id)?.nome ?? '');
-    return 'À vista';
+    return formaGasto(this.s, g);
   }
 
   quem(g: Gasto) {

@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { addDias, parse } from '../core/datas';
 import { BrlPipe } from '../core/formato';
 
 export interface Fatia {
@@ -491,4 +492,165 @@ export class Curvas {
       return { ...s, d, fim: fim as { x: number; y: number } | null };
     }),
   );
+}
+
+export interface Retangulo<T> {
+  item: T;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Treemap squarified (Bruls et al.): blocos do maior para o menor, cada faixa com a proporção mais perto de quadrado */
+export function squarify<T extends { valor: number }>(itens: T[], w: number, h: number): Retangulo<T>[] {
+  const l = itens.filter((i) => i.valor > 0).sort((a, b) => b.valor - a.valor);
+  const total = l.reduce((a, i) => a + i.valor, 0);
+  const out: Retangulo<T>[] = [];
+  if (!total || w <= 0 || h <= 0) return out;
+  const k = (w * h) / total;
+  const pior = (areas: number[], lado: number) => {
+    const s = areas.reduce((a, x) => a + x, 0);
+    return Math.max((lado * lado * Math.max(...areas)) / (s * s), (s * s) / (lado * lado * Math.min(...areas)));
+  };
+  let x = 0, y = 0, W = w, H = h, i = 0;
+  while (i < l.length) {
+    const lado = Math.min(W, H);
+    const faixa = [l[i]];
+    const areas = [l[i].valor * k];
+    i++;
+    while (i < l.length) {
+      const a = l[i].valor * k;
+      if (pior([...areas, a], lado) > pior(areas, lado)) break;
+      faixa.push(l[i]);
+      areas.push(a);
+      i++;
+    }
+    const s = areas.reduce((a, v) => a + v, 0);
+    const esp = s / lado;
+    let pos = 0;
+    faixa.forEach((item, j) => {
+      const t = areas[j] / esp;
+      out.push(W >= H ? { item, x, y: y + pos, w: esp, h: t } : { item, x: x + pos, y, w: t, h: esp });
+      pos += t;
+    });
+    if (W >= H) (x += esp), (W -= esp);
+    else (y += esp), (H -= esp);
+  }
+  return out;
+}
+
+export interface BlocoMapa {
+  nome: string;
+  valor: number;
+  cor: string;
+  filhos?: { nome: string; valor: number }[];
+}
+
+const MAPA_L = 300;
+const MAPA_A = 200;
+
+/** Treemap em dois níveis: tocar num bloco com filhos entra nele; a trilha volta para todas */
+@Component({
+  selector: 'app-treemap',
+  imports: [BrlPipe],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <nav class="trilha" aria-label="Nível do mapa">
+      @if (atual(); as a) {
+        <button type="button" (click)="aberto.set(null)">Todas</button><span aria-hidden="true">›</span><b>{{ a.nome }}</b>
+        <span class="tot">{{ a.valor | brl }}</span>
+      } @else {
+        <b>Todas</b><span class="tot">{{ total() | brl }}</span>
+      }
+    </nav>
+    @if (blocos().length) {
+      <div class="mapa" role="group" [attr.aria-label]="(atual()?.nome ?? 'Todas') + ': ' + ((atual()?.valor ?? total()) | brl)">
+        @for (b of blocos(); track $index) {
+          @if (b.entra) {
+            <button type="button" class="b" [style.left.%]="b.x" [style.top.%]="b.y" [style.width.%]="b.w" [style.height.%]="b.h" [style.background]="b.cor"
+              (click)="aberto.set(b.nome)" [attr.aria-label]="b.nome + ': ' + (b.valor | brl) + ', ver detalhes'">
+              <span class="r"><b>{{ b.nome }}</b><small>{{ b.valor | brl }} · {{ b.pct }}%</small></span>
+            </button>
+          } @else {
+            <div class="b" role="img" [style.left.%]="b.x" [style.top.%]="b.y" [style.width.%]="b.w" [style.height.%]="b.h" [style.background]="b.cor"
+              [attr.aria-label]="b.nome + ': ' + (b.valor | brl)" [title]="b.nome + ': ' + (b.valor | brl)">
+              <span class="r"><b>{{ b.nome }}</b><small>{{ b.valor | brl }} · {{ b.pct }}%</small></span>
+            </div>
+          }
+        }
+      </div>
+    } @else {
+      <p class="vazio">Nada no período.</p>
+    }
+  `,
+  styles: `
+    :host { display: block; }
+    .trilha { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.85rem; color: var(--ink-2); }
+    .trilha button { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--primary); cursor: pointer; }
+    .trilha b { color: var(--ink); }
+    .tot { margin-left: auto; font-variant-numeric: tabular-nums; }
+    .mapa { position: relative; width: 100%; aspect-ratio: 3 / 2; max-width: 720px; margin: 0 auto; border-radius: 12px; overflow: hidden; }
+    .b {
+      position: absolute; box-sizing: border-box; border: 1.5px solid var(--card); border-radius: 6px; padding: 6px; margin: 0;
+      color: #fff; font: inherit; text-align: left; overflow: hidden; container-type: size;
+      transition: left 0.3s, top 0.3s, width 0.3s, height 0.3s;
+    }
+    button.b { cursor: pointer; }
+    button.b:hover { filter: brightness(1.08); }
+    button.b:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; }
+    .r { display: flex; flex-direction: column; gap: 1px; min-width: 0; text-shadow: 0 1px 2px rgb(0 0 0 / 0.35); }
+    .r b, .r small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .r b { font-size: 0.8rem; }
+    .r small { font-size: 0.7rem; opacity: 0.92; font-variant-numeric: tabular-nums; }
+    @container (max-height: 44px) { .r small { display: none; } }
+    @container (max-width: 56px) or (max-height: 26px) { .r { display: none; } }
+    .vazio { text-align: center; color: var(--ink-2); padding: 24px 0; margin: 0; }
+    @media (prefers-reduced-motion: reduce) { .b { transition: none; } }
+  `,
+})
+export class Treemap {
+  readonly itens = input<BlocoMapa[]>([]);
+  protected aberto = signal<string | null>(null);
+  protected total = computed(() => this.itens().reduce((a, i) => a + Math.max(0, i.valor), 0));
+  protected atual = computed(() => this.itens().find((i) => i.nome === this.aberto() && i.filhos?.length) ?? null);
+
+  protected blocos = computed(() => {
+    const a = this.atual();
+    // filhos herdam a cor da categoria, do tom cheio ao mais escuro
+    const fonte: (BlocoMapa & { entra: boolean })[] = a
+      ? a.filhos!.filter((f) => f.valor > 0).sort((x, y) => y.valor - x.valor).map((f, i, l) => ({
+          ...f,
+          cor: `color-mix(in srgb, ${a.cor} ${l.length > 1 ? Math.round(100 - (45 * i) / (l.length - 1)) : 100}%, #0b1220)`,
+          entra: false,
+        }))
+      : this.itens().map((i) => ({ ...i, entra: !!i.filhos?.length }));
+    const total = a ? a.valor : this.total();
+    return squarify(fonte, MAPA_L, MAPA_A).map((r) => ({
+      ...r.item,
+      pct: total > 0 ? Math.round((r.item.valor / total) * 100) : 0,
+      x: (r.x / MAPA_L) * 100,
+      y: (r.y / MAPA_A) * 100,
+      w: (r.w / MAPA_L) * 100,
+      h: (r.h / MAPA_A) * 100,
+    }));
+  });
+}
+
+/** Semanas do ano em colunas (domingo a sábado), dias fora do ano = null; `meses` = coluna onde cai o dia 1 */
+export function semanasDoAno(ano: number) {
+  const ini = `${ano}-01-01`;
+  const fim = `${ano}-12-31`;
+  const colunas: (string | null)[][] = [];
+  const meses: { col: number; mes: string }[] = [];
+  for (let d = addDias(ini, -parse(ini).getDay()); d <= fim; ) {
+    const col: (string | null)[] = [];
+    for (let i = 0; i < 7; i++, d = addDias(d, 1)) {
+      const dentro = d >= ini && d <= fim;
+      col.push(dentro ? d : null);
+      if (dentro && d.endsWith('-01')) meses.push({ col: colunas.length, mes: d });
+    }
+    colunas.push(col);
+  }
+  return { colunas, meses };
 }

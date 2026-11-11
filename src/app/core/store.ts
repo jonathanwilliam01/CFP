@@ -3,20 +3,22 @@ import { Router } from '@angular/router';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Auth } from './auth';
 import { removerComprovante } from './comprovante';
-import { addMeses, fimMes, hoje, inicioMes, mesAtual } from './datas';
-import { GastoHist, Transferencia, acertoMes, metaSobra, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, porRecebimento, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
+import { addMeses, fimMes, hoje, inicioMes, mesAtual, nomeMes } from './datas';
+import { GastoHist, Transferencia, acertoMes, aumentosRecorrentes, metaSobra, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, porRecebimento, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
 import {
   Acerto, Beneficio, Carteira, Cartao, Categoria, ContaBancaria, Cofrinho, CofrinhoMov, Dados, Desafio, Divida, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado,
-  OrcamentoValor, Pagamento, Receber, Recorrencia, Registro, Regra, Tabela, UsoBeneficio, Viagem, Desejo,
+  OrcamentoValor, Pagamento, Receber, Recorrencia, Registro, Regra, Tabela, UsoBeneficio, Viagem, Desejo, Meta, MetaCheckin, Fechamento,
 } from './models';
 import { Toast } from '../shared/toast';
 import { q, supabase } from './supabase';
 
 const CADASTROS = [
   'categorias', 'cartoes', 'beneficios', 'recorrencias', 'orcamentos', 'orcamento_valores', 'orcamento_fechados', 'cofrinhos', 'cofrinho_movs', 'registros',
-  'acertos', 'receber', 'dividas', 'desafios', 'contas_bancarias', 'regras', 'viagens', 'desejos',
+  'acertos', 'receber', 'dividas', 'desafios', 'contas_bancarias', 'regras', 'viagens', 'desejos', 'metas', 'meta_checkins', 'fechamentos',
 ] as const;
+/** tabelas de migrations recentes: sem elas o resto do app segue funcionando */
+const OPCIONAIS: readonly string[] = ['regras', 'viagens', 'desejos', 'metas', 'meta_checkins', 'fechamentos'];
 type Cadastro = (typeof CADASTROS)[number];
 const eCadastro = (t: string): t is Cadastro => (CADASTROS as readonly string[]).includes(t);
 
@@ -66,6 +68,9 @@ export class Store {
   readonly regras = signal<Regra[]>([]);
   readonly viagens = signal<Viagem[]>([]);
   readonly desejos = signal<Desejo[]>([]);
+  readonly metas = signal<Meta[]>([]);
+  readonly metaCheckins = signal<MetaCheckin[]>([]);
+  readonly fechamentos = signal<Fechamento[]>([]);
   /** viagem ligada: gastos novos ganham o marcador dela */
   readonly viagemAtiva = computed(() => this.viagens().find((v) => v.ativa) ?? null);
   /** carregando os dados do mês (esqueleto nas telas) */
@@ -99,6 +104,26 @@ export class Store {
     return (id && this.membroMap().get(id)) || 'Conta excluída';
   }
   readonly membroPorId = computed(() => new Map(this.membros().map((m) => [m.user_id, m])));
+  readonly eu = computed(() => this.auth.user()?.id ?? null);
+
+  /** gasto do dinheiro livre de outro membro: aparece só no total, sem descrição nem categoria */
+  livreDeOutro(g: Pick<Gasto, 'livre' | 'criado_por'>) {
+    return !!g.livre && g.criado_por !== this.eu();
+  }
+
+  /** Dinheiro livre do mês por membro: valor combinado, usado e quanto resta */
+  readonly livres = computed(() =>
+    this.membros().filter((m) => (m.livre ?? 0) > 0).map((m) => {
+      const usado = soma(this.gastosMes().filter((g) => g.livre && g.criado_por === m.user_id), (g) => g.valor);
+      return { id: m.user_id, nome: m.nome, foto: m.foto, livre: m.livre!, usado, resta: m.livre! - usado, eu: m.user_id === this.eu() };
+    }),
+  );
+  readonly meuLivre = computed(() => this.livres().find((l) => l.eu) ?? null);
+
+  async definirLivres(valores: Record<string, number | null>) {
+    await q(supabase.rpc('definir_livres', { p_carteira: this.carteiraId(), p_valores: valores }));
+    await this.recarregarMembros();
+  }
 
   /** Reserva de emergência: guardado nos cofrinhos marcados e quantos meses de saídas do mês ela cobre */
   readonly reserva = computed(() => {
@@ -135,6 +160,9 @@ export class Store {
   readonly sugestoesFixas = computed(() =>
     comprasRecorrentes([...this.gastosAnteriores(), ...this.gastosMes()], this.recorrencias(), this.mes()).filter((c) => !this.fixasIgnoradas().includes(c.chave)),
   );
+
+  /** Cobranças repetidas que subiram de preço no mês (assinatura lançada à mão ou importada) */
+  readonly aumentos = computed(() => aumentosRecorrentes([...this.gastosAnteriores(), ...this.gastosMes()], this.mes()));
 
   ignorarSugestao(chave: string) {
     this.fixasIgnoradas.update((l) => [...l, chave].slice(-200));
@@ -268,7 +296,7 @@ export class Store {
     this.mesOk.set(false);
     this.carteiras.set([]);
     this.membros.set([]);
-    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.orcamentoFechados, this.cofrinhos, this.cofrinhoMovs, this.registros, this.acertos, this.receber, this.dividas, this.desafios, this.contasBancarias, this.regras, this.viagens, this.desejos, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
+    const listas: WritableSignal<unknown[]>[] = [this.categorias, this.cartoes, this.beneficios, this.recorrencias, this.orcamentos, this.orcamentoValores, this.orcamentoFechados, this.cofrinhos, this.cofrinhoMovs, this.registros, this.acertos, this.receber, this.dividas, this.desafios, this.contasBancarias, this.regras, this.viagens, this.desejos, this.metas, this.metaCheckins, this.fechamentos, this.gastos, this.entradas, this.pagamentos, this.usoBeneficios, this.valoresFixas, this.recentes, this.gastosAnteriores];
     for (const s of listas) s.set([]);
   }
 
@@ -294,17 +322,15 @@ export class Store {
     const ordem: Record<Cadastro, string> = {
       categorias: 'ordem', cartoes: 'nome', beneficios: 'nome', recorrencias: 'dia', orcamentos: 'valor', orcamento_valores: 'mes', orcamento_fechados: 'mes',
       cofrinhos: 'criado_em', cofrinho_movs: 'data', registros: 'criado_em', acertos: 'criado_em', receber: 'data', dividas: 'criado_em', desafios: 'inicio', contas_bancarias: 'nome',
-      regras: 'termo', viagens: 'inicio', desejos: 'prioridade',
+      regras: 'termo', viagens: 'inicio', desejos: 'prioridade', metas: 'criado_em', meta_checkins: 'criado_em', fechamentos: 'mes',
     };
     const alvo: Record<Cadastro, WritableSignal<any[]>> = {
       categorias: this.categorias, cartoes: this.cartoes, beneficios: this.beneficios, recorrencias: this.recorrencias,
       orcamentos: this.orcamentos, orcamento_valores: this.orcamentoValores, orcamento_fechados: this.orcamentoFechados, cofrinhos: this.cofrinhos, cofrinho_movs: this.cofrinhoMovs, registros: this.registros,
       acertos: this.acertos, receber: this.receber, dividas: this.dividas, desafios: this.desafios, contas_bancarias: this.contasBancarias,
-      regras: this.regras, viagens: this.viagens, desejos: this.desejos,
+      regras: this.regras, viagens: this.viagens, desejos: this.desejos, metas: this.metas, meta_checkins: this.metaCheckins, fechamentos: this.fechamentos,
     };
-    // tabelas da migration 035: sem ela o resto do app segue funcionando
-    const nova = t === 'regras' || t === 'viagens' || t === 'desejos';
-    alvo[t].set(await (nova ? this.sel(t, ordem[t]).catch(() => []) : this.sel(t, ordem[t])));
+    alvo[t].set(await (OPCIONAIS.includes(t) ? this.sel(t, ordem[t]).catch(() => []) : this.sel(t, ordem[t])));
   }
 
   async carregarMes() {
@@ -377,7 +403,7 @@ export class Store {
       gastos: this.gastos, entradas: this.entradas, pagamentos: this.pagamentos, categorias: this.categorias, cartoes: this.cartoes,
       beneficios: this.beneficios, recorrencias: this.recorrencias, orcamentos: this.orcamentos, cofrinhos: this.cofrinhos,
       cofrinho_movs: this.cofrinhoMovs, registros: this.registros, receber: this.receber, dividas: this.dividas, desafios: this.desafios, contas_bancarias: this.contasBancarias,
-      regras: this.regras, viagens: this.viagens, desejos: this.desejos,
+      regras: this.regras, viagens: this.viagens, desejos: this.desejos, metas: this.metas, meta_checkins: this.metaCheckins, fechamentos: this.fechamentos,
     };
     // arquivos dos comprovantes saem junto com o gasto (o banco não apaga do storage)
     const arquivos = this.gastos().filter((g) => g.comprovante && (tabela === 'gastos' ? g.id === id : tabela === 'parcelamentos' && g.parcelamento_id === id)).map((g) => g.comprovante!);
@@ -514,6 +540,31 @@ export class Store {
     return this.salvar('orcamento_fechados', { orcamento_id: orcamentoId, mes });
   }
 
+  /** Resumo de um mês já fechado, com os dados lidos do banco (fechamento e sobra automática) */
+  async resumoFechado(mes: string) {
+    const d = await this.historico(addMeses(mes, -1), fimMes(mes));
+    const rec = this.recorrenciasPrev();
+    const contas = contasDoMes(mes, rec, this.cartoes(), d.gastos, d.pagamentos, this.catMap());
+    return { dados: d, contas, r: resumoMes(mes, d.gastos, soma(d.entradas.filter((e) => noMes(e.data, mes)), (e) => e.valor), rec, contas, d.pagamentos) };
+  }
+
+  /**
+   * Sobra automática: no mês seguinte, guarda sobra_pct% do saldo do mês fechado no cofrinho escolhido.
+   * O banco marca o mês (guardar_sobra) para dois aparelhos não guardarem duas vezes. Devolve o depósito para desfazer.
+   */
+  async guardarSobraAuto() {
+    const c = this.carteira();
+    const mes = addMeses(mesAtual(), -1);
+    if (!c?.sobra_cofrinho || !c.sobra_pct || (c.sobra_feita && c.sobra_feita >= mes) || this.antesDoInicio(mes)) return null;
+    const descricao = `Sobra de ${nomeMes(mes)}`;
+    if (this.cofrinhoMovs().some((m) => m.descricao === descricao)) return null;
+    const { r } = await this.resumoFechado(mes);
+    const valor = Math.round(r.saldo * c.sobra_pct) / 100;
+    const id = await q<string | null>(supabase.rpc('guardar_sobra', { p_carteira: c.id, p_mes: mes, p_valor: valor, p_descricao: descricao }));
+    await Promise.all([this.iniciar(), this.recarregar('cofrinho_movs')]);
+    return id ? { id, valor, cofrinho: this.cofrinhos().find((x) => x.id === c.sobra_cofrinho)?.nome ?? 'cofrinho' } : null;
+  }
+
   async desfazerPagamento(id: string) {
     await this.excluir('pagamentos', id);
   }
@@ -560,6 +611,7 @@ export class Store {
       orcamento_valores: this.orcamentoValores, orcamento_fechados: this.orcamentoFechados, cofrinhos: this.cofrinhos, cofrinho_movs: this.cofrinhoMovs,
       registros: this.registros, acertos: this.acertos, receber: this.receber, dividas: this.dividas, desafios: this.desafios,
       contas_bancarias: this.contasBancarias, regras: this.regras, viagens: this.viagens, desejos: this.desejos,
+      metas: this.metas, meta_checkins: this.metaCheckins, fechamentos: this.fechamentos,
     };
     return m[t];
   }

@@ -12,6 +12,7 @@ import { Sheet } from '../shared/sheet';
 import { Toast } from '../shared/toast';
 import { Abas, ENTRADAS } from '../shared/abas';
 import { Moeda } from '../shared/moeda';
+import { Autor } from '../shared/autor';
 
 interface FormFixa {
   id?: string;
@@ -28,7 +29,7 @@ interface FormFixa {
 }
 
 @Component({
-  imports: [Moeda, Abas, FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Reajuste],
+  imports: [Moeda, Autor, Abas, FormsModule, BrlPipe, DiaPipe, Icon, Sheet, Reajuste],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -66,6 +67,7 @@ interface FormFixa {
           <button class="row" (click)="lancar.editarEntrada(e)">
             <span class="ico"><app-icon [name]="s.catMap().get(e.categoria_id ?? '')?.icone ?? 'attach_money'" /></span>
             <div class="grow"><div class="t">{{ e.descricao }}</div><div class="s">{{ e.data | dia }}</div></div>
+            <app-autor [id]="e.criado_por" />
             <span class="v pos">{{ e.valor | brl }}</span>
           </button>
         } @empty {

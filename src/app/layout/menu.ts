@@ -24,6 +24,8 @@ export const ATALHOS: { rota: string; icone: string; rotulo: string; grupo: Grup
   { rota: '/parcelamentos', icone: 'event_repeat', rotulo: 'Parcelamentos', grupo: 'Compromissos' },
   { rota: '/assinaturas', icone: 'subscriptions', rotulo: 'Assinaturas', grupo: 'Compromissos' },
   { rota: '/dividas', icone: 'account_balance', rotulo: 'Dívidas', grupo: 'Compromissos' },
+  { rota: '/linha-do-tempo', icone: 'view_timeline', rotulo: 'Linha do tempo', grupo: 'Compromissos' },
+  { rota: '/metas', icone: 'emoji_events', rotulo: 'Metas do casal', grupo: 'Metas e controle' },
   { rota: '/cofrinhos', icone: 'savings', rotulo: 'Cofrinhos', grupo: 'Metas e controle' },
   { rota: '/orcamentos', icone: 'flag', rotulo: 'Orçamentos', grupo: 'Metas e controle' },
   { rota: '/desafios', icone: 'local_fire_department', rotulo: 'Desafios', grupo: 'Metas e controle' },
@@ -34,6 +36,7 @@ export const ATALHOS: { rota: string; icone: string; rotulo: string; grupo: Grup
   { rota: '/calculadoras', icone: 'calculate', rotulo: 'Calculadoras', grupo: 'Análise' },
   { rota: '/fechamento', icone: 'task_alt', rotulo: 'Fechamento', grupo: 'Análise' },
   { rota: '/relatorios', icone: 'bar_chart', rotulo: 'Relatórios', grupo: 'Análise' },
+  { rota: '/historico', icone: 'history', rotulo: 'Histórico', grupo: 'App' },
   { rota: '/notificacoes', icone: 'notifications', rotulo: 'Notificações', grupo: 'App' },
   { rota: '/config', icone: 'settings', rotulo: 'Configurações', grupo: 'App' },
 ];

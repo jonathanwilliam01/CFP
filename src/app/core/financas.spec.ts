@@ -1,4 +1,4 @@
-import { acertoMes, curvaFatura, dataEntrada, decimoTerceiro, avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, precosRepetidos, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima } from './financas';
+import { acertoMes, curvaFatura, dataEntrada, decimoTerceiro, avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, precosRepetidos, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima, tempoDeTrabalho, aumentosRecorrentes, reajustesNoMes } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -627,5 +627,34 @@ describe('acertoMes', () => {
   });
   it('peso faltando volta para igual', () => {
     expect(acertoMes([g(100, 'a')], ['a', 'b'], [], '2026-11-01', new Map([['a', 70]])).partes).toBeNull();
+  });
+});
+
+describe('tempoDeTrabalho', () => {
+  it('converte pelo ganho mensal em 220 h', () => {
+    expect(tempoDeTrabalho(100, 4400)?.texto).toBe('5 h de trabalho');
+    expect(tempoDeTrabalho(30, 4400)?.texto).toBe('1 h 30 min de trabalho');
+    expect(tempoDeTrabalho(800, 4400)?.texto).toBe('4,5 dias de trabalho');
+  });
+  it('sem ganho não calcula', () => expect(tempoDeTrabalho(100, 0)).toBeNull());
+});
+
+describe('aumentosRecorrentes', () => {
+  const g = (data: string, valor: number, descricao = 'Netflix') => gasto({ data, valor, descricao });
+  it('acha a cobrança estável que subiu no mês', () => {
+    const l = aumentosRecorrentes([g('2026-08-10', 39.9), g('2026-09-10', 39.9), g('2026-10-10', 44.9)], '2026-10-01');
+    expect(l).toEqual([expect.objectContaining({ descricao: 'Netflix', antes: 39.9, agora: 44.9, pct: 13 })]);
+  });
+  it('ignora valor que já oscilava e compra única', () => {
+    expect(aumentosRecorrentes([g('2026-08-10', 20), g('2026-09-10', 40), g('2026-10-10', 45)], '2026-10-01')).toEqual([]);
+    expect(aumentosRecorrentes([g('2026-09-10', 40), g('2026-10-10', 45)], '2026-10-01')).toEqual([]);
+  });
+});
+
+describe('reajustesNoMes', () => {
+  it('só reajuste para cima que começa no mês', () => {
+    const rs = [conta({ id: 'a', valor: 40, fim: '2026-09-01' }), conta({ id: 'b', valor: 45, inicio: '2026-10-01', reajuste_de: 'a' })];
+    expect(reajustesNoMes(rs, '2026-10-01').map((x) => [x.r.id, x.antes, x.pct])).toEqual([['b', 40, 13]]);
+    expect(reajustesNoMes(rs, '2026-11-01')).toEqual([]);
   });
 });

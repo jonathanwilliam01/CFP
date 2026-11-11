@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.26.11.12 — 2026-11-11
+- Quadro (kanban) em Contas (Atrasada, Vence em 7 dias, Depois, Paga), na Lista de desejos (Quero, Juntando, Dá pra comprar, Comprei) e no Revisar: arraste o cartão para mudar de coluna
+- Gastos: agrupar por dia, categoria, estabelecimento ou pessoa; no computador, visão em tabela com colunas ordenáveis e edição direto na célula
+- Linha do tempo: parcelas e dívidas em barras até a última parcela, com o mês em que a renda volta a ficar livre, e contas fixas com os reajustes
+- Relatórios: aba Mapa com as categorias em blocos; toque numa categoria para ver os estabelecimentos
+- Retrospectiva: calor do ano inteiro, dia a dia. Calendário: visão por semana
+- Selo com a foto de quem lançou em gastos e entradas, e tela Histórico com tudo o que cada um fez na carteira
+- Dinheiro livre: cada um tem um valor pessoal no mês; o que é lançado nele aparece para o outro só no total
+- Metas do casal com check-in ("como estamos?") e aviso quando faz tempo que não conversam sobre a meta
+- Fechamento com o combinado do mês: pauta pronta, a decisão de cada um e o lembrete do combinado anterior
+- Sobra automática: uma parte da sobra do mês fechado vai sozinha para o cofrinho escolhido (com desfazer)
+- Aviso quando uma assinatura ou cobrança que se repete sobe de preço, e lista em Assinaturas
+- Lançamento mostra quanto tempo de trabalho o gasto custa (configure o ganho em Configurações ou na calculadora de horas)
+
 ## v1.26.11.11 — 2026-11-09
 - Gasto no Pix/débito/dinheiro pode ser descontado de um cofrinho: vira retirada no cofrinho, acompanha edição e exclusão do gasto e continua contando no mês
 

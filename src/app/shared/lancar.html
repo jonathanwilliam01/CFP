@@ -29,6 +29,9 @@
       <input name="valor" moeda inputmode="numeric" placeholder="0,00" autocomplete="off" autofocus
         [ngModel]="f().valor" (ngModelChange)="set('valor', $event)" />
     </label>
+    @if (custoHoras(); as c) {
+      <p class="hint horas">≈ {{ c.texto }}</p>
+    }
     @if (cambio(); as v) {
       <label class="field">
         <span>Valor em {{ v.moeda }} ({{ v.nome }}: cotação {{ v.cotacao }} + IOF {{ v.iof }}%)</span>
@@ -170,6 +173,12 @@
       </div>
     }
 
+    @if (podeLivre()) {
+      <label class="check"><input name="livre" type="checkbox" [ngModel]="f().livre" (ngModelChange)="set('livre', $event)" />Do meu dinheiro livre
+        @if (restaLivre() !== null) { <span class="hint" [class.neg]="restaLivre()! < parseValor(f().valor)">· resta {{ restaLivre() | brl }}</span> }
+      </label>
+    }
+
     @if (s.divisao() && l.modo() === 'gasto' && !repete() && s.membros().length > 1) {
       <div class="field">
         <span>Quem pagou</span>
@@ -178,7 +187,9 @@
             <button type="button" class="chip" [class.on]="f().pagoPor === m.user_id" (click)="set('pagoPor', m.user_id)">{{ m.nome }}</button>
           }
         </div>
-        <label class="check"><input name="div" type="checkbox" [ngModel]="f().dividido" (ngModelChange)="set('dividido', $event)" />Dividir entre todos no acerto do mês</label>
+        @if (!(f().livre && podeLivre())) {
+          <label class="check"><input name="div" type="checkbox" [ngModel]="f().dividido" (ngModelChange)="set('dividido', $event)" />Dividir entre todos no acerto do mês</label>
+        }
       </div>
     }
 

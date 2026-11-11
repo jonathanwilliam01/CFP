@@ -5,12 +5,14 @@ import { contasDoMes, noMes, orcamentosNoMes, porCategoria, resumoMes, statusOrc
 import { BrlPipe, DiaPipe, MesPipe, pct, soma } from '../core/formato';
 import { Entrada, Gasto, Pagamento } from '../core/models';
 import { Store } from '../core/store';
+import { q, supabase } from '../core/supabase';
+import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
 
 /** Balanço de um mês já fechado: o anterior ao atual, ou o mês passado que estiver selecionado */
 @Component({
-  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, Icon],
+  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Avatar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -39,6 +41,43 @@ import { Toast } from '../shared/toast';
           @if (f.variacao !== null) {
             <span class="small">Consumo <b [class.neg]="f.variacao > 0" [class.pos]="f.variacao <= 0">{{ f.variacao > 0 ? '↑' : '↓' }} {{ f.variacao < 0 ? -f.variacao : f.variacao }}%</b> em relação a {{ anterior() | mes }}</span>
           }
+        </section>
+
+        <section class="card combinado">
+          <div class="card-head"><h2 class="tit"><app-icon name="handshake" [size]="20" />Combinado do mês</h2></div>
+          <ul class="pauta small">
+            <li>{{ f.r.saldo >= 0 ? 'Sobrou' : 'Faltou' }} <b class="num" [class.pos]="f.r.saldo >= 0" [class.neg]="f.r.saldo < 0">{{ (f.r.saldo < 0 ? -f.r.saldo : f.r.saldo) | brl }}</b> em {{ mes() | mes: true }}</li>
+            @if (estourados().length) {
+              <li>Orçamento estourado: {{ estourados().join(', ') }}</li>
+            } @else if (f.orcamentos.length) {
+              <li>Nenhum orçamento estourado</li>
+            }
+            @if (f.categorias.length) {
+              <li>Mais gasto em {{ top3() }}</li>
+            }
+          </ul>
+          @if (combinadoAnterior().length) {
+            <div class="lembra small">
+              <b>Combinado de {{ anterior() | mes: true }}</b>
+              @for (c of combinadoAnterior(); track c.user_id) { <span>"{{ c.decisao }}" <span class="muted">· {{ s.nomeAutor(c.user_id) }}</span></span> }
+            </div>
+          }
+          <div class="membros">
+            @for (m of partes(); track m.id) {
+              <div class="parte">
+                <app-avatar [size]="28" [nome]="m.nome" [foto]="m.foto ?? null" />
+                <div class="grow">
+                  <span class="small"><b>{{ m.nome }}</b> · @if (m.f) { <span class="pos">✓ fechou</span> } @else { <span class="muted">pendente</span> }</span>
+                  @if (m.f?.decisao) { <span class="small dec">{{ m.f!.decisao }}</span> }
+                </div>
+              </div>
+            }
+          </div>
+          <label class="field no-print"><span>Nossa decisão para o próximo mês</span>
+            <textarea rows="2" maxlength="500" placeholder="Ex.: menos delivery e guardar R$ 300" [value]="decisao()" (input)="decisao.set($any($event.target).value)"></textarea>
+          </label>
+          <button class="btn sm no-print" type="button" [disabled]="salvando()" (click)="fecharParte()">
+            <app-icon name="check" [size]="16" />{{ minha() ? 'Atualizar minha parte' : 'Fechar minha parte' }}</button>
         </section>
 
         <section class="card">
@@ -90,6 +129,9 @@ import { Toast } from '../shared/toast';
           } @else {
             <p class="muted small">Nada foi guardado em {{ mes() | mes: true }}.</p>
           }
+          @if (auto(); as a) {
+            <p class="small muted"><app-icon name="autorenew" [size]="14" /> {{ a.pct }}% da sobra vai sozinha para {{ a.cofrinho }}.</p>
+          }
           @if (f.r.saldo > 0 && s.cofrinhos().length && !sobraGuardada()) {
             <div class="sobra">
               <span class="small">Sobrou <b class="pos">{{ f.r.saldo | brl }}</b>. Guardar no cofrinho:</span>
@@ -119,6 +161,14 @@ import { Toast } from '../shared/toast';
     .lin:last-child { border-bottom: 0; }
     .ok { display: flex; align-items: center; gap: 6px; color: var(--ok); font-weight: 600; }
     .sub { margin: 12px 0 2px; font-size: 0.8rem; color: var(--ink-2); }
+    .combinado { display: flex; flex-direction: column; gap: 10px; }
+    .pauta { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+    .lembra { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 12px; background: var(--card-2); }
+    .membros { display: flex; flex-direction: column; gap: 8px; }
+    .parte { display: flex; align-items: flex-start; gap: 8px; }
+    .parte .grow { display: flex; flex-direction: column; min-width: 0; }
+    .dec { color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+    textarea { resize: vertical; }
   `,
 })
 export default class Fechamento {
@@ -178,10 +228,47 @@ export default class Fechamento {
     }
   }
 
+  /** Ritual do fechamento: pauta, combinado anterior e a parte de cada membro */
+  protected estourados = computed(() => (this.f()?.orcamentos ?? []).filter((o) => o.nivel === 'estourado').map((o) => o.nome));
+  protected top3 = computed(() => (this.f()?.categorias ?? []).slice(0, 3).map((c) => c.nome).join(', '));
+  private doMes = computed(() => this.s.fechamentos().filter((x) => x.mes === this.mes()));
+  protected combinadoAnterior = computed(() => this.s.fechamentos().filter((x) => x.mes === this.anterior() && x.decisao));
+  protected minha = computed(() => this.doMes().find((x) => x.user_id === this.s.eu()) ?? null);
+  protected partes = computed(() => this.s.membros().map((m) => ({ id: m.user_id, nome: m.nome, foto: m.foto, f: this.doMes().find((x) => x.user_id === m.user_id) })));
+  private minhaDecisao = computed(() => `${this.mes()}|${this.minha()?.decisao ?? ''}`);
+  protected decisao = signal('');
+
+  async fecharParte() {
+    const eu = this.s.eu();
+    if (!eu) return;
+    this.salvando.set(true);
+    try {
+      const decisao = this.decisao().trim().slice(0, 500) || null;
+      await q(supabase.from('fechamentos').upsert({ carteira_id: this.s.carteiraId(), mes: this.mes(), user_id: eu, decisao }, { onConflict: 'carteira_id,mes,user_id' }));
+      await this.s.recarregar('fechamentos');
+      this.toast.ok('Sua parte do fechamento foi registrada');
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.salvando.set(false);
+    }
+  }
+
+  /** sobra automática configurada na carteira */
+  protected auto = computed(() => {
+    const c = this.s.carteira();
+    if (!c?.sobra_cofrinho || !c.sobra_pct) return null;
+    return { pct: c.sobra_pct, cofrinho: this.s.cofrinhos().find((x) => x.id === c.sobra_cofrinho)?.nome ?? 'o cofrinho' };
+  });
+
   protected guardado = computed(() => soma(this.movs().filter((m) => m.valor > 0), (m) => m.valor));
   protected retirado = computed(() => -soma(this.movs().filter((m) => m.valor < 0), (m) => m.valor));
 
   constructor() {
+    effect(() => {
+      this.minhaDecisao();
+      untracked(() => this.decisao.set(this.minha()?.decisao ?? ''));
+    });
     effect(() => {
       const mes = this.mes();
       this.s.mudou();

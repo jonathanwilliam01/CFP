@@ -6,6 +6,7 @@ import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, pct, soma } from '../core/f
 import { Insights } from '../core/insights';
 import { Store } from '../core/store';
 import { Avatar } from '../shared/avatar';
+import { Autor } from '../shared/autor';
 import { Bloco } from '../shared/bloco';
 import { Mosaico } from '../shared/mosaico';
 import { Donut, Linha } from '../shared/graficos';
@@ -16,7 +17,7 @@ import { Painel } from '../core/painel';
 import { PrimeirosPassos } from '../shared/primeiros-passos';
 
 @Component({
-  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, PrivPipe, Donut, Linha, Icon, Avatar, Bloco, Mosaico, Valor, PrimeirosPassos],
+  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, PrivPipe, Donut, Linha, Icon, Avatar, Autor, Bloco, Mosaico, Valor, PrimeirosPassos],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page" mosaico>
@@ -258,11 +259,21 @@ import { PrimeirosPassos } from '../shared/primeiros-passos';
         <div class="card-head"><h2>Últimos gastos</h2><a routerLink="/gastos" class="small">Ver todos</a></div>
         <div class="list">
           @for (g of s.gastosMes().slice(0, 5); track g.id) {
-            <button class="row" (click)="lancar.editarGasto(g)">
-              <span class="ico" [style.background]="(s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8') + '22'" [style.color]="s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8'"><app-icon [name]="s.catMap().get(g.categoria_id ?? '')?.icone ?? 'help'" /></span>
-              <div class="grow"><div class="t">{{ g.descricao }}</div><div class="s">{{ g.data | dia }}</div></div>
-              <span class="v">{{ g.valor | brl }}</span>
-            </button>
+            @if (s.livreDeOutro(g)) {
+              <div class="row">
+                <span class="ico"><app-icon name="lock" /></span>
+                <div class="grow"><div class="t">Dinheiro livre de {{ s.nomeAutor(g.criado_por) }}</div><div class="s">{{ g.data | dia }}</div></div>
+                <app-autor [id]="g.criado_por" />
+                <span class="v">{{ g.valor | brl }}</span>
+              </div>
+            } @else {
+              <button class="row" (click)="lancar.editarGasto(g)">
+                <span class="ico" [style.background]="(s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8') + '22'" [style.color]="s.catMap().get(g.categoria_id ?? '')?.cor ?? '#94a3b8'"><app-icon [name]="s.catMap().get(g.categoria_id ?? '')?.icone ?? 'help'" /></span>
+                <div class="grow"><div class="t">{{ g.descricao }}</div><div class="s">{{ g.data | dia }}</div></div>
+                <app-autor [id]="g.criado_por" />
+                <span class="v">{{ g.valor | brl }}</span>
+              </button>
+            }
           } @empty {
             <p class="muted small">Nada por aqui.</p>
           }
