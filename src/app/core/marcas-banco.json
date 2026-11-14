@@ -12,5 +12,6 @@
   "043": ["recorrencias.pagamento", "carteira_membros.peso"],
   "044": ["gastos.cofrinho_id", "cofrinho_movs.gasto_id"],
   "045": ["gastos.livre", "carteira_membros.livre", "carteiras.sobra_pct", "metas.id", "meta_checkins.id", "fechamentos.id", "atividades.id"],
-  "047": ["cartoes.final", "carteira_membros.resumo_semanal", "carteira_membros.chat_lido", "whatsapp_vinculos.telefone", "whatsapp_config.numero"]
+  "047": ["cartoes.final", "carteira_membros.resumo_semanal", "whatsapp_vinculos.telefone", "whatsapp_config.numero"],
+  "048": ["carteira_membros.chat_lido", "carteira_membros.chat_aberto_em"]
 }
