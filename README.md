@@ -38,6 +38,21 @@ Painel admin: a Edge Function `admin` (suspender, reativar e excluir conta) sai 
 
 Envia mensagem nova do chat (trigger em `mensagens`), gasto lançado por outro membro (triggers em `gastos`/`parcelamentos` e resumo da importação, migration 034; desligável por membro) e contas fixas/faturas não pagas que vencem hoje ou amanhã, todo dia às 8h (pg_cron `cfp-vencimentos`). Às 21h lembra quem não lançou gasto no dia (pg_cron `cfp-lembrete`, desligável em Configurações).
 
+Domingo às 19h manda o resumo da semana (pg_cron `cfp-semanal`, migration 047; desligável por membro).
+
+## Bot do WhatsApp
+
+Opcional. Lança gasto por mensagem ("mercado 50 nubank", fala ditada ou notificação do banco encaminhada) com o mesmo leitor do app (`src/app/core/texto.ts`, empacotado em `supabase/functions/whatsapp/texto.js` pelo `scripts/gerar-texto-fn.mjs` no build e no deploy).
+
+1. Meta for Developers: criar app tipo *Business* com o produto *WhatsApp*; cadastrar um número só para o bot (chip novo) e gerar um token permanente (usuário do sistema com `whatsapp_business_messaging`).
+2. Segredos: `npx supabase@2.122.0 secrets set WA_TOKEN=... WA_PHONE_ID=<Phone number ID> WA_APP_SECRET=<App secret> WA_VERIFY_TOKEN=<texto aleatório>`.
+3. `npm run db:push` (migration 047) e depois `npm run fn:deploy` (nessa ordem: o push lê `resumo_semanal`).
+4. Webhook no painel da Meta: URL `https://<ref>.supabase.co/functions/v1/whatsapp`, token = `WA_VERIFY_TOKEN`, assinar o campo `messages`.
+5. SQL Editor: `update whatsapp_config set numero = '55DDDNUMERO';` (número do bot, só dígitos).
+6. Cada membro: Configurações → WhatsApp → *Conectar* (manda "CFP 123456" ao bot).
+
+Comandos no chat: *desfazer* (apaga o último lançamento em até 1 h), *resumo* (gastos do mês), *ajuda*. Responder dentro de 24 h da mensagem da pessoa é grátis na Cloud API; o bot nunca inicia conversa. Áudio ainda não é lido.
+
 ## Painel admin
 
 Rota `/admin`, só para quem está na tabela `admins` (o primeiro admin entra pela migration 039, por e-mail).

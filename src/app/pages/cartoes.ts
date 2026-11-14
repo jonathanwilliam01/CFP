@@ -32,6 +32,7 @@ interface FormCartao {
   padrao: boolean;
   ativo: boolean;
   paga_mes_anterior: boolean;
+  final: string;
 }
 
 @Component({
@@ -193,6 +194,9 @@ interface FormCartao {
             <input name="limite" moeda="numero" inputmode="numeric" [(ngModel)]="f.limite" /></label>
           <label class="field"><span>Cor</span><input name="cor" type="color" [(ngModel)]="f.cor" /></label>
         </div>
+        <label class="field"><span>Final do cartão (opcional)</span>
+          <input name="final" inputmode="numeric" maxlength="4" placeholder="1234" autocomplete="off" [(ngModel)]="f.final" />
+          <small class="muted">4 últimos dígitos: a notificação do banco ("final 1234") cai neste cartão</small></label>
         <label class="check"><input type="checkbox" name="padrao" [(ngModel)]="f.padrao" /> Cartão padrão</label>
         <label class="check"><input type="checkbox" name="ant" [(ngModel)]="f.paga_mes_anterior" /> Pagar com o salário do mês anterior</label>
         <p class="small muted">A fatura que vence no dia {{ f.vencimento_dia }} entra nas contas do mês anterior ao vencimento.</p>
@@ -398,7 +402,7 @@ export default class Cartoes {
   }
 
   private vazio(): FormCartao {
-    return { nome: '', fechamento_dia: 1, vencimento_dia: 10, fecha_dias: null, limite: null, cor: '#7c3aed', padrao: !this.s.cartoes().length, ativo: true, paga_mes_anterior: false };
+    return { nome: '', fechamento_dia: 1, vencimento_dia: 10, fecha_dias: null, limite: null, cor: '#7c3aed', padrao: !this.s.cartoes().length, ativo: true, paga_mes_anterior: false, final: '' };
   }
 
   novo() {
@@ -407,7 +411,7 @@ export default class Cartoes {
   }
 
   editar(c: Cartao) {
-    this.f = { id: c.id, nome: c.nome, fechamento_dia: c.fechamento_dia, vencimento_dia: c.vencimento_dia, fecha_dias: c.fecha_dias, limite: c.limite, cor: c.cor, padrao: c.padrao, ativo: c.ativo, paga_mes_anterior: c.paga_mes_anterior };
+    this.f = { id: c.id, nome: c.nome, fechamento_dia: c.fechamento_dia, vencimento_dia: c.vencimento_dia, fecha_dias: c.fecha_dias, limite: c.limite, cor: c.cor, padrao: c.padrao, ativo: c.ativo, paga_mes_anterior: c.paga_mes_anterior, final: c.final ?? '' };
     this.aberto.set(true);
   }
 
@@ -427,11 +431,13 @@ export default class Cartoes {
     if (!(f.fechamento_dia >= 1 && f.fechamento_dia <= 31 && f.vencimento_dia >= 1 && f.vencimento_dia <= 31))
       return this.toast.erro('Dias devem estar entre 1 e 31');
     if (f.fecha_dias !== null && !(f.fecha_dias >= 1 && f.fecha_dias <= 28)) return this.toast.erro('Dias antes do vencimento: entre 1 e 28');
+    const final = f.final.replace(/\D/g, '');
+    if (final && final.length !== 4) return this.toast.erro('Final do cartão: 4 dígitos');
     this.salvando.set(true);
     try {
       // padrão só pela RPC: o índice único não deixa dois cartões padrão nem por um instante
       const { padrao, ...dados } = f;
-      const id = await this.s.salvar('cartoes', { ...dados, nome: f.nome.trim(), limite: f.limite || null, ...(padrao ? {} : { padrao: false }) });
+      const id = await this.s.salvar('cartoes', { ...dados, nome: f.nome.trim(), limite: f.limite || null, final: final || null, ...(padrao ? {} : { padrao: false }) });
       if (padrao) await this.s.definirPadrao(id);
       this.toast.ok('Cartão salvo');
       this.aberto.set(false);

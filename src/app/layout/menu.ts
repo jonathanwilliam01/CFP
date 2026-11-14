@@ -45,7 +45,7 @@ export const ATALHOS: { rota: string; icone: string; rotulo: string; grupo: Grup
 const FIXA = '/config';
 const ROTAS = ATALHOS.map((a) => a.rota);
 
-export type Botao = 'calc' | 'chat';
+export type Botao = 'calc' | 'chat' | 'voz';
 
 interface Prefs {
   /** ordem dos grupos */
@@ -67,7 +67,7 @@ function normalizar(p: Partial<Prefs> | null | undefined): Prefs {
     ordem: [...ordem, ...ROTAS.filter((r) => !ordem.includes(r))],
     grupoDe: Object.fromEntries(Object.entries(p?.grupoDe ?? {}).filter(([r, g]) => ROTAS.includes(r) && GRUPOS.includes(g))),
     ocultos: validos(p?.ocultos).filter((r) => r !== FIXA),
-    semBotao: Array.isArray(p?.semBotao) ? p.semBotao.filter((b) => b === 'calc' || b === 'chat') : [],
+    semBotao: Array.isArray(p?.semBotao) ? p.semBotao.filter((b) => b === 'calc' || b === 'chat' || b === 'voz') : [],
   };
 }
 

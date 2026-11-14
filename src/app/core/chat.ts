@@ -33,7 +33,28 @@ export class Chat {
     });
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && this.aberto()) this.marcarLidas();
+      this.presenca();
     });
+    effect(() => {
+      this.aberto();
+      this.s.carteiraId();
+      untracked(() => this.presenca());
+    });
+  }
+
+  private sinal: ReturnType<typeof setInterval> | undefined;
+  /** Chat aberto e visível: avisa o servidor a cada 30 s para o push não tocar com a conversa na tela */
+  private presenca() {
+    const ativo = this.aberto() && !document.hidden;
+    if (ativo === !!this.sinal) return;
+    clearInterval(this.sinal);
+    this.sinal = ativo ? setInterval(() => this.gravar({ chat_aberto_em: new Date().toISOString() }), 30_000) : undefined;
+    this.gravar({ chat_aberto_em: ativo ? new Date().toISOString() : null });
+  }
+
+  private gravar(campos: { chat_lido?: string; chat_aberto_em?: string | null }) {
+    const id = this.s.carteiraId(), eu = this.auth.user()?.id;
+    if (id && eu) supabase.from('carteira_membros').update(campos).eq('carteira_id', id).eq('user_id', eu).then(() => undefined, () => undefined);
   }
 
   private async assinar(id: string | null) {
@@ -56,6 +77,11 @@ export class Chat {
     const l = await q<Mensagem[]>(
       supabase.from('mensagens').select('*').eq('carteira_id', id).order('criado_em', { ascending: false }).limit(200),
     );
+    if (id !== this.s.carteiraId()) return;
+    // lido em outro aparelho (mesmo formato do criado_em: os dois vêm do PostgREST)
+    const eu = this.auth.user()?.id;
+    const db = eu ? (await supabase.from('carteira_membros').select('chat_lido').eq('carteira_id', id).eq('user_id', eu).maybeSingle()).data?.chat_lido : null;
+    if (db && db > this.lido()) this.lido.set(db);
     if (id !== this.s.carteiraId()) return;
     // mantém o que chegou pelo realtime durante a carga
     this.mensagens.update((atual) => [...l.reverse(), ...atual.filter((m) => !l.some((x) => x.id === m.id))]);
@@ -92,6 +118,9 @@ export class Chat {
     if (!ult || !id || ult <= this.lido()) return;
     this.lido.set(ult);
     localStorage.setItem(`cfp.chat.${id}`, ult);
+    this.gravar({ chat_lido: ult });
+    // tira da bandeja as notificações do chat já lidas
+    navigator.serviceWorker?.getRegistration().then((reg) => reg?.getNotifications({ tag: `chat-${id}` }).then((l) => l.forEach((n) => n.close())), () => undefined);
   }
 
   private chegou(m: Mensagem) {

@@ -1,19 +1,11 @@
 import { Pipe, PipeTransform, signal } from '@angular/core';
 import { nomeMes, rotuloDia } from './datas';
+import { parseValor } from './valor';
+export { parseValor };
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export const moeda = (v: number | null | undefined) => brl.format(v ?? 0);
-
-/** Aceita "12,50", "1.234,56", "3.000" (milhar) ou "12.5" */
-export function parseValor(s: string | number | null | undefined): number {
-  if (typeof s === 'number') return s;
-  if (!s) return 0;
-  let t = s.replace(/[^\d,.-]/g, '');
-  if (t.includes(',') || /^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '').replace(',', '.');
-  const n = Number(t);
-  return isFinite(n) ? Math.round(n * 100) / 100 : 0;
-}
 
 /** Termo de busca como valor ("49,90", "R$ 50", "1.200"): com centavos bate exato, sem centavos bate pelos reais */
 export function bateValor(valor: number, termo: string) {

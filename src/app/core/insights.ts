@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
-import { addDias, diffDias, fechamentoFatura, hoje, inicioFatura, mesAtual, mesFatura, nomeMes } from './datas';
-import { aporteMensal, ativaNoMes, dataEntrada, categoriasAcima, duplicados, faturaProjetada, fixasNaFatura, porCategoria, reajustesNoMes, saldoBeneficio, variaveisAcima } from './financas';
+import { addDias, diasNoMes, diffDias, fechamentoFatura, hoje, inicioFatura, mesAtual, mesFatura, nomeMes } from './datas';
+import { aporteMensal, ativaNoMes, dataEntrada, categoriasAcima, categoriasNoRitmo, gastosIncomuns, duplicados, faturaProjetada, fixasNaFatura, porCategoria, reajustesNoMes, saldoBeneficio, variaveisAcima } from './financas';
 import { moeda, pct, soma } from './formato';
 import { Chat } from './chat';
 import { Store } from './store';
@@ -102,6 +102,10 @@ export class Insights {
         l.push({ id: `orcal-${o.orcamento.id}-${mes}`, nivel: 'alerta', icone: 'warning', titulo: `${o.nome}${o.pagamento ? ` (${o.pagamento})` : ''} em ${o.pct}% do orçamento`, texto: `Restam ${moeda(o.orcamento.valor - o.gasto)} no mês.`, link: '/orcamentos' });
     }
 
+    const pv = s.previsao();
+    if (r.entradas > 0 && r.saldo >= 0 && pv && pv.sobra < 0)
+      l.push({ id: `prev-${mes}-${Math.floor(-pv.sobra / 100)}`, nivel: 'alerta', icone: 'trending_down', titulo: 'No ritmo atual, o mês fecha no vermelho',
+        texto: `Previsão para o dia ${diasNoMes(mes)}: ${moeda(pv.sobra)}. Dá para gastar até ${moeda(pv.porDia)} por dia até lá.`, link: '/' });
     if (r.entradas > 0 && r.saldo < 0)
       l.push({ id: `saldo-${mes}`, nivel: 'perigo', icone: 'trending_down', titulo: 'Saldo do mês negativo', texto: `As saídas superam as entradas em ${moeda(-r.saldo)}.`, link: '/resumo' });
     else if (s.meta() && !s.meta()!.ok) {
@@ -131,6 +135,12 @@ export class Insights {
 
     for (const c of categoriasAcima(s.gastosMes(), s.gastosAnteriores(), s.catMap()))
       l.push({ id: `cat-${c.id}-${mes}`, nivel: 'alerta', icone: 'trending_up', titulo: `${c.nome} ${c.acima}% acima do normal`, texto: `${moeda(c.total)} no mês contra média de ${moeda(c.media)} nos meses anteriores.`, link: '/relatorios' });
+
+    for (const c of categoriasNoRitmo(s.gastosMes(), s.gastosAnteriores(), s.catMap(), mes, h))
+      l.push({ id: `ritmo-${c.id}-${mes}`, nivel: 'alerta', icone: 'speed', titulo: `${c.nome} acelerado`, texto: `Já foram ${moeda(c.total)}. No ritmo, fecha o mês em ${moeda(c.projetado)} (média ${moeda(c.media)}).`, link: '/relatorios' });
+
+    for (const x of gastosIncomuns(s.gastosMes(), s.gastosAnteriores(), h))
+      l.push({ id: `incomum-${x.g.id}`, nivel: 'alerta', icone: 'error_outline', titulo: `${x.g.descricao} de ${moeda(x.g.valor)}`, texto: `${x.vezes.toLocaleString('pt-BR')}× o normal (costuma ser ${moeda(x.media)}). Confira se está certo.`, link: '/gastos' });
 
     for (const x of s.sugestoesFixas())
       l.push({ id: `sugfixa-${x.chave}-${mes}`, nivel: 'info', icone: 'autorenew', titulo: `${x.descricao} todo mês`, texto: `Lançado nos últimos 3 meses (${moeda(x.valor)}). Vale virar conta fixa?`, link: '/contas' });

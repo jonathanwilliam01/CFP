@@ -8,6 +8,16 @@
       </div>
     }
 
+    @if (!editando() && podeFalar) {
+      <button type="button" class="voz" [class.on]="ouvindo()" (click)="falar()" [attr.aria-label]="ouvindo() ? 'Parar de ouvir' : 'Falar o lançamento'">
+        <span class="mic"><app-icon [name]="ouvindo() ? 'stop' : 'mic'" [size]="26" [fill]="true" /></span>
+        <span class="voz-txt">
+          <b>{{ ouvindo() ? 'Ouvindo… toque para parar' : 'Falar o lançamento' }}</b>
+          <small aria-live="polite">{{ ouvindo() ? (fala() || 'Diga em qualquer ordem: valor, o quê, cartão, quando') : exemplo() }}</small>
+        </span>
+      </button>
+    }
+
     @if (!editando()) {
       <div class="rapido">
         <app-icon name="bolt" [size]="18" />
@@ -16,9 +26,9 @@
           [ngModel]="rapido()" (ngModelChange)="digitar($event)" (keydown.enter)="$event.preventDefault(); aplicarTexto()" />
         @if (rapido().trim() && !soValor(rapido())) {
           <button type="button" class="btn sm" (click)="aplicarTexto()">Preencher</button>
-        } @else if (podeFalar) {
-          <button type="button" class="btn ghost icon sm" [class.ouvindo]="ouvindo()" [disabled]="ouvindo()" (click)="falar()" aria-label="Falar o lançamento">
-            <app-icon name="mic" [size]="18" />
+        } @else if (podeColar) {
+          <button type="button" class="btn ghost sm colar" (click)="colar()" title="Colar notificação do banco ou comprovante" aria-label="Colar notificação do banco">
+            <app-icon name="content_paste" [size]="18" /> Colar
           </button>
         }
       </div>

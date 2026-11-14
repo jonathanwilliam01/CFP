@@ -4,7 +4,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Auth } from './auth';
 import { removerComprovante } from './comprovante';
 import { addMeses, fimMes, hoje, inicioMes, mesAtual, nomeMes } from './datas';
-import { GastoHist, Transferencia, acertoMes, aumentosRecorrentes, metaSobra, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, porRecebimento, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
+import { GastoHist, Transferencia, acertoMes, aumentosRecorrentes, metaSobra, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, porRecebimento, previsaoFimMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
 import {
   Acerto, Beneficio, Carteira, Cartao, Categoria, ContaBancaria, Cofrinho, CofrinhoMov, Dados, Desafio, Divida, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado,
@@ -137,6 +137,11 @@ export class Store {
   /** acerto entre os membros ligado na carteira */
   readonly divisao = computed(() => !!this.carteira()?.divisao);
   readonly meta = computed(() => metaSobra(this.resumo().entradas, this.resumo().saldo, this.carteira()?.meta_sobra));
+  /** Saldo no fim do mês corrente se o dia a dia seguir no ritmo de agora (alvo = meta de sobra) */
+  readonly previsao = computed(() => {
+    const r = this.resumo();
+    return previsaoFimMes(this.mes(), hoje(), r.saldo, r.reservado, this.gastos(), this.cartoes(), this.recorrenciasPrev(), this.meta()?.alvo ?? 0);
+  });
   readonly acerto = computed(() =>
     this.divisao() ? acertoMes(this.gastos(), this.membros().map((m) => m.user_id), this.acertos(), this.mes(), new Map(this.membros().map((m) => [m.user_id, m.peso]))) : null,
   );

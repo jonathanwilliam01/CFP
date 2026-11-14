@@ -11,5 +11,6 @@
   "042": ["check:admin_log_acao_check:length"],
   "043": ["recorrencias.pagamento", "carteira_membros.peso"],
   "044": ["gastos.cofrinho_id", "cofrinho_movs.gasto_id"],
-  "045": ["gastos.livre", "carteira_membros.livre", "carteiras.sobra_pct", "metas.id", "meta_checkins.id", "fechamentos.id", "atividades.id"]
+  "045": ["gastos.livre", "carteira_membros.livre", "carteiras.sobra_pct", "metas.id", "meta_checkins.id", "fechamentos.id", "atividades.id"],
+  "047": ["cartoes.final", "carteira_membros.resumo_semanal", "carteira_membros.chat_lido", "whatsapp_vinculos.telefone", "whatsapp_config.numero"]
 }

@@ -71,10 +71,48 @@
 
   &:focus-within { border-color: var(--primary); border-style: solid; }
   input { border: 0; background: none; box-shadow: none; padding: 10px 0; min-height: 44px; }
-  .ouvindo { color: var(--danger); animation: pulsa 1s ease-in-out infinite; }
 }
 
-@keyframes pulsa { 50% { opacity: 0.4; } }
+.voz {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px 10px 10px;
+  border: 0;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, #7c3aed));
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 35%, transparent);
+
+  .mic {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.2);
+    flex-shrink: 0;
+  }
+  .voz-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  b { font-size: 1rem; }
+  small { font-size: 0.82rem; opacity: 0.9; overflow-wrap: anywhere; }
+
+  &.on {
+    background: var(--danger);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--danger) 35%, transparent);
+    .mic { animation: onda 1.2s ease-out infinite; }
+  }
+}
+
+@keyframes onda {
+  0% { box-shadow: 0 0 0 0 rgb(255 255 255 / 0.55); }
+  100% { box-shadow: 0 0 0 14px rgb(255 255 255 / 0); }
+}
+
+@media (prefers-reduced-motion: reduce) { .voz.on .mic { animation: none; } }
 
 .coment {
   display: flex;
@@ -91,3 +129,5 @@
 .comp { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .comp label { cursor: pointer; }
 .anexo { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--ink-2); flex: 1; min-width: 0; }
+
+.rapido .colar { flex-shrink: 0; gap: 4px; }

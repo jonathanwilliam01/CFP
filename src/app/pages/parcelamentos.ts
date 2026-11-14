@@ -58,7 +58,8 @@ import { Toast } from '../shared/toast';
               <b>{{ p.p.descricao }}</b>
               <p class="small muted">{{ p.p.num_parcelas }}x de {{ p.p.valor_parcela | brl }} · {{ p.pagamento }}</p>
             </div>
-            <button class="btn ghost icon" type="button" (click)="excluir(p.p)" aria-label="Excluir"><app-icon name="delete" [size]="18" /></button>
+            <button class="btn ghost icon" type="button" (click)="abrirEditar(p.p)" aria-label="Editar" title="Editar"><app-icon name="edit" [size]="18" /></button>
+            <button class="btn ghost icon" type="button" (click)="excluir(p.p)" aria-label="Excluir" title="Excluir"><app-icon name="delete" [size]="18" /></button>
           </div>
           <div class="bar"><i [style.width.%]="p.pct"></i></div>
           <div class="info small muted">
@@ -95,6 +96,32 @@ import { Toast } from '../shared/toast';
             <label class="field"><span>Valor pago (com desconto)</span><input name="v" moeda inputmode="numeric" [ngModel]="antValor()" (ngModelChange)="antValor.set($event)" /></label>
             <p class="hint">Sem desconto: {{ semDesconto() | brl }}@if (desconto() > 0) { · economia <b class="pos">{{ desconto() | brl }}</b> }</p>
             <button class="btn block" type="submit" [disabled]="salvando()">{{ antN() === a.antecipaveis.length ? 'Quitar' : 'Antecipar' }}</button>
+          </form>
+        }
+      </app-sheet>
+
+      <app-sheet [(open)]="editando" titulo="Editar parcelamento">
+        @if (ed(); as e) {
+          <form class="form" (ngSubmit)="salvarEdicao()">
+            <label class="field"><span>Descrição</span><input name="desc" [(ngModel)]="e.descricao" autocomplete="off" /></label>
+            <div class="grid2">
+              <label class="field"><span>Valor da parcela</span><input name="valor" moeda inputmode="numeric" [(ngModel)]="e.valor" /></label>
+              <label class="field"><span>Nº de parcelas</span><input name="num" type="number" inputmode="numeric" min="1" max="120" [(ngModel)]="e.num" /></label>
+            </div>
+            <p class="hint">Total: {{ totalEdicao() | brl }}</p>
+            <label class="field"><span>Data da 1ª parcela</span><input name="primeira" type="date" [(ngModel)]="e.primeira" /></label>
+            <label class="field"><span>Pagamento</span>
+              <select name="cartao" [(ngModel)]="e.cartao">
+                <option value="">Boleto/Débito</option>
+                @for (c of cartoesEdicao(); track c.id) { <option [value]="c.id">Cartão {{ c.nome }}</option> }
+              </select></label>
+            <label class="field"><span>Categoria</span>
+              <select name="cat" [(ngModel)]="e.categoria">
+                <option value="">Sem categoria</option>
+                @for (c of s.catGasto(); track c.id) { <option [value]="c.id">{{ c.nome }}</option> }
+              </select></label>
+            <p class="small muted">Vale para todas as parcelas. Aumentar o número cria as novas; diminuir apaga as que passarem do total.</p>
+            <button class="btn block" type="submit" [disabled]="salvando()">Salvar</button>
           </form>
         }
       </app-sheet>
@@ -229,6 +256,48 @@ export default class Parcelamentos {
       this.toast.ok(this.desconto() > 0 ? `Antecipado, economia de ${moeda(this.desconto())}` : 'Parcelas antecipadas');
     } catch (e) {
       this.toast.erro(e);
+    } finally {
+      this.salvando.set(false);
+    }
+  }
+
+  protected editando = signal(false);
+  protected ed = signal<{ id: string; descricao: string; valor: string; num: number; primeira: string; cartao: string; categoria: string } | null>(null);
+  /** método (não computed): o ngModel muda o objeto do formulário por dentro */
+  protected totalEdicao() {
+    const e = this.ed();
+    return e ? Math.round(parseValor(e.valor) * (+e.num || 0) * 100) / 100 : 0;
+  }
+  /** ativos + o cartão atual do parcelamento, mesmo inativo */
+  protected cartoesEdicao = computed(() => this.s.cartoes().filter((c) => c.ativo || c.id === this.ed()?.cartao));
+
+  abrirEditar(p: Parcelamento) {
+    this.ed.set({
+      id: p.id, descricao: p.descricao, valor: p.valor_parcela.toFixed(2).replace('.', ','), num: p.num_parcelas,
+      primeira: p.primeira_data, cartao: p.cartao_id ?? '', categoria: p.categoria_id ?? '',
+    });
+    this.editando.set(true);
+  }
+
+  async salvarEdicao() {
+    const e = this.ed();
+    if (!e) return;
+    const valor = parseValor(e.valor), num = Math.round(+e.num);
+    if (!e.descricao.trim()) return this.toast.erro('Informe a descrição');
+    if (!(valor > 0)) return this.toast.erro('Informe o valor da parcela');
+    if (!(num >= 1 && num <= 120)) return this.toast.erro('Parcelas: de 1 a 120');
+    if (!e.primeira) return this.toast.erro('Informe a data da 1ª parcela');
+    this.salvando.set(true);
+    try {
+      await q(supabase.rpc('editar_parcelamento', {
+        p_id: e.id, p_descricao: e.descricao.trim(), p_categoria: e.categoria || null, p_cartao: e.cartao || null,
+        p_valor_parcela: valor, p_num: num, p_primeira: e.primeira,
+      }));
+      await Promise.all([this.carregar(), this.s.carregarMes()]);
+      this.editando.set(false);
+      this.toast.ok('Parcelamento atualizado');
+    } catch (err) {
+      this.toast.erro(err);
     } finally {
       this.salvando.set(false);
     }

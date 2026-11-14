@@ -6,7 +6,7 @@ import { BrlPipe, MesPipe, moeda, parseValor } from '../core/formato';
 import { Entrada, Forma, Gasto } from '../core/models';
 import { Chat } from '../core/chat';
 import { Recente, Store } from '../core/store';
-import { lerComprovante, lerCupom, lerTags, lerTexto, regraPara } from '../core/texto';
+import { lerComprovante, lerCupom, lerNotificacao, lerTags, lerTexto, regraPara } from '../core/texto';
 import { Auth } from '../core/auth';
 import { Fila, ItemFila, semRede } from '../core/fila';
 import { guardarArquivo } from '../core/arquivos';
@@ -22,6 +22,7 @@ export type Modo = 'gasto' | 'entrada' | 'parcelado';
 /** Abre o painel de lançamento rápido de qualquer tela */
 @Injectable({ providedIn: 'root' })
 export class Lancar {
+  private store = inject(Store);
   readonly aberto = signal(false);
   readonly modo = signal<Modo>('gasto');
   readonly gasto = signal<Gasto | null>(null);
@@ -32,12 +33,20 @@ export class Lancar {
   readonly texto = signal('');
   /** comprovante que já abre anexado (foto ou PDF compartilhado com o app) */
   readonly arquivo = signal<Blob | null>(null);
+  /** abre já ouvindo o microfone */
+  readonly voz = signal(false);
 
-  /** Texto compartilhado: comprovante vira "valor data pix nome", senão vai como veio */
+  /** Gasto falado: abre o painel e começa a ouvir */
+  porVoz() {
+    this.novo('gasto');
+    this.voz.set(true);
+  }
+
+  /** Texto compartilhado: notificação do banco ou comprovante vira "valor data loja cartão", senão vai como veio */
   deTexto(t: string, arquivo: Blob | null = null) {
     this.novo('gasto');
     this.arquivo.set(arquivo);
-    this.texto.set(t ? (lerComprovante(t) ?? t.replace(/\s+/g, ' ').trim()) : '');
+    this.texto.set(t ? (lerNotificacao(t, this.store.cartoes()) ?? lerComprovante(t) ?? t.replace(/\s+/g, ' ').trim()) : '');
   }
 
   /** Sem modo abre no último tipo lançado */
@@ -70,11 +79,15 @@ export class Lancar {
 interface Reconhecimento {
   lang: string;
   interimResults: boolean;
-  onresult: (e: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => void;
+  maxAlternatives: number;
+  onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void;
   onerror: (e: { error: string }) => void;
   onend: () => void;
   start(): void;
+  stop(): void;
 }
+
+export const podeFalar = () => !!((globalThis as Record<string, unknown>)['SpeechRecognition'] ?? (globalThis as Record<string, unknown>)['webkitSpeechRecognition']);
 
 interface FormLanc {
   valor: string;
@@ -257,7 +270,7 @@ export class LancarSheet {
       this.s.limiteUsado(c.id).then((u) => untracked(this.pagamentoSel) === c.id && this.livre.set(c.limite! - u + proprio), () => undefined);
     });
     effect(() => {
-      if (!this.l.aberto()) return;
+      if (!this.l.aberto()) return this.rec?.stop();
       const g = this.l.gasto();
       const e = this.l.entrada();
       this.l.modo();
@@ -276,6 +289,10 @@ export class LancarSheet {
           this.l.texto.set('');
           this.rapido.set(t);
           this.aplicarTexto();
+        }
+        if (this.l.voz()) {
+          this.l.voz.set(false);
+          if (this.podeFalar && !this.rec) this.falar();
         }
       });
     });
@@ -334,24 +351,78 @@ export class LancarSheet {
     if (pg) this.set('pagamento', pg);
   }
 
-  protected podeFalar = !!(globalThis as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).SpeechRecognition
-    || !!(globalThis as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
+  protected podeFalar = podeFalar();
   protected ouvindo = signal(false);
+  /** o que já foi entendido enquanto fala */
+  protected fala = signal('');
+  private rec: Reconhecimento | null = null;
+  /** exemplo com o cartão da pessoa */
+  protected exemplo = computed(() => {
+    if (this.l.modo() === 'entrada') return '“recebi 3500 de salário dia 5”';
+    const c = this.s.cartaoPadrao() ?? this.s.cartoesAtivos()[0];
+    return this.l.modo() === 'parcelado' ? `“tv 2 mil em 10 vezes no ${c?.nome ?? 'cartão'}”` : `“gastei 50 no mercado ${c ? 'no ' + c.nome : 'no pix'}”`;
+  });
 
-  /** Fala "mercado 120 no nubank" e aplica como o texto rápido */
+  private ctxTexto() {
+    return { cartoes: this.s.cartoes(), beneficios: this.s.beneficios(), categorias: this.s.categorias(), hoje: hoje() };
+  }
+
+  /** Fala em qualquer ordem ("no nubank 120 de mercado ontem") e aplica como o texto rápido; entre as versões ouvidas fica a mais completa */
   falar() {
+    if (this.rec) return this.rec.stop();
     const g = globalThis as unknown as Record<string, new () => Reconhecimento>;
     const r = new (g['SpeechRecognition'] ?? g['webkitSpeechRecognition'])();
     r.lang = 'pt-BR';
-    r.interimResults = false;
+    r.interimResults = true;
+    r.maxAlternatives = 4;
     r.onresult = (e) => {
-      this.rapido.set(e.results[0][0].transcript);
+      const res = Array.from(e.results);
+      this.fala.set(res.map((x) => x[0].transcript).join(' ').trim());
+      if (!res.every((x) => x.isFinal)) return;
+      const ctx = this.ctxTexto();
+      const nota = (t: string) => {
+        const x = lerTexto(t, ctx);
+        return (x.valor != null ? 4 : 0) + (x.pagamento ? 2 : 0) + (x.descricao ? 1 : 0) + (x.categoria_id ? 1 : 0);
+      };
+      const ultimo = res[res.length - 1];
+      const antes = res.slice(0, -1).map((x) => x[0].transcript).join(' ');
+      const opcoes = Array.from(ultimo, (a) => `${antes} ${a.transcript}`.trim());
+      const melhor = opcoes.reduce((m, t) => (nota(t) > nota(m) ? t : m), opcoes[0]);
+      this.rapido.set(melhor);
       this.aplicarTexto();
+      this.toast.ok(`Entendi “${melhor}”: confira antes de salvar`);
     };
-    r.onerror = (e) => e.error !== 'no-speech' && e.error !== 'aborted' && this.toast.erro('Não consegui ouvir: ' + e.error);
-    r.onend = () => this.ouvindo.set(false);
+    r.onerror = (e) =>
+      e.error === 'not-allowed' ? this.toast.erro('Libere o microfone para o app nas permissões do navegador')
+      : e.error !== 'no-speech' && e.error !== 'aborted' && this.toast.erro('Não consegui ouvir: ' + e.error);
+    r.onend = () => {
+      this.ouvindo.set(false);
+      this.fala.set('');
+      this.rec = null;
+    };
+    this.rec = r;
     this.ouvindo.set(true);
-    r.start();
+    navigator.vibrate?.(15);
+    try {
+      r.start();
+    } catch {
+      r.onend();
+    }
+  }
+
+  /** Notificação do banco copiada: lê da área de transferência e preenche */
+  protected podeColar = !!navigator.clipboard?.readText;
+  async colar() {
+    try {
+      const t = (await navigator.clipboard.readText()).trim();
+      if (!t) return this.toast.erro('Nada copiado. Copie a notificação do banco e toque de novo.');
+      const n = lerNotificacao(t, this.s.cartoes()) ?? lerComprovante(t);
+      this.rapido.set(n ?? t.replace(/\s+/g, ' '));
+      this.aplicarTexto();
+      if (n) this.toast.ok('Lido da notificação: confira antes de salvar');
+    } catch {
+      this.toast.erro('Sem acesso à área de transferência. Cole no campo acima.');
+    }
   }
 
   /** Só o valor no texto rápido vai direto para o campo, sem precisar de Preencher */
@@ -363,7 +434,7 @@ export class LancarSheet {
 
   /** Preenche o formulário a partir do texto livre; parcelas (10x) passam para Parcelado */
   aplicarTexto() {
-    const t = lerTexto(this.rapido(), { cartoes: this.s.cartoes(), beneficios: this.s.beneficios(), categorias: this.s.categorias(), hoje: hoje() });
+    const t = lerTexto(lerNotificacao(this.rapido(), this.s.cartoes()) ?? this.rapido(), this.ctxTexto());
     const a = this.f();
     const modo = t.parcelas && this.l.modo() === 'gasto' ? 'parcelado' : this.l.modo();
     if (modo === 'entrada') t.categoria_id = null;

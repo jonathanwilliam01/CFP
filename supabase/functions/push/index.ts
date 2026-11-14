@@ -1,5 +1,5 @@
 // Envia Web Push: mensagem nova do chat (trigger em mensagens), gasto lançado (triggers em gastos/parcelamentos e importação),
-// contas vencendo, lembrete da noite, resumo do mês no dia 1, fatura que fechou, saldos desatualizados e avisos do app (pg_cron). Suspensos nunca recebem.
+// contas vencendo, lembrete da noite, resumo do mês no dia 1, resumo da semana no domingo, fatura que fechou, saldos desatualizados e avisos do app (pg_cron). Suspensos nunca recebem.
 // Chamada só pelo banco via push_enviar, com o segredo de push_config.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
@@ -23,14 +23,14 @@ Deno.serve(async (req) => {
   const ev = await req.json();
   const envios = ev.tipo === 'chat' ? await chat(ev) : ev.tipo === 'gasto' || ev.tipo === 'importacao' ? await gasto(ev)
     : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : ev.tipo === 'resumo' ? await resumo()
-    : ev.tipo === 'fatura' ? await faturas() : ev.tipo === 'saldos' ? await saldos()
+    : ev.tipo === 'fatura' ? await faturas() : ev.tipo === 'saldos' ? await saldos() : ev.tipo === 'semanal' ? await semanal()
     : ev.tipo === 'comunicado' ? await comunicado(ev) : [];
   const n = (await Promise.all(envios.map(enviar))).reduce((a: number, b) => a + b, 0);
   return Response.json({ enviados: n });
 });
 
 async function membros(carteira: string) {
-  const { data, error } = await db.from('carteira_membros').select('user_id, nome, push_gastos, resumo_mensal, push_fatura').eq('carteira_id', carteira);
+  const { data, error } = await db.from('carteira_membros').select('user_id, nome, push_gastos, resumo_mensal, push_fatura, resumo_semanal, chat_aberto_em').eq('carteira_id', carteira);
   if (error) throw error;
   return data;
 }
@@ -38,8 +38,10 @@ async function membros(carteira: string) {
 async function chat(ev: { carteira_id: string; user_id: string; texto: string }): Promise<Envio[]> {
   const l = await membros(ev.carteira_id);
   const nome = l.find((m) => m.user_id === ev.user_id)?.nome ?? 'Chat';
+  // com o chat aberto (sinal a cada 30 s) a mensagem já aparece lida: não avisa
+  const aberto = (m: { chat_aberto_em: string | null }) => !!m.chat_aberto_em && Date.now() - Date.parse(m.chat_aberto_em) < 75_000;
   return [{
-    usuarios: l.filter((m) => m.user_id !== ev.user_id).map((m) => m.user_id),
+    usuarios: l.filter((m) => m.user_id !== ev.user_id && !aberto(m)).map((m) => m.user_id),
     titulo: nome,
     texto: ev.texto.length > 120 ? ev.texto.slice(0, 120) + '…' : ev.texto,
     tag: `chat-${ev.carteira_id}`,
@@ -111,6 +113,46 @@ async function resumo(): Promise<Envio[]> {
       texto: `${brl.format(Number(r.total))} em gastos. Mais em ${r.categoria}: ${brl.format(Number(r.valor_categoria))}. Toque para ver o balanço.`,
       tag: `resumo-${r.carteira_id}-${r.mes}`,
       url: '/fechamento',
+    });
+  }
+  return envios;
+}
+
+interface Semana {
+  carteira_id: string;
+  total: number;
+  anterior: number;
+  categoria: string | null;
+  valor_categoria: number | null;
+  quem: string | null;
+  valor_quem: number | null;
+  membros_gastaram: number;
+  contas_qtd: number;
+  contas_total: number;
+}
+
+/** Domingo: gastos da semana contra a anterior, onde e quem mais gastou, contas dos próximos 7 dias */
+async function semanal(): Promise<Envio[]> {
+  const { data, error } = await db.rpc('resumos_semanais');
+  if (error) throw error;
+  const envios: Envio[] = [];
+  for (const r of data as Semana[]) {
+    const l = await membros(r.carteira_id);
+    const total = Number(r.total), ant = Number(r.anterior);
+    const partes: string[] = [];
+    if (total > 0) {
+      const dif = ant > 0 ? Math.round((total / ant - 1) * 100) : null;
+      partes.push(`${brl.format(total)} em gastos${dif === null || dif === 0 ? '' : ` (${Math.abs(dif)}% ${dif > 0 ? 'a mais' : 'a menos'} que a anterior)`}.`);
+      if (r.categoria) partes.push(`Mais em ${r.categoria}: ${brl.format(Number(r.valor_categoria))}.`);
+      if (r.membros_gastaram > 1 && r.quem) partes.push(`${r.quem} gastou mais: ${brl.format(Number(r.valor_quem))}.`);
+    }
+    if (r.contas_qtd > 0) partes.push(`${r.contas_qtd} conta(s) vencem nos próximos 7 dias: ${brl.format(Number(r.contas_total))}.`);
+    envios.push({
+      usuarios: l.filter((m) => m.resumo_semanal !== false).map((m) => m.user_id),
+      titulo: 'Resumo da semana',
+      texto: partes.join(' '),
+      tag: `semanal-${r.carteira_id}`,
+      url: '/relatorios',
     });
   }
   return envios;

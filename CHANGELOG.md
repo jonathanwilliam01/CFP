@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.26.11.15 — 2026-11-14
+- Lançar por voz em destaque: botão grande no painel de lançamento, botão de microfone na tela e "Falar o gasto" ao segurar o +
+- Fale do seu jeito e em qualquer ordem: "gastei cento e vinte no cartão do Nubank com mercado ontem", "no Inter 50 reais de uber", "tv 2 mil em 10 vezes"
+- Entende o nome do cartão mesmo com mais de uma palavra ou dito diferente ("banco inter", "nu bank"; dois Nubank com apelido: "nubank joi", só "joi" ou "elly"), "no crédito" usa o cartão padrão, e datas como "dia 5", "5 de outubro" ou "sexta passada"
+- Mostra o que está ouvindo enquanto você fala; botão de voz pode ser escondido em Configurações
+- Bot do WhatsApp: mande "mercado 50 nubank" ou encaminhe a notificação do banco e o gasto entra; "desfazer" apaga, "resumo" mostra o mês (Configurações → WhatsApp)
+- Notificação do banco: copie ou compartilhe "Compra de R$ 50 aprovada em..." e o lançamento sai preenchido (botão Colar); com o final do cartão cadastrado, cai no cartão certo
+- Início: previsão de quanto sobra no fim do mês no ritmo atual e quanto dá para gastar por dia
+- Avisos novos: gasto fora do padrão ("Uber de R$ 98, costuma ser R$ 25"), categoria acelerada antes de estourar e mês que vai fechar no vermelho
+- Resumo da semana no domingo às 19h: quanto gastaram, onde e quem mais gastou e as contas da semana
+- Parcelamentos: editar descrição, valor, número de parcelas, data, cartão e categoria
+- Chat: abrir a conversa marca como lida em todos os aparelhos e não chega notificação do que você já está vendo
+
 ## v1.26.11.14 — 2026-11-11
 - Telas mais enxutas: um resumo só no topo, o resto em seções que abrem com um toque (e lembram se ficaram abertas)
 - No computador as telas ficam numa coluna central mais larga, com metas, desejos, cartões, viagens, desafios, dívidas e benefícios em grade; quadro e tabela usam a largura toda

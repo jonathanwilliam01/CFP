@@ -36,6 +36,8 @@ export interface Membro {
   /** push no dia em que a fatura fecha e lembrete semanal dos saldos (037) */
   push_fatura?: boolean;
   lembrete_saldos?: boolean;
+  /** push com o resumo da semana no domingo (047) */
+  resumo_semanal?: boolean;
   /** % do membro na divisão; null em todos = por igual (043) */
   peso?: number | null;
   /** dinheiro livre do mês: gastos marcados aparecem para o outro só no total (045) */
@@ -66,6 +68,8 @@ export interface Cartao {
   ativo: boolean;
   /** fatura entra nas contas do mês anterior ao vencimento */
   paga_mes_anterior: boolean;
+  /** 4 últimos dígitos: a notificação do banco cita "final 1234" (047) */
+  final?: string | null;
 }
 
 export interface Beneficio {

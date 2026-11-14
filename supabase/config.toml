@@ -8,3 +8,7 @@ verify_jwt = false
 [functions.admin]
 # só admin: o JWT é validado e a função confere is_admin()
 verify_jwt = true
+
+[functions.whatsapp]
+# webhook da Meta: sem JWT, conferido pela assinatura X-Hub-Signature-256 (WA_APP_SECRET)
+verify_jwt = false

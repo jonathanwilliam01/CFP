@@ -1,4 +1,4 @@
-import { acertoMes, curvaFatura, dataEntrada, decimoTerceiro, avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, precosRepetidos, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima, tempoDeTrabalho, aumentosRecorrentes, reajustesNoMes } from './financas';
+import { acertoMes, curvaFatura, dataEntrada, decimoTerceiro, avistaOuParcelado, emprestimo, inss, parcelaPrice, quitarDivida, rendimento, salarioLiquido, duplicados, taxaMensal, ajusteOrcamento, categoriasAcima, comprasRecorrentes, depositoNecessario, orcamentosNoMes, metaSobra, inflacaoCasal, precosRepetidos, deducoesIR, proximoRecebimento, simularDepositos, contasDoMes, creditoBeneficios, faturaProjetada, historicoReajustes, inicioFixa, mediaContas, mediasVariaveis, parcelasDoMes, porRecebimento, resumoMes, ritmoMes, saldoBeneficio, saldoDiario, statusOrcamentos, variacaoGastos, variaveisAcima, tempoDeTrabalho, aumentosRecorrentes, reajustesNoMes, previsaoFimMes, gastosIncomuns, categoriasNoRitmo } from './financas';
 import { Beneficio, Cartao, Gasto, Pagamento, Recorrencia } from './models';
 
 const cartao = (p: Partial<Cartao> = {}): Cartao => ({
@@ -656,5 +656,57 @@ describe('reajustesNoMes', () => {
     const rs = [conta({ id: 'a', valor: 40, fim: '2026-09-01' }), conta({ id: 'b', valor: 45, inicio: '2026-10-01', reajuste_de: 'a' })];
     expect(reajustesNoMes(rs, '2026-10-01').map((x) => [x.r.id, x.antes, x.pct])).toEqual([['b', 40, 13]]);
     expect(reajustesNoMes(rs, '2026-11-01')).toEqual([]);
+  });
+});
+
+describe('previsaoFimMes', () => {
+  const mes = '2026-11-01';
+  it('desconta o débito no ritmo e a projeção da fatura que vence no mês', () => {
+    // débito: 100 em 10 dias = 10/dia, faltam 20 dias = 200
+    const d = [gasto({ valor: 60, data: '2026-11-02' }), gasto({ id: 'g2', valor: 40, data: '2026-11-08' })];
+    const p = previsaoFimMes(mes, '2026-11-10', 1000, 0, d, [], []);
+    expect(p).toMatchObject({ sobra: 800, aSair: 200, ritmo: 10, resta: 20, porDia: 50 });
+  });
+  it('reserva de orçamento cobre parte, meta entra no por dia', () => {
+    const d = [gasto({ valor: 100, data: '2026-11-05' })];
+    expect(previsaoFimMes(mes, '2026-11-10', 1000, 150, d, [], [], 300)).toMatchObject({ aSair: 50, sobra: 950, porDia: 42.5 });
+  });
+  it('cartão: só a fatura que vence neste mês', () => {
+    // fecha dia 25, vence 5: fatura aberta em 10/11 é a de dezembro, fora do mês
+    const c = cartao({ fechamento_dia: 25, vencimento_dia: 5 });
+    const g = [gasto({ forma: 'cartao', cartao_id: 'c1', valor: 300, data: '2026-11-05', fatura_mes: '2026-12-01' })];
+    expect(previsaoFimMes(mes, '2026-11-10', 1000, 0, g, [c], [])!.aSair).toBe(0);
+    const c2 = cartao({ fechamento_dia: 25, vencimento_dia: 30 });
+    const g2 = [gasto({ forma: 'cartao', cartao_id: 'c1', valor: 160, data: '2026-11-05', fatura_mes: '2026-11-01' })];
+    expect(previsaoFimMes(mes, '2026-11-10', 1000, 0, g2, [c2], [])!.aSair).toBeGreaterThan(0);
+  });
+  it('fora do mês corrente ou no começo: null', () => {
+    expect(previsaoFimMes(mes, '2026-12-10', 1000, 0, [], [], [])).toBeNull();
+    expect(previsaoFimMes(mes, '2026-11-02', 1000, 0, [], [], [])).toBeNull();
+  });
+});
+
+describe('gastosIncomuns', () => {
+  const ant = [25, 30, 20].map((v) => ({ descricao: 'Uber', valor: v, parcelamento_id: null }));
+  it('o dobro da média e R$ 30 a mais, nos últimos 10 dias', () => {
+    const r = gastosIncomuns([gasto({ descricao: 'uber', valor: 98, data: '2026-11-12' })], ant, '2026-11-14');
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ media: 25, vezes: 3.92 });
+  });
+  it('pouco histórico, diferença pequena ou antigo: nada', () => {
+    expect(gastosIncomuns([gasto({ descricao: 'Uber', valor: 52, data: '2026-11-12' })], ant, '2026-11-14')).toEqual([]);
+    expect(gastosIncomuns([gasto({ descricao: 'Uber', valor: 98, data: '2026-11-01' })], ant, '2026-11-14')).toEqual([]);
+    expect(gastosIncomuns([gasto({ descricao: 'Uber', valor: 98, data: '2026-11-12' })], ant.slice(0, 2), '2026-11-14')).toEqual([]);
+  });
+});
+
+describe('categoriasNoRitmo', () => {
+  const cats = new Map([['m', { id: 'm', nome: 'Mercado', tipo: 'gasto', icone: '', cor: '' } as never]]);
+  const ant = [{ categoria_id: 'm', valor: 600, data: '2026-09-10' }, { categoria_id: 'm', valor: 600, data: '2026-10-10' }];
+  it('avisa antes de passar: 80% da média gasta e projeção ≥ 1,5×', () => {
+    // 500 em 10 dias → 1.500 no mês; média 600
+    expect(categoriasNoRitmo([{ categoria_id: 'm', valor: 500 }], ant, cats, '2026-11-01', '2026-11-10')).toHaveLength(1);
+    expect(categoriasNoRitmo([{ categoria_id: 'm', valor: 300 }], ant, cats, '2026-11-01', '2026-11-10')).toHaveLength(0);
+    expect(categoriasNoRitmo([{ categoria_id: 'm', valor: 500 }], ant, cats, '2026-11-01', '2026-11-05')).toHaveLength(0);
   });
 });

@@ -27,9 +27,10 @@ import { exportar, lerBackup, restaurar, totalLinhas } from '../core/backup';
 import { conviteGuardado, limparConvite, linkConvite } from '../core/convite';
 import { Compartilhar, TEXTO_APP } from '../shared/compartilhar';
 import { Saida } from '../shared/sair';
+import { Whatsapp } from '../shared/whatsapp';
 
 @Component({
-  imports: [FormsModule, Avatar, Icon, IconePicker, Sheet, Visor, Ordenar, Compartilhar, Moeda, PrivPipe],
+  imports: [FormsModule, Avatar, Icon, IconePicker, Sheet, Visor, Ordenar, Compartilhar, Moeda, PrivPipe, Whatsapp],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -242,6 +243,10 @@ import { Saida } from '../shared/sair';
               Resumo do mês que fechou no dia 1
             </label>
             <label class="check">
+              <input type="checkbox" [checked]="opcao('resumo_semanal')" (change)="alternarOpcao('resumo_semanal', 'Resumo da semana')" [disabled]="ocupado()" />
+              Resumo da semana no domingo às 19h (gastos, onde mais gastaram e contas da semana)
+            </label>
+            <label class="check">
               <input type="checkbox" [checked]="opcao('push_fatura')" (change)="alternarOpcao('push_fatura', 'Aviso de fatura fechada')" [disabled]="ocupado()" />
               Quando a fatura do cartão fechar, com o total
             </label>
@@ -254,6 +259,11 @@ import { Saida } from '../shared/sair';
           }
         }
         </div>
+      </details>
+
+      <details class="card mais" [open]="aberto('whatsapp')" (toggle)="lembrar('whatsapp', $event)">
+        <summary><app-icon name="chat" [size]="18" />WhatsApp<span class="small muted">Lançar gastos por mensagem</span></summary>
+        @defer (on viewport) { <app-whatsapp /> } @placeholder { <div class="form"></div> }
       </details>
 
       <details class="card mais" [open]="aberto('bloqueio')" (toggle)="lembrar('bloqueio', $event)">
@@ -350,6 +360,7 @@ import { Saida } from '../shared/sair';
             <app-ordenar [itens]="g.itens" [primeiro]="i > 0" [ultimo]="!ult" (mover)="menus.mover(g.nome, $event[0], $event[1])" (alternar)="menus.alternarOculto($event)" />
           }
           <h3 class="grupo" title="Com o botão escondido, o Chat e a tela Calculadoras continuam no menu">Botões flutuantes</h3>
+          <label class="check"><input type="checkbox" [checked]="menus.botao('voz')" (change)="menus.alternarBotao('voz')" />Lançar por voz <span class="small muted">(Chrome, Edge, Safari)</span></label>
           <label class="check"><input type="checkbox" [checked]="menus.botao('calc')" (change)="menus.alternarBotao('calc')" />Calculadora rápida</label>
           <label class="check"><input type="checkbox" [checked]="menus.botao('chat')" (change)="menus.alternarBotao('chat')" />Chat <span class="small muted">(com mais de um membro)</span></label>
         </div>
@@ -713,11 +724,11 @@ export default class Config {
   }
 
   /** opção de aviso do membro (ligada por padrão) */
-  opcao(k: 'push_fatura' | 'lembrete_saldos') {
+  opcao(k: 'push_fatura' | 'lembrete_saldos' | 'resumo_semanal') {
     return this.s.membros().find((m) => m.user_id === this.auth.user()?.id)?.[k] !== false;
   }
 
-  alternarOpcao(k: 'push_fatura' | 'lembrete_saldos', nome: string) {
+  alternarOpcao(k: 'push_fatura' | 'lembrete_saldos' | 'resumo_semanal', nome: string) {
     const v = !this.opcao(k);
     return this.exec(async () => {
       await q(supabase.from('carteira_membros').update({ [k]: v }).eq('carteira_id', this.s.carteiraId()!).eq('user_id', this.auth.user()!.id));

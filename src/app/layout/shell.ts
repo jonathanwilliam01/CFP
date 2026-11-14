@@ -26,7 +26,7 @@ import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
 import { Tour, TourView } from '../shared/tour';
 import { Saida, SairModal } from '../shared/sair';
-import { Lancar, LancarSheet, Modo } from '../shared/lancar';
+import { Lancar, LancarSheet, Modo, podeFalar } from '../shared/lancar';
 import { MesPicker } from '../shared/mes-picker';
 import { Destaque } from '../shared/destaque';
 import { Avisos } from './avisos';
@@ -158,6 +158,9 @@ import { Menus, PRINCIPAIS } from './menu';
     @if (menuLanc()) {
       <div class="menu-back" (click)="menuLanc.set(false)"></div>
       <div class="menu-lanc" role="menu">
+        @if (podeFalar) {
+          <button type="button" role="menuitem" class="voz" (click)="menuLanc.set(false); lancar.porVoz()"><app-icon name="mic" [size]="20" [fill]="true" />Falar o gasto</button>
+        }
         @for (o of opcoes; track o.rotulo) {
           <button type="button" role="menuitem" (click)="abrirComo(o.modo, o.fixa)"><app-icon [name]="o.icone" [size]="20" />{{ o.rotulo }}</button>
         }
@@ -169,6 +172,11 @@ import { Menus, PRINCIPAIS } from './menu';
         @if (menus.botao('calc')) {
           <button type="button" class="calc-fab" [class.on]="calc()" (click)="calc.set(!calc())" aria-label="Calculadora" title="Calculadora">
             <app-icon name="calculate" [size]="22" [fill]="calc()" />
+          </button>
+        }
+        @if (podeFalar && menus.botao('voz')) {
+          <button type="button" class="voz-fab" (click)="lancar.porVoz()" aria-label="Lançar gasto por voz" title="Lançar por voz">
+            <app-icon name="mic" [size]="26" [fill]="true" />
           </button>
         }
         @if (menus.botao('chat') && s.membros().length > 1) {
@@ -275,6 +283,13 @@ import { Menus, PRINCIPAIS } from './menu';
     }
     .menu-lanc button:active, .menu-lanc button:hover { background: var(--card-2); }
     .menu-lanc app-icon { color: var(--primary); }
+    .menu-lanc .voz { background: var(--primary-soft); color: var(--primary); }
+    .voz-fab {
+      width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; border: 0; cursor: pointer; color: #fff;
+      background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, #7c3aed));
+      box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 40%, rgb(0 0 0 / 0.12));
+    }
+    .voz-fab:active { transform: scale(0.94); }
     @keyframes fade { from { opacity: 0; } }
     @keyframes sobe { from { opacity: 0; transform: translate(-50%, 10px); } }
     .fabs {
@@ -393,6 +408,7 @@ export class Shell {
   protected recolhido = signal(localStorage.getItem('cfp.menu') === 'recolhido');
   protected tip = signal<{ texto: string; y: number } | null>(null);
   protected menuLanc = signal(false);
+  protected podeFalar = podeFalar();
   protected opcoes: { rotulo: string; icone: string; modo: Modo; fixa?: boolean }[] = [
     { rotulo: 'Gasto', icone: 'receipt_long', modo: 'gasto' },
     { rotulo: 'Parcelado', icone: 'event_repeat', modo: 'parcelado' },
@@ -430,6 +446,7 @@ export class Shell {
       const texto = ['titulo', 'texto', 'link'].map((k) => p.get(k)).filter(Boolean).join('\n');
       if (!modo && !texto) return;
       if (texto) this.lancar.deTexto(texto);
+      else if (modo === 'voz') this.lancar.porVoz();
       else if (modo === 'gasto' || modo === 'parcelado' || modo === 'entrada') this.lancar.novo(modo);
       this.router.navigate([], { queryParams: {}, replaceUrl: true });
     });

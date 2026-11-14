@@ -47,6 +47,14 @@ import { PrimeirosPassos } from '../shared/primeiros-passos';
             <span>{{ r().pago | brl }} pago · {{ r().aPagar | brl }} a pagar</span>
           </div>
         }
+        @if (s.previsao(); as pv) {
+          <a class="receb prev" routerLink="/planejamento" [class.neg]="pv.sobra < 0"
+            [title]="'Dia a dia de ' + (pv.ritmo | brl) + '/dia; ainda devem sair ' + (pv.aSair | brl) + ' até o fim do mês'">
+            <app-icon name="insights" [size]="16" />
+            <span>No ritmo atual, fecha o mês com <b class="num">{{ pv.sobra | brl }}</b></span>
+            @if (pv.resta > 0) { <small class="num">até {{ pv.porDia | brl }}/dia{{ pv.alvo ? ' p/ meta' : '' }}</small> }
+          </a>
+        }
         @if (proxReceb(); as p) {
           <a class="receb" routerLink="/entradas"><app-icon name="payments" [size]="16" />
             <span>{{ p.nome }} {{ p.dias === 0 ? 'hoje' : p.dias === 1 ? 'amanhã' : 'em ' + p.dias + ' dias' }}</span>
@@ -300,6 +308,8 @@ import { PrimeirosPassos } from '../shared/primeiros-passos';
     .pago .bar i { background: var(--hero-barra); }
     .receb { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding: 6px 10px; border-radius: 12px; background: var(--hero-glass); color: inherit; font-size: 0.78rem; font-weight: 600; }
     .receb span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .prev small { flex-shrink: 0; opacity: 0.85; font-weight: 600; }
+    .prev.neg b { color: var(--hero-desce); }
     .meta { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; color: inherit; font-size: 0.75rem; font-weight: 600; opacity: 0.9; }
     .meta span { display: inline-flex; align-items: center; gap: 5px; }
     .meta .bar { background: var(--hero-trilho); height: 4px; }

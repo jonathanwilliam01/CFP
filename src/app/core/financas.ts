@@ -1119,3 +1119,103 @@ export function reajustesNoMes(recorrencias: Recorrencia[], mes: string) {
     .filter((x) => x.antes > 0 && x.r.valor > x.antes)
     .map((x) => ({ ...x, pct: Math.round((x.r.valor / x.antes - 1) * 100) }));
 }
+
+/** dia a dia: débito ou cartão, fora de parcelamento e de cofrinho, sem estorno */
+const ehDiaADia = (g: Pick<Gasto, 'forma' | 'parcelamento_id' | 'cofrinho_id' | 'valor'>) =>
+  (g.forma === 'debito' || g.forma === 'cartao') && !g.parcelamento_id && !g.cofrinho_id && g.valor > 0;
+
+export interface PrevisaoMes {
+  /** saldo previsto no último dia, no ritmo atual */
+  sobra: number;
+  /** dia a dia que ainda deve pesar no mês (já sem a reserva de orçamento) */
+  aSair: number;
+  /** média por dia do dia a dia lançado até hoje */
+  ritmo: number;
+  /** dias que faltam depois de hoje */
+  resta: number;
+  /** quanto dá para gastar por dia até o fim e ainda fechar no alvo (meta de sobra ou zero) */
+  porDia: number;
+  alvo: number;
+}
+
+/**
+ * Saldo no fim do mês corrente se o dia a dia seguir no ritmo de agora.
+ * Débito: média diária × dias restantes. Cartão: projeção da fatura aberta (faturaProjetada), só se ela vence neste mês.
+ * A reserva de orçamento já está no saldo e cobre parte do que vai sair. Antes do 3º dia ou fora do mês corrente: null.
+ */
+export function previsaoFimMes(
+  mes: string, hoje: string, saldo: number, reservado: number, gastos: Gasto[], cartoes: Cartao[], recorrencias: Recorrencia[], alvo = 0,
+): PrevisaoMes | null {
+  if (inicioMes(hoje) !== mes) return null;
+  const dia = Number(hoje.slice(8, 10));
+  if (dia < 3) return null;
+  const resta = diasNoMes(mes) - dia;
+  const doMes = gastos.filter((g) => ehDiaADia(g) && noMes(g.data, mes) && g.data <= hoje);
+  const debito = soma(doMes.filter((g) => g.forma === 'debito'), (g) => g.valor) / dia;
+  let cartao = 0;
+  for (const c of cartoes.filter((x) => x.ativo)) {
+    const p = faturaProjetada(c, gastos, recorrencias, hoje);
+    if (faturaDoMes(mes, c) === p.mes) cartao += Math.max(0, p.projetada - p.atual);
+  }
+  const aSair = Math.max(0, debito * resta + cartao - reservado);
+  return {
+    sobra: r2(saldo - aSair),
+    aSair: r2(aSair),
+    ritmo: r2(soma(doMes, (g) => g.valor) / dia),
+    resta,
+    porDia: resta > 0 ? r2(Math.max(0, (saldo + reservado - alvo) / resta)) : 0,
+    alvo,
+  };
+}
+
+export const INCOMUM = 2;
+
+/**
+ * Gastos dos últimos 10 dias bem acima do costume para a mesma descrição (3+ vezes nos meses anteriores):
+ * o dobro da média e ao menos R$ 30 a mais. Mais recentes primeiro, até 3.
+ */
+export function gastosIncomuns<T extends Pick<Gasto, 'descricao' | 'valor' | 'data' | 'parcelamento_id'>>(
+  doMes: T[], anteriores: Pick<Gasto, 'descricao' | 'valor' | 'parcelamento_id'>[], hoje: string,
+) {
+  const hist = new Map<string, number[]>();
+  for (const g of anteriores) {
+    if (g.parcelamento_id || g.valor <= 0) continue;
+    const k = normalizar(g.descricao);
+    hist.set(k, [...(hist.get(k) ?? []), g.valor]);
+  }
+  const desde = addDias(hoje, -10);
+  return doMes
+    .filter((g) => !g.parcelamento_id && g.valor > 0 && g.data >= desde && g.data <= hoje)
+    .map((g) => {
+      const h = hist.get(normalizar(g.descricao));
+      const media = h && h.length >= 3 ? soma(h, (v) => v) / h.length : 0;
+      return media && g.valor >= media * INCOMUM && g.valor - media >= 30 ? { g, media: r2(media), vezes: r2(g.valor / media) } : null;
+    })
+    .filter((x) => !!x)
+    .sort((a, b) => b.g.data.localeCompare(a.g.data))
+    .slice(0, 3);
+}
+
+/**
+ * Categorias que ainda não passaram do normal, mas no ritmo do mês vão passar: projeção ≥ 1,5× a média,
+ * já com 80% da média gasta. Só do 8º dia até 3 dias antes do fim; média abaixo de `minimo` fica de fora.
+ */
+export function categoriasNoRitmo(
+  doMes: { categoria_id: string | null; valor: number }[],
+  anteriores: { categoria_id: string | null; valor: number; data: string }[],
+  categorias: Map<string, Categoria>,
+  mes: string,
+  hoje: string,
+  minimo = 100,
+) {
+  if (inicioMes(hoje) !== mes) return [];
+  const dia = Number(hoje.slice(8, 10));
+  const dias = diasNoMes(mes);
+  if (dia < 8 || dia > dias - 3) return [];
+  const meses = new Set(anteriores.map((g) => inicioMes(g.data))).size;
+  if (meses < 2) return [];
+  const media = new Map(porCategoria(anteriores, categorias).map((c) => [c.id, c.total / meses]));
+  return porCategoria(doMes, categorias)
+    .map((c) => ({ ...c, media: r2(media.get(c.id) ?? 0), projetado: r2((c.total / dia) * dias) }))
+    .filter((c) => c.id && c.media >= minimo && c.total < c.media * ACIMA_CATEGORIA && c.total >= c.media * 0.8 && c.projetado >= c.media * ACIMA_CATEGORIA);
+}
