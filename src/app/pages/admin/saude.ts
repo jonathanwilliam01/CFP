@@ -4,6 +4,8 @@ import { Admin } from '../../core/admin';
 import { MigracaoFaltando, migracoesFaltando } from '../../core/migracoes';
 import { AdminErros } from '../../core/models';
 import { Icon } from '../../shared/icon';
+import { q, supabase } from '../../core/supabase';
+import { environment } from '../../../environments/environment';
 
 @Component({
   imports: [DatePipe, Icon],
@@ -36,6 +38,21 @@ import { Icon } from '../../shared/icon';
         @for (m of mg; track m.migracao) {
           <div class="alert"><app-icon name="warning" [size]="18" />Migration {{ m.migracao }} não aplicada: {{ m.itens.join(', ') }}</div>
         }
+      }
+    </section>
+
+    <section class="c">
+      <h3>Push</h3>
+      @let pv = pushVersao();
+      <p class="note">Função publicada: <b>{{ pv ?? '…' }}</b>@if (pv === 'sem versão') { · publicada antes do registro de versão: rode <code>npm run fn:deploy</code> }</p>
+      @for (t of push(); track t.tipo) {
+        <div class="ver" [class.ruim]="t.falhas || t.erros">
+          <span><b>{{ t.tipo }}</b> · {{ t.chamadas }} chamada(s) · último {{ t.ultimo | date: 'dd/MM HH:mm' }}</span>
+          <span>{{ t.enviados }} enviado(s)@if (t.falhas) { · <b class="neg">{{ t.falhas }} falha(s)</b> }@if (t.erros) { · <b class="neg">{{ t.erros }} erro(s)</b> }@if (!t.enviados && !t.falhas && !t.erros) { · <span class="note">ninguém para avisar</span> }</span>
+        </div>
+        @if (t.erro) { <div class="meta">Último erro: {{ t.erro }}</div> }
+      } @empty {
+        <p class="note">Nenhum push registrado no período (o registro começa com a migration 049 e a função publicada depois dela).</p>
       }
     </section>
 
@@ -99,6 +116,9 @@ import { Icon } from '../../shared/icon';
     .meta { font-size: 12px; color: var(--ink-3); margin-top: 3px; }
     .meta b { color: var(--danger); }
     .note { font-size: 12px; color: var(--ink-3); }
+    .neg { color: var(--danger); }
+    .ver.ruim { background: var(--danger-soft); border-radius: 6px; padding: 5px 6px; }
+    .ver { gap: 8px; flex-wrap: wrap; }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
   `,
 })
@@ -112,8 +132,14 @@ export default class AdminSaude {
   protected migracoes = signal<MigracaoFaltando[] | null | 'falhou'>(null);
   private maximo = computed(() => Math.max(1, ...(this.e()?.por_dia ?? []).map((x) => x.n)));
 
+  protected push = signal<{ tipo: string; chamadas: number; enviados: number; falhas: number; erros: number; ultimo: string; erro: string | null }[]>([]);
+  protected pushVersao = signal<string | null>(null);
+
   constructor() {
     this.carregar();
+    fetch(`${environment.supabaseUrl}/functions/v1/push`)
+      .then((r) => r.json())
+      .then((j: { versao?: string }) => this.pushVersao.set(j.versao ?? 'sem versão'), () => this.pushVersao.set('sem versão'));
     migracoesFaltando().then((m) => this.migracoes.set(m), () => this.migracoes.set('falhou'));
   }
 
@@ -129,8 +155,28 @@ export default class AdminSaude {
   protected async carregar() {
     const d = this.dias();
     try {
-      const [e, m] = await Promise.all([this.admin.erros(d), this.admin.metricas(d)]);
+      const desde = new Date(Date.now() - d * 86400000).toISOString();
+      const [e, m, log] = await Promise.all([
+        this.admin.erros(d),
+        this.admin.metricas(d),
+        q<{ tipo: string; enviados: number; falhas: number; erro: string | null; criado_em: string }[]>(
+          supabase.from('push_log').select('tipo, enviados, falhas, erro, criado_em').gte('criado_em', desde).order('criado_em', { ascending: false }).limit(5000),
+        ).catch(() => []),
+      ]);
       if (d !== this.dias()) return;
+      const por = new Map<string, { tipo: string; chamadas: number; enviados: number; falhas: number; erros: number; ultimo: string; erro: string | null }>();
+      for (const x of log) {
+        const t = por.get(x.tipo) ?? { tipo: x.tipo, chamadas: 0, enviados: 0, falhas: 0, erros: 0, ultimo: x.criado_em, erro: null };
+        t.chamadas++;
+        t.enviados += x.enviados;
+        t.falhas += x.falhas;
+        if (x.erro) {
+          t.erros++;
+          t.erro ??= x.erro;
+        }
+        por.set(x.tipo, t);
+      }
+      this.push.set([...por.values()].sort((a, b) => b.ultimo.localeCompare(a.ultimo)));
       this.e.set(e);
       this.versoes.set(m.versoes);
       this.erro.set('');

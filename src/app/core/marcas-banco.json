@@ -1,17 +1,77 @@
 {
-  "033": ["gastos.comprovante"],
-  "034": ["carteira_membros.push_gastos"],
-  "035": ["regras.id", "viagens.id", "desejos.id", "patrimonio.id", "gastos.conferido", "carteira_membros.resumo_mensal"],
-  "036": ["check:pagamentos_tipo_check:parcela"],
-  "037": ["carteira_membros.push_fatura", "carteira_membros.lembrete_saldos"],
-  "038": ["recorrencias.dia_util"],
-  "039": ["suspensos.user_id"],
-  "040": ["acessos.dia", "erros_app.id"],
-  "041": ["funcoes_status.chave", "comunicados.id"],
-  "042": ["check:admin_log_acao_check:length"],
-  "043": ["recorrencias.pagamento", "carteira_membros.peso"],
-  "044": ["gastos.cofrinho_id", "cofrinho_movs.gasto_id"],
-  "045": ["gastos.livre", "carteira_membros.livre", "carteiras.sobra_pct", "metas.id", "meta_checkins.id", "fechamentos.id", "atividades.id"],
-  "047": ["cartoes.final", "carteira_membros.resumo_semanal", "whatsapp_vinculos.telefone", "whatsapp_config.numero"],
-  "048": ["carteira_membros.chat_lido", "carteira_membros.chat_aberto_em"]
+  "033": [
+    "gastos.comprovante"
+  ],
+  "034": [
+    "carteira_membros.push_gastos"
+  ],
+  "035": [
+    "regras.id",
+    "viagens.id",
+    "desejos.id",
+    "patrimonio.id",
+    "gastos.conferido",
+    "carteira_membros.resumo_mensal"
+  ],
+  "036": [
+    "check:pagamentos_tipo_check:parcela"
+  ],
+  "037": [
+    "carteira_membros.push_fatura",
+    "carteira_membros.lembrete_saldos"
+  ],
+  "038": [
+    "recorrencias.dia_util"
+  ],
+  "039": [
+    "suspensos.user_id"
+  ],
+  "040": [
+    "acessos.dia",
+    "erros_app.id"
+  ],
+  "041": [
+    "funcoes_status.chave",
+    "comunicados.id"
+  ],
+  "042": [
+    "check:admin_log_acao_check:length"
+  ],
+  "043": [
+    "recorrencias.pagamento",
+    "carteira_membros.peso"
+  ],
+  "044": [
+    "gastos.cofrinho_id",
+    "cofrinho_movs.gasto_id"
+  ],
+  "045": [
+    "gastos.livre",
+    "carteira_membros.livre",
+    "carteiras.sobra_pct",
+    "metas.id",
+    "meta_checkins.id",
+    "fechamentos.id",
+    "atividades.id"
+  ],
+  "047": [
+    "cartoes.final",
+    "carteira_membros.resumo_semanal",
+    "whatsapp_vinculos.telefone",
+    "whatsapp_config.numero"
+  ],
+  "048": [
+    "carteira_membros.chat_lido",
+    "carteira_membros.chat_aberto_em"
+  ],
+  "049": [
+    "usuario_prefs.telas",
+    "faturas_conferidas.mes",
+    "push_log.versao"
+  ],
+  "050": [
+    "carteiras.modelo",
+    "recorrencias.recebimento_id",
+    "cartoes.recebimento_id"
+  ]
 }

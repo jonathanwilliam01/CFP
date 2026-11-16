@@ -3,6 +3,7 @@
 // Chamada só pelo banco via push_enviar, com o segredo de push_config.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
+import { VERSAO } from './versao.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 // web-push exige mailto: ou https: no subject; e-mail puro derrubava a função
@@ -18,16 +19,33 @@ interface Envio {
 }
 
 Deno.serve(async (req) => {
+  // versão publicada (hash do código): o build compara com a local e avisa se falta fn:deploy
+  if (req.method === 'GET') return Response.json({ versao: VERSAO }, { headers: { 'Access-Control-Allow-Origin': '*' } });
   const segredo = Deno.env.get('PUSH_SEGREDO');
   if (!segredo || req.headers.get('Authorization') !== `Bearer ${segredo}`) return new Response('não autorizado', { status: 401 });
   const ev = await req.json();
-  const envios = ev.tipo === 'chat' ? await chat(ev) : ev.tipo === 'gasto' || ev.tipo === 'importacao' ? await gasto(ev)
-    : ev.tipo === 'vencimentos' ? await vencimentos() : ev.tipo === 'lembrete' ? await lembrete() : ev.tipo === 'resumo' ? await resumo()
-    : ev.tipo === 'fatura' ? await faturas() : ev.tipo === 'saldos' ? await saldos() : ev.tipo === 'semanal' ? await semanal()
-    : ev.tipo === 'comunicado' ? await comunicado(ev) : [];
-  const n = (await Promise.all(envios.map(enviar))).reduce((a: number, b) => a + b, 0);
-  return Response.json({ enviados: n });
+  const tipo = String(ev.tipo ?? '?');
+  try {
+    const envios = tipo === 'chat' ? await chat(ev) : tipo === 'gasto' || tipo === 'importacao' ? await gasto(ev)
+      : tipo === 'vencimentos' ? await vencimentos() : tipo === 'lembrete' ? await lembrete() : tipo === 'resumo' ? await resumo()
+      : tipo === 'fatura' ? await faturas() : tipo === 'saldos' ? await saldos() : tipo === 'semanal' ? await semanal()
+      : tipo === 'comunicado' ? await comunicado(ev) : [];
+    const r = await Promise.all(envios.map(enviar));
+    const enviados = r.reduce((a, b) => a + b.ok, 0);
+    const falhas = r.reduce((a, b) => a + b.falha, 0);
+    await registrar(tipo, enviados, falhas);
+    return Response.json({ enviados, falhas });
+  } catch (e) {
+    await registrar(tipo, 0, 0, e instanceof Error ? e.message : String(e));
+    throw e;
+  }
 });
+
+/** push_log (049): painel admin → Erros e saúde */
+async function registrar(tipo: string, enviados: number, falhas: number, erro?: string) {
+  const { error } = await db.from('push_log').insert({ tipo, enviados, falhas, versao: VERSAO, erro: erro?.slice(0, 500) ?? null });
+  if (error) console.error('push_log', error.message);
+}
 
 async function membros(carteira: string) {
   const { data, error } = await db.from('carteira_membros').select('user_id, nome, push_gastos, resumo_mensal, push_fatura, resumo_semanal, chat_aberto_em').eq('carteira_id', carteira);
@@ -168,15 +186,12 @@ async function faturas(): Promise<Envio[]> {
   for (const f of data as { carteira_id: string; cartao_id: string; nome: string; mes: string; total: number; vencimento: string }[]) {
     if (Number(f.total) <= 0) continue;
     const l = await membros(f.carteira_id);
-    // Gastos abre por fatura: 0 = vence no mês atual, 1 = no seguinte
-    const agora = new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7);
-    const idx = (Number(f.mes.slice(0, 4)) - Number(agora.slice(0, 4))) * 12 + Number(f.mes.slice(5, 7)) - Number(agora.slice(5, 7));
     envios.push({
       usuarios: l.filter((m) => m.push_fatura !== false).map((m) => m.user_id),
       titulo: `Fatura ${f.nome} fechou`,
-      texto: `${brl.format(Number(f.total))}, vence ${dm(f.vencimento)}. Toque para conferir.`,
+      texto: `${brl.format(Number(f.total))}, vence ${dm(f.vencimento)}. Toque para conferir com o banco.`,
       tag: `fatura-${f.cartao_id}-${f.mes}`,
-      url: `/gastos?cartao=${f.cartao_id}&fatura=${Math.min(1, Math.max(0, idx))}`,
+      url: `/fatura?cartao=${f.cartao_id}&mes=${f.mes.slice(0, 10)}`,
     });
   }
   return envios;
@@ -215,13 +230,14 @@ async function comunicado(ev: { id: string }): Promise<Envio[]> {
   }];
 }
 
-async function enviar(e: Envio) {
-  if (!e.usuarios.length) return 0;
+async function enviar(e: Envio): Promise<{ ok: number; falha: number }> {
+  const nada = { ok: 0, falha: 0 };
+  if (!e.usuarios.length) return nada;
   const { data: sus, error: errSus } = await db.from('suspensos').select('user_id').in('user_id', e.usuarios);
   if (errSus) throw errSus;
   const bloqueados = new Set(sus.map((x) => x.user_id));
   e.usuarios = e.usuarios.filter((u) => !bloqueados.has(u));
-  if (!e.usuarios.length) return 0;
+  if (!e.usuarios.length) return nada;
   const { data, error } = await db.from('push_inscricoes').select('endpoint, p256dh, auth').in('user_id', e.usuarios);
   if (error) throw error;
   // formato do service worker do Angular; onActionClick abre a tela ao tocar
@@ -241,11 +257,14 @@ async function enviar(e: Envio) {
       return 1;
     } catch (err) {
       const status = (err as { statusCode?: number }).statusCode;
-      if (status === 404 || status === 410) await db.from('push_inscricoes').delete().eq('endpoint', s.endpoint);
-      else console.error(s.endpoint, status, err);
-      return 0;
+      // inscrição vencida: some sem contar como falha
+      if (status === 404 || status === 410) {
+        await db.from('push_inscricoes').delete().eq('endpoint', s.endpoint);
+        return 0;
+      }
+      console.error(s.endpoint, status, err);
+      return -1;
     }
   }));
-  const n = r.reduce((a: number, b) => a + b, 0);
-  return n;
+  return { ok: r.filter((x) => x === 1).length, falha: r.filter((x) => x === -1).length };
 }

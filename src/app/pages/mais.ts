@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Admin } from '../core/admin';
 import { Chat } from '../core/chat';
@@ -12,7 +13,7 @@ import { Tour } from '../shared/tour';
 import { Saida } from '../shared/sair';
 
 @Component({
-  imports: [RouterLink, Icon, Compartilhar],
+  imports: [NgTemplateOutlet, RouterLink, Icon, Compartilhar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -21,17 +22,40 @@ import { Saida } from '../shared/sair';
         <span class="badge">{{ s.carteira()?.nome }}</span>
       </div>
 
+      @if (menus.favoritos().length) {
+        <h2 class="grupo">Favoritos</h2>
+        <div class="grid">
+          @for (a of menus.favoritos(); track a.rota) {
+            <ng-container *ngTemplateOutlet="tile; context: { $implicit: a }" />
+          }
+        </div>
+      } @else {
+        <p class="dica small muted"><app-icon name="star" [size]="16" />Toque na estrela de uma tela para ela ficar aqui no topo (e no topo do menu no computador).</p>
+      }
+
+      <ng-template #tile let-a>
+        <div class="cel">
+          <a class="card at" [routerLink]="a.rota">
+            <app-icon class="e" [name]="a.icone" [size]="30" />
+            <span class="r">{{ a.rotulo }}</span>
+            @if (badge(a.rota); as n) {
+              <span class="n">{{ n }}</span>
+            }
+          </a>
+          @if (a.rota !== '/chat') {
+            <button type="button" class="fav" [class.on]="menus.favorito(a.rota)" (click)="menus.alternarFavorito(a.rota)"
+              [attr.aria-label]="(menus.favorito(a.rota) ? 'Tirar dos favoritos: ' : 'Favoritar: ') + a.rotulo" [attr.aria-pressed]="menus.favorito(a.rota)">
+              <app-icon name="star" [fill]="menus.favorito(a.rota)" [size]="18" />
+            </button>
+          }
+        </div>
+      </ng-template>
+
       @for (g of grupos(); track g.nome) {
         <h2 class="grupo">{{ g.nome }}</h2>
         <div class="grid">
           @for (a of g.itens; track a.rota) {
-            <a class="card at" [routerLink]="a.rota">
-              <app-icon class="e" [name]="a.icone" [size]="30" />
-              <span class="r">{{ a.rotulo }}</span>
-              @if (badge(a.rota); as n) {
-                <span class="n">{{ n }}</span>
-              }
-            </a>
+            <ng-container *ngTemplateOutlet="tile; context: { $implicit: a }" />
             @if (a.rota === '/config') {
               <button class="card at" type="button" (click)="tour.iniciar()">
                 <app-icon class="e" name="tour" [size]="30" />
@@ -69,6 +93,11 @@ import { Saida } from '../shared/sair';
   styles: `
     .grupo { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin: 6px 2px -4px; }
     .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .cel { position: relative; display: grid; }
+    .fav { position: absolute; top: 4px; left: 4px; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 10px; background: none; color: var(--ink-3); cursor: pointer; opacity: 0.55; }
+    .fav.on { color: var(--warn); opacity: 1; }
+    .dica { display: flex; align-items: center; gap: 6px; margin: 0 2px; }
+    .dica app-icon { color: var(--warn); flex-shrink: 0; }
     .at { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 8px; color: var(--ink); text-align: center; }
     button.at { font: inherit; cursor: pointer; width: 100%; }
     .at.sair, .at.sair .e { color: var(--danger); }
@@ -91,7 +120,7 @@ export default class Mais {
   protected s = inject(Store);
   protected insights = inject(Insights);
   private chat = inject(Chat);
-  private menus = inject(Menus);
+  protected menus = inject(Menus);
   /** Chat entra no primeiro grupo (no celular não fica na barra inferior) */
   protected grupos = computed(() => this.menus.visiveis().map((g, i) => (i ? g : { ...g, itens: [CHAT, ...g.itens] })));
   protected versao = VERSAO;

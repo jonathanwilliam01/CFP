@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { addMeses, diffDias, hoje, inicioMes, mesesEntre, nomeMes } from '../core/datas';
+import { addMeses, diffDias, fechamentoFatura, hoje, inicioMes, mesesEntre, nomeMes } from '../core/datas';
 import { ACIMA_MEDIA, CompraRecorrente, Recebimento, aporteMensal, fixasNaFatura, mediaContas, noMes } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, PrivPipe, moeda, parseValor, privado, soma } from '../core/formato';
 import { Cartao, Cofrinho, ContaMes, Gasto, Recorrencia } from '../core/models';
@@ -101,7 +101,7 @@ import { ColunaQuadro, MoverQuadro, Quadro } from '../shared/quadro';
             <span class="ico" [style.background]="c.cor + '22'" [style.color]="c.cor"><app-icon [name]="c.icone" /></span>
           }
           <div class="grow">
-            <div class="t">{{ c.descricao }}</div>
+            <div class="t">{{ c.descricao }}@if (c.tipo === 'fatura' && s.conferida(c.ref_id, c.mes)) { <app-icon class="conf" name="fact_check" [size]="14" title="Conferida com o banco" /> }</div>
             <div class="s">Vence {{ c.vencimento | dia }}{{ c.media ? ' · pela média' : '' }}{{ c.informado ? ' · valor do mês' : '' }}{{ c.beneficio_id ? ' · ' + beneficioNome(c.beneficio_id) : '' }}{{ c.mes > s.mes() ? ' · paga com o salário deste mês' : c.mes < s.mes() ? ' · de ' + (c.mes | mes: true) : '' }}@if (c.tipo === 'fatura' && reservaCartao().get(c.ref_id); as rv) { · <span class="fl">⚑ +{{ rv | brl }} reservado</span>}</div>
           </div>
           <div class="dir">
@@ -123,6 +123,52 @@ import { ColunaQuadro, MoverQuadro, Quadro } from '../shared/quadro';
         <app-quadro [colunas]="colunasQuadro()" [chave]="chave" [total]="totalColuna" vazio="Nenhuma conta" (mover)="moverQuadro($event)">
           <ng-template #cartao let-c><ng-container *ngTemplateOutlet="cartaoQuadro; context: { $implicit: c }" /></ng-template>
         </app-quadro>
+      } @else if (agrupado()) {
+        @for (x of secoes(); track x.k) {
+          <section class="card list sec">
+            <div class="sh">
+              <b class="tt">{{ x.titulo }}</b>
+              @if (x.g; as g) {
+                <span class="sb">Sobra <b class="num" [class.neg]="g.sobra < 0" [class.pos]="g.sobra >= 0">{{ g.sobra | brl }}</b></span>
+                <div class="s">Recebe <b class="pos">{{ g.recebe | brl }}</b> · contas {{ g.total | brl }}{{ g.reservado ? ' · ⚑ ' + (g.reservado | brl) : '' }} · a pagar {{ g.aPagar | brl }}</div>
+              }
+            </div>
+            @for (c of x.itens; track c.tipo + c.ref_id + c.mes) {
+              @if (selecionando()) {
+                <ng-container *ngTemplateOutlet="linha; context: { $implicit: c }" />
+              } @else {
+                <app-deslizar [esquerda]="c.pago ? desfazerAcao : pagarAcao" (esquerdaFeito)="c.pago ? desfazer(c) : pagarRapido(c)">
+                  <ng-container *ngTemplateOutlet="linha; context: { $implicit: c }" />
+                </app-deslizar>
+              }
+            } @empty {
+              @if (!x.pagas.length) { <p class="small muted vazio">Nenhuma conta.</p> }
+            }
+            @if (filtro() === 'todas' && x.pagas.length) {
+              <button type="button" class="row sep" (click)="alternarPagas()" [attr.aria-expanded]="verPagas()">
+                <span class="ico"><app-icon name="task_alt" /></span>
+                <div class="grow"><div class="t">Pagas ({{ x.pagas.length }})</div><div class="s">{{ x.totalPagas | brl }}</div></div>
+                <app-icon [name]="verPagas() ? 'expand_less' : 'expand_more'" />
+              </button>
+              @if (verPagas()) {
+                @for (c of x.pagas; track c.tipo + c.ref_id + c.mes) {
+                  <app-deslizar [esquerda]="desfazerAcao" (esquerdaFeito)="desfazer(c)">
+                    <ng-container *ngTemplateOutlet="linha; context: { $implicit: c }" />
+                  </app-deslizar>
+                }
+              }
+            }
+            @for (r of mostraReservas() ? x.reservas : []; track r.orcamento_id) {
+              <app-deslizar [esquerda]="desconsiderarAcao" (esquerdaFeito)="desconsiderar(r.orcamento_id, r.nome)">
+                <a class="row" routerLink="/orcamentos">
+                  <span class="ico flag"><app-icon name="flag" [fill]="true" /></span>
+                  <div class="grow"><div class="t">{{ r.nome }}</div><div class="s">Reservado pelo orçamento · ainda não gasto</div></div>
+                  <div class="dir"><span class="v">{{ r.valor | brl }}</span><span class="badge orcb">Orçamento</span></div>
+                </a>
+              </app-deslizar>
+            }
+          </section>
+        }
       } @else {
       <section class="card list">
         @for (c of visiveis(); track c.tipo + c.ref_id) {
@@ -277,6 +323,11 @@ import { ColunaQuadro, MoverQuadro, Quadro } from '../shared/quadro';
               <button type="button" class="btn sm" (click)="copiar(cod)"><app-icon name="content_copy" [size]="16" />Copiar</button>
             </div>
           }
+          @if (c.tipo === 'fatura' && !c.pago && !s.conferida(c.ref_id, c.mes) && fechou(c)) {
+            <a class="aviso alerta" routerLink="/fatura" [queryParams]="{ cartao: c.ref_id, mes: c.mes }">
+              <app-icon class="i" name="fact_check" /><div><div class="t">Fatura ainda não conferida</div><div class="s">Confira com o app do banco antes de pagar</div></div>
+            </a>
+          }
           @if (c.tipo === 'fatura') {
             <div class="itens">
               @if (c.anterior) {
@@ -286,6 +337,7 @@ import { ColunaQuadro, MoverQuadro, Quadro } from '../shared/quadro';
                 <div class="it"><span class="tit">{{ g.descricao }}@if (g.fixa) {<span class="badge info">Conta fixa</span>}</span><span class="num">{{ g.valor | brl }}</span></div>
               }
             </div>
+            <a class="btn ghost sm" routerLink="/fatura" [queryParams]="{ cartao: c.ref_id, mes: c.mes }"><app-icon name="fact_check" [size]="16" />Ver composição e conferir com o banco</a>
           }
           @if (c.pago) {
             <div class="aviso sucesso"><app-icon class="i" name="check_circle" /><div><div class="t">Paga em {{ c.pago.pago_em! | dia }}</div><div class="s">{{ c.pago.valor | brl }}@if (c.pago.resto) { · {{ c.pago.resto | brl }} foi para a fatura seguinte }</div></div></div>
@@ -355,7 +407,12 @@ import { ColunaQuadro, MoverQuadro, Quadro } from '../shared/quadro';
     </app-sheet>
   `,
   styles: `
+    .conf { color: var(--ok); vertical-align: -2px; }
+    a.aviso { color: inherit; text-decoration: none; }
     .list { padding-top: 4px; padding-bottom: 4px; }
+    .sec .sh { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 2px 10px; padding: 8px 0 10px; border-bottom: 1px solid var(--line); }
+    .sec .sh .sb { font-size: 0.8rem; color: var(--ink-2); white-space: nowrap; text-align: right; }
+    .sec .sh .s { grid-column: 1 / -1; font-size: 0.8rem; color: var(--ink-2); }
     .abas .pt { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
     .recs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
     .rt { width: 100%; font-weight: 600; }
@@ -481,6 +538,30 @@ export default class Contas {
     return this.ordem() === 'valor' ? l.sort((a, b) => b.valor - a.valor) : l;
   });
   protected abertas = computed(() => this.contasBase().filter((c) => !c.pago));
+
+  /** Por recebimento (modelo da carteira): uma seção por salário; o card do topo segue com o mês todo */
+  protected agrupado = computed(() => this.s.modeloRecebimento() && this.recebimentos().length > 0 && !this.diaSel());
+  protected secoes = computed(() => {
+    const h = hoje();
+    const ordenar = (l: ContaMes[]) => (this.ordem() === 'valor' ? [...l].sort((a, b) => b.valor - a.valor) : l);
+    const filtrar = (l: ContaMes[]) => {
+      const ab = l.filter((c) => !c.pago);
+      return { todas: ab, abrir: ab, vencidas: ab.filter((c) => diffDias(h, c.vencimento) < 0), pagas: l.filter((c) => c.pago) }[this.filtro()];
+    };
+    const parte = (l: ContaMes[]) => {
+      const pagas = ordenar(l.filter((c) => c.pago));
+      return { itens: ordenar(filtrar(l)), pagas, totalPagas: soma(pagas, (c) => c.valor) };
+    };
+    const usadas = new Set<ContaMes>();
+    const l = this.recebimentos().map((g) => {
+      g.contas.forEach((c) => usadas.add(c));
+      return { k: g.data, titulo: `${this.dm(g.data)} · ${this.nomeRec(g)}`, g: g as Recebimento | null, reservas: g.reservas, ...parte(g.contas) };
+    });
+    // contas do mês pagas com um salário que cai no mês seguinte, ou com benefício
+    const resto = this.s.contasMes().filter((c) => !usadas.has(c));
+    if (resto.length) l.push({ k: 'resto', titulo: 'Outras contas do mês', g: null, reservas: [], ...parte(resto) });
+    return l;
+  });
   protected pagas = computed(() => this.contasBase().filter((c) => c.pago));
   private vencidas = computed(() => this.abertas().filter((c) => diffDias(hoje(), c.vencimento) < 0));
   protected totalPagas = computed(() => soma(this.pagas(), (c) => c.valor));
@@ -623,7 +704,7 @@ export default class Contas {
     const cartao = this.s.cartoes().find((x) => x.id === c?.ref_id);
     if (c?.tipo !== 'fatura' || !cartao) return [];
     return [
-      ...fixasNaFatura(c.mes, cartao, this.s.recorrenciasPrev()),
+      ...fixasNaFatura(c.mes, cartao, this.s.recorrenciasPrev(), this.s.pagamentos()),
       ...this.s.gastos()
         .filter((g) => g.cartao_id === c.ref_id && g.fatura_mes === c.mes)
         .map((g) => ({ ...g, fixa: false })),
@@ -736,6 +817,12 @@ export default class Contas {
 
   variavel(c: ContaMes) {
     return c.tipo === 'recorrencia' && !!this.s.recorrencias().find((r) => r.id === c.ref_id)?.variavel;
+  }
+
+  /** fatura já fechou (dá para conferir com o banco) */
+  fechou(c: ContaMes) {
+    const cartao = this.s.cartoes().find((x) => x.id === c.ref_id);
+    return !!cartao && hoje() >= fechamentoFatura(c.mes, cartao);
   }
 
   async pagar(c: ContaMes, soValor = false) {

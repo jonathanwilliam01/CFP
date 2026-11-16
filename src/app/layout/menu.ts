@@ -19,6 +19,7 @@ export const ATALHOS: { rota: string; icone: string; rotulo: string; grupo: Grup
   { rota: '/calendario', icone: 'calendar_view_month', rotulo: 'Calendário', grupo: 'Dia a dia' },
   { rota: '/entradas', icone: 'payments', rotulo: 'Entradas', grupo: 'Dia a dia' },
   { rota: '/cartoes', icone: 'credit_card', rotulo: 'Cartões', grupo: 'Dia a dia' },
+  { rota: '/fatura', icone: 'receipt_long', rotulo: 'Fatura do cartão', grupo: 'Dia a dia' },
   { rota: '/saldos', icone: 'account_balance_wallet', rotulo: 'Saldos e patrimônio', grupo: 'Dia a dia' },
   { rota: '/beneficios', icone: 'restaurant', rotulo: 'Benefícios', grupo: 'Dia a dia' },
   { rota: '/parcelamentos', icone: 'event_repeat', rotulo: 'Parcelamentos', grupo: 'Compromissos' },
@@ -56,6 +57,8 @@ interface Prefs {
   ocultos: string[];
   /** botões flutuantes escondidos */
   semBotao: Botao[];
+  /** telas no topo do menu lateral e do Mais, na ordem em que foram favoritadas */
+  favoritos: string[];
 }
 
 function normalizar(p: Partial<Prefs> | null | undefined): Prefs {
@@ -68,6 +71,7 @@ function normalizar(p: Partial<Prefs> | null | undefined): Prefs {
     grupoDe: Object.fromEntries(Object.entries(p?.grupoDe ?? {}).filter(([r, g]) => ROTAS.includes(r) && GRUPOS.includes(g))),
     ocultos: validos(p?.ocultos).filter((r) => r !== FIXA),
     semBotao: Array.isArray(p?.semBotao) ? p.semBotao.filter((b) => b === 'calc' || b === 'chat' || b === 'voz') : [],
+    favoritos: [...new Set(validos(p?.favoritos))],
   };
 }
 
@@ -93,10 +97,13 @@ export class Menus {
   });
   /** Grupos e itens na ordem escolhida */
   readonly grupos = computed(() => this.prefs().grupos.map((nome) => ({ nome, itens: this.lista().filter((a) => a.grupo === nome) })));
+  /** Favoritos saem do grupo e vão para o topo, mesmo se estavam escondidos */
+  readonly favoritos = computed(() => this.prefs().favoritos.map((r) => this.lista().find((a) => a.rota === r)!));
   /** Só os visíveis, sem grupo vazio */
-  readonly visiveis = computed(() =>
-    this.grupos().map((g) => ({ nome: g.nome, itens: g.itens.filter((a) => !a.oculto) })).filter((g) => g.itens.length),
-  );
+  readonly visiveis = computed(() => {
+    const fav = this.prefs().favoritos;
+    return this.grupos().map((g) => ({ nome: g.nome, itens: g.itens.filter((a) => !a.oculto && !fav.includes(a.rota)) })).filter((g) => g.itens.length);
+  });
   private timer?: ReturnType<typeof setTimeout>;
 
   constructor() {
@@ -143,9 +150,19 @@ export class Menus {
     this.gravar({ ...this.prefs(), ocultos: l.includes(r) ? l.filter((x) => x !== r) : [...l, r] });
   }
 
-  /** Volta a ordem, os grupos e os itens do menu; botões flutuantes ficam como estão */
+  /** Volta a ordem, os grupos e os itens do menu; botões flutuantes e favoritos ficam como estão */
   restaurar() {
-    this.gravar({ ...normalizar(null), semBotao: this.prefs().semBotao });
+    this.gravar({ ...normalizar(null), semBotao: this.prefs().semBotao, favoritos: this.prefs().favoritos });
+  }
+
+  favorito(r: string) {
+    return this.prefs().favoritos.includes(r);
+  }
+
+  alternarFavorito(r: string) {
+    if (!ROTAS.includes(r)) return;
+    const l = this.prefs().favoritos;
+    this.gravar({ ...this.prefs(), favoritos: l.includes(r) ? l.filter((x) => x !== r) : [...l, r] });
   }
 
   botao(b: Botao) {

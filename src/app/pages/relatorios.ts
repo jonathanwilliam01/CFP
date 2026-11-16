@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { addDias, addMeses, fimMes, hoje, nomeMes } from '../core/datas';
-import { contasDoMes, noMes, porCategoria, resumoMes } from '../core/financas';
+import { contasDoMes, mesDoGasto, noMes, porCategoria, resumoMes } from '../core/financas';
 import { BrlPipe, MesPipe, PrivPipe, moeda, baixarCsv, csvData, csvTexto, csvValor, pct, soma } from '../core/formato';
 import { Entrada, Gasto, Pagamento } from '../core/models';
 import { Store } from '../core/store';
@@ -230,8 +230,11 @@ export default class Relatorios {
     const l = this.lista();
     if (!d) return [];
     const ini = l[0];
-    const fim = fimMes(l[l.length - 1]);
-    return d.gastos.filter((g) => g.data >= ini && g.data <= fim);
+    const fim = l[l.length - 1];
+    return d.gastos.filter((g) => {
+      const m = mesDoGasto(g, this.s.cartoes());
+      return m >= ini && m <= fim;
+    });
   });
 
   protected porMes = computed(() => {
@@ -241,7 +244,7 @@ export default class Relatorios {
     return this.lista().map((mes) => {
       const contas = contasDoMes(mes, rec, this.s.cartoes(), d.gastos, d.pagamentos, this.s.catMap());
       const avulsas = soma(d.entradas.filter((e) => noMes(e.data, mes)), (e) => e.valor);
-      return { mes, r: resumoMes(mes, d.gastos, avulsas, rec, contas, d.pagamentos) };
+      return { mes, r: resumoMes(mes, d.gastos, avulsas, rec, contas, d.pagamentos, 0, this.s.cartoes()) };
     });
   });
 
@@ -344,7 +347,7 @@ export default class Relatorios {
     const top = this.categorias().slice(0, 5);
     const ids = new Set(top.map((c) => c.id));
     return this.lista().map((mes) => {
-      const doMes = this.consumo().filter((g) => noMes(g.data, mes));
+      const doMes = this.consumo().filter((g) => mesDoGasto(g, this.s.cartoes()) === mes);
       const fat = porCategoria(doMes, this.s.catMap());
       return {
         rotulo: nomeMes(mes, true),
@@ -365,7 +368,7 @@ export default class Relatorios {
     const mes = this.s.mes();
     const outros = this.lista().filter((m) => m !== mes);
     if (!outros.length) return [];
-    const doMes = (m: string) => new Map(porCategoria(this.consumo().filter((g) => noMes(g.data, m)), this.s.catMap()).map((c) => [c.id ?? '', c]));
+    const doMes = (m: string) => new Map(porCategoria(this.consumo().filter((g) => mesDoGasto(g, this.s.cartoes()) === m), this.s.catMap()).map((c) => [c.id ?? '', c]));
     const atual = doMes(mes);
     const ref = new Map<string, number>();
     const meses = this.base() === 'media' ? outros : [this.anterior()].filter((m) => outros.includes(m));

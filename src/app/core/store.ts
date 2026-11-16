@@ -2,12 +2,13 @@ import { Injectable, WritableSignal, computed, effect, inject, signal, untracked
 import { Router } from '@angular/router';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Auth } from './auth';
+import { Preferencias } from './preferencias';
 import { removerComprovante } from './comprovante';
 import { addMeses, fimMes, hoje, inicioMes, mesAtual, nomeMes } from './datas';
-import { GastoHist, Transferencia, acertoMes, aumentosRecorrentes, metaSobra, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, noMes, orcamentosNoMes, porRecebimento, previsaoFimMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
+import { GastoHist, Transferencia, acertoMes, aumentosRecorrentes, metaSobra, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, mesDoGasto, noMes, orcamentosNoMes, porRecebimento, previsaoFimMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
 import {
-  Acerto, Beneficio, Carteira, Cartao, Categoria, ContaBancaria, Cofrinho, CofrinhoMov, Dados, Desafio, Divida, Entrada, Gasto, Membro, Orcamento, OrcamentoFechado,
+  Acerto, Beneficio, Carteira, Cartao, Categoria, ContaBancaria, Cofrinho, CofrinhoMov, Dados, Desafio, Divida, Entrada, FaturaConferida, Gasto, Membro, Orcamento, OrcamentoFechado,
   OrcamentoValor, Pagamento, Receber, Recorrencia, Registro, Regra, Tabela, UsoBeneficio, Viagem, Desejo, Meta, MetaCheckin, Fechamento,
 } from './models';
 import { Toast } from '../shared/toast';
@@ -23,10 +24,10 @@ type Cadastro = (typeof CADASTROS)[number];
 const eCadastro = (t: string): t is Cadastro => (CADASTROS as readonly string[]).includes(t);
 
 /** Tabelas que mudam os dados do mês carregados por carregarMes */
-const DO_MES = ['gastos', 'entradas', 'pagamentos', 'parcelamentos', 'cartoes', 'recorrencias'];
+const DO_MES = ['gastos', 'entradas', 'pagamentos', 'parcelamentos', 'cartoes', 'recorrencias', 'faturas_conferidas'];
 
 /** Tabelas com aviso de mudança em tempo real (publication supabase_realtime) */
-const TEMPO_REAL = [...CADASTROS, 'gastos', 'entradas', 'pagamentos', 'registro_itens', 'planos', 'parcelamentos', 'carteira_membros'];
+const TEMPO_REAL = [...CADASTROS, 'gastos', 'entradas', 'pagamentos', 'registro_itens', 'planos', 'parcelamentos', 'carteira_membros', 'faturas_conferidas'];
 
 export type Recente = Pick<Gasto, 'descricao' | 'categoria_id' | 'forma' | 'cartao_id' | 'beneficio_id'>;
 
@@ -34,11 +35,14 @@ export type Recente = Pick<Gasto, 'descricao' | 'categoria_id' | 'forma' | 'cart
 export class Store {
   private auth = inject(Auth);
   private router = inject(Router);
+  private prefs = inject(Preferencias);
   private toast = inject(Toast);
 
   readonly carteiras = signal<Carteira[]>([]);
   readonly carteiraId = signal<string | null>(localStorage.getItem('cfp.carteira'));
   readonly carteira = computed(() => this.carteiras().find((c) => c.id === this.carteiraId()) ?? null);
+  /** carteira organizada por recebimento: Contas e Início abrem pelos salários */
+  readonly modeloRecebimento = computed(() => this.carteira()?.modelo === 'recebimento');
   readonly membros = signal<Membro[]>([]);
   readonly souDono = computed(() => this.membros().find((m) => m.user_id === this.auth.user()?.id)?.papel === 'dono');
   readonly carregando = signal(false);
@@ -80,6 +84,8 @@ export class Store {
   readonly gastos = signal<Gasto[]>([]);
   readonly entradas = signal<Entrada[]>([]);
   readonly pagamentos = signal<Pagamento[]>([]);
+  /** faturas conferidas com o banco, de mês−2 a mês+2 (049) */
+  readonly conferidas = signal<FaturaConferida[]>([]);
   /** Uso dos benefícios por mês até o mês selecionado */
   readonly usoBeneficios = signal<UsoBeneficio[]>([]);
   /** Valores pagos/registrados de contas fixas, para a média das variáveis */
@@ -145,10 +151,11 @@ export class Store {
   readonly acerto = computed(() =>
     this.divisao() ? acertoMes(this.gastos(), this.membros().map((m) => m.user_id), this.acertos(), this.mes(), new Map(this.membros().map((m) => [m.user_id, m.peso]))) : null,
   );
-  readonly gastosMes = computed(() => this.gastos().filter((g) => noMes(g.data, this.mes())));
+  /** pelo `mesDoGasto`: compra no cartão depois do fechamento de fim de mês entra no mês seguinte */
+  readonly gastosMes = computed(() => this.gastos().filter((g) => mesDoGasto(g, this.cartoes()) === this.mes()));
   readonly gastosMesAnterior = computed(() => {
     const ant = addMeses(this.mes(), -1);
-    return this.antesDoInicio(ant) ? [] : this.gastos().filter((g) => noMes(g.data, ant));
+    return this.antesDoInicio(ant) ? [] : this.gastos().filter((g) => mesDoGasto(g, this.cartoes()) === ant);
   });
   readonly entradasMes = computed(() => this.entradas().filter((e) => noMes(e.data, this.mes())));
 
@@ -182,7 +189,7 @@ export class Store {
 
   readonly resumo = computed(() =>
     resumoMes(this.mes(), this.gastos(), soma(this.entradasMes(), (e) => e.valor), this.recorrenciasPrev(), this.contasMes(), this.pagamentos(),
-      soma(this.orcamentosStatus(), (o) => o.reservado)),
+      soma(this.orcamentosStatus(), (o) => o.reservado), this.cartoes()),
   );
 
   /** Orçamentos com o limite do mês selecionado */
@@ -229,6 +236,14 @@ export class Store {
   readonly pronto = computed(() => this.tudoOk() && this.mesOk() && !this.carregando() && !this.carregandoMes());
 
   constructor() {
+    // preferências que vieram do banco (outro aparelho)
+    effect(() => {
+      if (!this.prefs.versao()) return;
+      untracked(() => {
+        this.fixasIgnoradas.set(JSON.parse(localStorage.getItem('cfp.sugestoes') ?? '[]'));
+        this.recebimentoModo.set(localStorage.getItem('cfp.recebimento') === 'competencia' ? 'competencia' : 'mes');
+      });
+    });
     effect(() => {
       const id = this.auth.user() ? this.carteiraId() : null;
       if (id) localStorage.setItem('cfp.carteira', id);
@@ -346,7 +361,7 @@ export class Store {
     const fim = fimMes(mes);
     const desde = [addMeses(mes, -3), this.inicio() ?? ''].sort()[1];
     this.carregandoMes.set(true);
-    const [gastos, entradas, pagamentos, uso, recentes, valores, anteriores] = await Promise.all([
+    const [gastos, entradas, pagamentos, uso, recentes, valores, anteriores, conferidas] = await Promise.all([
       q<Gasto[]>(
         supabase.from('gastos').select('*').eq('carteira_id', id)
           .or(`and(data.gte.${ini},data.lte.${fim}),fatura_mes.in.(${ini},${mes},${addMeses(mes, 1)})`)
@@ -367,12 +382,17 @@ export class Store {
       q<GastoHist[]>(
         supabase.from('gastos').select('descricao, valor, data, categoria_id, forma, cartao_id, fatura_mes, parcelamento_id').eq('carteira_id', id).gte('data', desde).lt('data', mes),
       ),
+      // sem a 049: nenhuma conferida
+      q<FaturaConferida[]>(
+        supabase.from('faturas_conferidas').select('*').eq('carteira_id', id).gte('mes', addMeses(mes, -2)).lte('mes', addMeses(mes, 2)),
+      ).catch(() => [] as FaturaConferida[]),
     ]).finally(() => req === this.reqMes && this.carregandoMes.set(false));
     // troca rápida de mês: descarta a resposta que chegou depois da mais nova
     if (req !== this.reqMes) return;
     this.gastos.set(gastos);
     this.entradas.set(entradas);
     this.pagamentos.set(pagamentos);
+    this.conferidas.set(conferidas);
     this.usoBeneficios.set(uso);
     if (valores) {
       this.valoresFixas.set(valores);
@@ -507,6 +527,24 @@ export class Store {
     return id;
   }
 
+  conferida(cartaoId: string, mes: string) {
+    return this.conferidas().find((c) => c.cartao_id === cartaoId && c.mes === mes) ?? null;
+  }
+
+  /** Marca a fatura como conferida com o banco (diferenca = banco − CFP que ficou) */
+  async conferirFatura(cartaoId: string, mes: string, diferenca: number) {
+    await q(supabase.from('faturas_conferidas').upsert(
+      { carteira_id: this.carteiraId(), cartao_id: cartaoId, mes, diferenca, conferida_em: new Date().toISOString(), conferida_por: this.auth.uid() },
+      { onConflict: 'cartao_id,mes' },
+    ));
+    await this.carregarMes();
+  }
+
+  async desconferirFatura(cartaoId: string, mes: string) {
+    await q(supabase.from('faturas_conferidas').delete().eq('cartao_id', cartaoId).eq('mes', mes));
+    await this.carregarMes();
+  }
+
   /** Grava e remove valores mensais de uma conta fixa (histórico das variáveis) */
   async salvarValores(refId: string, novos: { mes: string; valor: number; pago_em: string }[], removidos: string[]) {
     if (removidos.length) await q(supabase.from('pagamentos').delete().in('id', removidos));
@@ -550,7 +588,7 @@ export class Store {
     const d = await this.historico(addMeses(mes, -1), fimMes(mes));
     const rec = this.recorrenciasPrev();
     const contas = contasDoMes(mes, rec, this.cartoes(), d.gastos, d.pagamentos, this.catMap());
-    return { dados: d, contas, r: resumoMes(mes, d.gastos, soma(d.entradas.filter((e) => noMes(e.data, mes)), (e) => e.valor), rec, contas, d.pagamentos) };
+    return { dados: d, contas, r: resumoMes(mes, d.gastos, soma(d.entradas.filter((e) => noMes(e.data, mes)), (e) => e.valor), rec, contas, d.pagamentos, 0, this.cartoes()) };
   }
 
   /**

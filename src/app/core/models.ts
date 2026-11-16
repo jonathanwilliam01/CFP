@@ -17,6 +17,8 @@ export interface Carteira {
   sobra_pct?: number | null;
   sobra_cofrinho?: string | null;
   sobra_feita?: string | null;
+  /** organização: pelo mês (padrão) ou por recebimento, cada salário paga as contas dele (050) */
+  modelo?: 'mes' | 'recebimento';
   criado_em?: string;
 }
 
@@ -70,6 +72,8 @@ export interface Cartao {
   paga_mes_anterior: boolean;
   /** 4 últimos dígitos: a notificação do banco cita "final 1234" (047) */
   final?: string | null;
+  /** entrada fixa que paga a fatura (050); null = automático pelo dia */
+  recebimento_id?: string | null;
 }
 
 export interface Beneficio {
@@ -154,6 +158,17 @@ export interface Recorrencia {
   reajuste_de?: string | null;
   /** chave Pix ou linha digitável para pagar (043) */
   pagamento?: string | null;
+  /** entrada fixa que paga esta conta (050); null = automático pelo dia */
+  recebimento_id?: string | null;
+}
+
+export interface FaturaConferida {
+  carteira_id: string;
+  cartao_id: string;
+  mes: string;
+  conferida_em: string;
+  conferida_por: string | null;
+  diferenca: number;
 }
 
 export interface Pagamento {
@@ -319,6 +334,8 @@ export interface ContaMes {
   /** valor do mês informado, ainda não pago */
   informado?: Pagamento | null;
   /** conta fixa paga com benefício */
+  /** entrada fixa escolhida em "Paga com" */
+  recebimento_id?: string | null;
   beneficio_id?: string | null;
   /** fatura: o que ficou da fatura anterior paga em parte */
   anterior?: number;

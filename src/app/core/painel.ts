@@ -11,7 +11,7 @@ export const BLOCOS = [
   { id: 'comprometida', nome: 'Renda comprometida' },
   { id: 'pessoas', nome: 'Quem gastou o quê' },
   { id: 'diaadia', nome: 'Saldo dia a dia' },
-  { id: 'onde', nome: 'Onde está indo o dinheiro' },
+  { id: 'onde', nome: 'Onde mais gastou' },
   { id: 'orcamentos', nome: 'Orçamentos' },
   { id: 'ultimos', nome: 'Últimos gastos' },
   { id: 'dica', nome: 'Dica' },

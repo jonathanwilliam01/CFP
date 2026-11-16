@@ -1,4 +1,5 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Preferencias } from './preferencias';
 import { addDias, diasNoMes, diffDias, fechamentoFatura, hoje, inicioFatura, mesAtual, mesFatura, nomeMes } from './datas';
 import { aporteMensal, ativaNoMes, dataEntrada, categoriasAcima, categoriasNoRitmo, gastosIncomuns, duplicados, faturaProjetada, fixasNaFatura, porCategoria, reajustesNoMes, saldoBeneficio, variaveisAcima } from './financas';
 import { moeda, pct, soma } from './formato';
@@ -35,6 +36,7 @@ const GERAIS: Dica[] = [
 export class Insights {
   private s = inject(Store);
   private chat = inject(Chat);
+  private prefs = inject(Preferencias);
   private lidas = signal<string[]>(JSON.parse(localStorage.getItem('cfp.lidas') ?? '[]'));
   /** avisos tirados do Início */
   readonly dispensados = signal<string[]>(JSON.parse(localStorage.getItem('cfp.dispensados') ?? '[]'));
@@ -84,7 +86,7 @@ export class Insights {
         const fm = mesFatura(addDias(fech, -1), c);
         const total =
           soma(s.gastos().filter((g) => g.cartao_id === c.id && g.fatura_mes === fm), (g) => g.valor) +
-          soma(fixasNaFatura(fm, c, s.recorrenciasPrev()), (f) => f.valor);
+          soma(fixasNaFatura(fm, c, s.recorrenciasPrev(), s.pagamentos()), (f) => f.valor);
         // fecha hoje: a projeção já olharia o ciclo seguinte
         const proj = d > 0 ? faturaProjetada(c, s.gastos(), s.recorrenciasPrev(), h) : null;
         const ritmo = proj && proj.mes === fm && proj.projetada > total + 1 ? ` No ritmo atual, fecha em ${moeda(proj.projetada)}.` : '';
@@ -106,6 +108,11 @@ export class Insights {
     if (r.entradas > 0 && r.saldo >= 0 && pv && pv.sobra < 0)
       l.push({ id: `prev-${mes}-${Math.floor(-pv.sobra / 100)}`, nivel: 'alerta', icone: 'trending_down', titulo: 'No ritmo atual, o mês fecha no vermelho',
         texto: `Previsão para o dia ${diasNoMes(mes)}: ${moeda(pv.sobra)}. Dá para gastar até ${moeda(pv.porDia)} por dia até lá.`, link: '/' });
+    // por recebimento: salário que não cobre as contas dele (ainda por vir)
+    if (s.modeloRecebimento())
+      for (const g of s.recebimentos().filter((g) => g.sobra < 0 && g.aPagar > 0 && g.data >= h))
+        l.push({ id: `rec-${g.data}-${Math.floor(-g.sobra / 50)}`, nivel: 'alerta', icone: 'payments', titulo: `${g.nome} de ${g.data.slice(8)}/${g.data.slice(5, 7)} não cobre as contas dele`,
+          texto: `Faltam ${moeda(-g.sobra)}: contas ${moeda(g.total)}${g.reservado ? ` + orçamentos ${moeda(g.reservado)}` : ''} para ${moeda(g.recebe)}.`, link: '/contas' });
     if (r.entradas > 0 && r.saldo < 0)
       l.push({ id: `saldo-${mes}`, nivel: 'perigo', icone: 'trending_down', titulo: 'Saldo do mês negativo', texto: `As saídas superam as entradas em ${moeda(-r.saldo)}.`, link: '/resumo' });
     else if (s.meta() && !s.meta()!.ok) {
@@ -206,6 +213,13 @@ export class Insights {
   });
 
   constructor() {
+    effect(() => {
+      if (!this.prefs.versao()) return;
+      untracked(() => {
+        this.lidas.set(JSON.parse(localStorage.getItem('cfp.lidas') ?? '[]'));
+        this.dispensados.set(JSON.parse(localStorage.getItem('cfp.dispensados') ?? '[]'));
+      });
+    });
     // só com tudo carregado: no meio da carga as contas pagas ainda aparecem em aberto
     effect(() => this.s.pronto() && this.notificarSistema(this.naoLidas()));
   }

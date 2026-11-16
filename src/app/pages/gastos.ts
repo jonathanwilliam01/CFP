@@ -407,7 +407,7 @@ export default class Gastos {
   protected fixas = computed(() => {
     const m = this.porFatura();
     const c = this.cartaoSel();
-    return m && c ? soma(fixasNaFatura(m, c, this.s.recorrenciasPrev()), (f) => f.valor) : 0;
+    return m && c ? soma(fixasNaFatura(m, c, this.s.recorrenciasPrev(), this.s.pagamentos()), (f) => f.valor) : 0;
   });
 
   protected lista = computed(() => {
@@ -459,7 +459,7 @@ export default class Gastos {
       let x = m.get(k);
       if (!x) {
         const rotulo =
-          modo === 'dia' ? rotuloDia(g.data)
+          modo === 'dia' ? rotuloDia(g.data) + (!this.porFatura() && g.data < this.s.mes() ? ' · depois do fechamento' : '')
           : modo === 'pessoa' ? this.s.nomeAutor(g.criado_por)
           : oculto ? 'Dinheiro livre de ' + this.s.nomeAutor(g.criado_por)
           : modo === 'categoria' ? (this.cat_(g)?.nome ?? 'Sem categoria')

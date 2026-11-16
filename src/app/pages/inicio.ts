@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { addMeses, diffDias, hoje, mesAtual, nomeMes } from '../core/datas';
@@ -16,7 +17,7 @@ import { Painel } from '../core/painel';
 import { PrimeirosPassos } from '../shared/primeiros-passos';
 
 @Component({
-  imports: [RouterLink, BrlPipe, DiaPipe, MesPipe, PrivPipe, Donut, Linha, Icon, Avatar, Autor, Bloco, Valor, PrimeirosPassos],
+  imports: [NgTemplateOutlet, RouterLink, BrlPipe, DiaPipe, MesPipe, PrivPipe, Donut, Linha, Icon, Avatar, Autor, Bloco, Valor, PrimeirosPassos],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -81,6 +82,27 @@ import { PrimeirosPassos } from '../shared/primeiros-passos';
         </div>
       }
 
+      <ng-template #rec>
+        @if (recebimentos().length) {
+          <section class="card" bloco="recebimento" [style.order]="s.modeloRecebimento() ? painel.pos('avisos') : null">
+            <div class="card-head"><h2>Por recebimento</h2>
+              <span class="acoes">
+                @if (s.entradaMesSeguinte()) { <button type="button" class="btn ghost sm" (click)="s.trocarRecebimento()" [title]="s.recebimentoModo() === 'mes' ? 'No mês: o que cai neste mês' : 'Competência: entradas e contas deste mês'">{{ s.recebimentoModo() === 'mes' ? 'No mês' : 'Competência' }}<app-icon name="swap_horiz" [size]="16" /></button> }
+                <a routerLink="/contas" class="small">Contas</a>
+              </span></div>
+            <div class="list">
+              @for (g of recebimentos(); track g.data) {
+                <a class="rec" [class.prox]="g.data === proxRec()" routerLink="/contas" [title]="detalheRec(g)">
+                  <span class="grow"><b>{{ dm(g.data) }}</b> <span class="nm">{{ nomeRec(g) }}</span>
+                    <span class="s">Recebe {{ g.recebe | brl }} · a pagar {{ g.aPagar | brl }}{{ g.reservado ? ' · ⚑ ' + (g.reservado | brl) : '' }}</span></span>
+                  <span class="dirr"><span class="s">Sobra</span><b class="num" [class.neg]="g.sobra < 0">{{ g.sobra | brl }}</b></span>
+                </a>
+              }
+            </div>
+          </section>
+        }
+      </ng-template>
+
       <div class="grupo">
         @if (avisos().length) {
           <section class="avisos" bloco="avisos">
@@ -97,6 +119,7 @@ import { PrimeirosPassos } from '../shared/primeiros-passos';
             }
           </section>
         }
+        @if (s.modeloRecebimento()) { <ng-container *ngTemplateOutlet="rec" /> }
 
         @if (proximas().length) {
           <section class="card" bloco="proximas">
@@ -115,21 +138,27 @@ import { PrimeirosPassos } from '../shared/primeiros-passos';
       </div>
 
       <div class="grupo">
-        @if (recebimentos().length) {
-          <section class="card" bloco="recebimento">
-            <div class="card-head"><h2>Por recebimento</h2>
-              <span class="acoes">
-                @if (s.entradaMesSeguinte()) { <button type="button" class="btn ghost sm" (click)="s.trocarRecebimento()" [title]="s.recebimentoModo() === 'mes' ? 'No mês: o que cai neste mês' : 'Competência: entradas e contas deste mês'">{{ s.recebimentoModo() === 'mes' ? 'No mês' : 'Competência' }}<app-icon name="swap_horiz" [size]="16" /></button> }
-                <a routerLink="/contas" class="small">Contas</a>
-              </span></div>
-            <div class="list">
-              @for (g of recebimentos(); track g.data) {
-                <a class="rec" routerLink="/contas" [title]="detalheRec(g)">
-                  <span class="grow"><b>{{ dm(g.data) }}</b> <span class="nm">{{ nomeRec(g) }}</span>
-                    <span class="s">Recebe {{ g.recebe | brl }} · a pagar {{ g.aPagar | brl }}{{ g.reservado ? ' · ⚑ ' + (g.reservado | brl) : '' }}</span></span>
-                  <span class="dirr"><span class="s">Sobra</span><b class="num" [class.neg]="g.sobra < 0">{{ g.sobra | brl }}</b></span>
-                </a>
-              }
+        @if (!s.modeloRecebimento()) { <ng-container *ngTemplateOutlet="rec" /> }
+
+        @if (cats().length) {
+          <section class="card" bloco="onde">
+            <div class="card-head"><h2>Onde mais gastou</h2><a routerLink="/resumo" class="small">Resumo</a></div>
+            <div class="onde">
+              <app-donut [fatias]="fatias()" [size]="132" rotulo="Gasto no mês" />
+              <div class="list top">
+                @for (c of topCats(); track c.nome) {
+                  <div class="cat">
+                    <app-icon [name]="c.icone" [size]="18" [style.color]="c.cor" />
+                    <div class="grow">
+                      <div class="l"><b>{{ c.nome }}</b><span class="num">{{ c.total | brl }}</span></div>
+                      <div class="l s"><span>{{ c.pct }}%</span>
+                        @if (c.var !== null) { <span [class.neg]="c.var > 0" [class.pos]="c.var < 0">{{ c.var > 0 ? '▲' : '▼' }} {{ c.var > 0 ? c.var : -c.var }}%</span> } @else { <span>novo</span> }
+                      </div>
+                      <div class="bar"><i [style.width.%]="c.pct" [style.background]="c.cor"></i></div>
+                    </div>
+                  </div>
+                }
+              </div>
             </div>
           </section>
         }
@@ -256,25 +285,6 @@ import { PrimeirosPassos } from '../shared/primeiros-passos';
               </section>
             }
 
-            @if (cats().length) {
-              <section bloco="onde">
-                <div class="card-head"><h2>Onde está indo o dinheiro</h2><a routerLink="/relatorios" class="small">Relatórios</a></div>
-                <div class="onde">
-                  <app-donut [fatias]="fatias()" [size]="112" rotulo="Gasto no mês" />
-                  <div class="list top">
-                    @for (c of cats().slice(0, 5); track c.nome) {
-                      <div class="cat">
-                        <app-icon [name]="c.icone" [size]="18" [style.color]="c.cor" />
-                        <div class="grow">
-                          <div class="l"><b>{{ c.nome }}</b><span class="num">{{ c.total | brl }}</span></div>
-                          <div class="bar"><i [style.width.%]="c.pct" [style.background]="c.cor"></i></div>
-                        </div>
-                      </div>
-                    }
-                  </div>
-                </div>
-              </section>
-            }
           </div>
         </details>
       }
@@ -335,6 +345,7 @@ import { PrimeirosPassos } from '../shared/primeiros-passos';
     .rec, .sl { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; color: var(--ink); border-bottom: 1px solid var(--line); font-size: 0.88rem; }
     .rec:last-child, .sl:last-child { border-bottom: 0; }
     .rec .grow { flex: 1; min-width: 0; }
+    .rec.prox { background: var(--primary-soft); border-radius: 10px; padding-inline: 8px; border-bottom-color: transparent; }
     .rec .nm { color: var(--ink-2); margin-left: 6px; }
     .rec .s, .dirr .s { display: block; font-size: 0.75rem; color: var(--ink-3); }
     .dirr { text-align: right; white-space: nowrap; }
@@ -343,6 +354,7 @@ import { PrimeirosPassos } from '../shared/primeiros-passos';
     .onde { display: flex; gap: 16px; align-items: center; }
     .top { flex: 1; gap: 8px; min-width: 0; }
     .cat { display: flex; gap: 8px; align-items: center; }
+    .cat .l.s { font-size: 0.75rem; color: var(--ink-2); }
     .cat .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
     .l { display: flex; justify-content: space-between; gap: 6px; font-size: 0.85rem; }
     .l b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -399,6 +411,14 @@ export default class Inicio {
     this.insights.avisos().filter((a) => (a.nivel === 'perigo' || a.nivel === 'alerta') && !this.insights.dispensados().includes(a.id)).slice(0, this.mostrarFechamento() ? 1 : 2),
   );
   protected cats = computed(() => porCategoria(this.s.gastosMes(), this.s.catMap()));
+  /** maiores categorias com a variação contra o mês anterior (como no Resumo) */
+  protected topCats = computed(() => {
+    const ant = new Map(porCategoria(this.s.gastosMesAnterior(), this.s.catMap()).map((c) => [c.id, c.total]));
+    return this.cats().slice(0, 6).map((c) => {
+      const a = ant.get(c.id);
+      return { ...c, var: a ? Math.round((c.total / a - 1) * 100) : null };
+    });
+  });
   protected fatias = computed(() => this.cats().map((c) => ({ nome: c.nome, valor: c.total, cor: c.cor })));
   protected proximas = computed(() => this.s.contasMes().filter((c) => !c.pago).slice(0, 5));
   protected beneficios = computed(() =>
@@ -426,6 +446,8 @@ export default class Inicio {
 
   protected recebimentos = this.s.recebimentos;
   protected nomesReservas = (g: Recebimento) => g.reservas.map((r) => r.nome).join(', ');
+  /** recebimento que vem a seguir (destacado no modelo por recebimento) */
+  protected proxRec = computed(() => this.recebimentos().find((g) => g.data >= hoje())?.data ?? null);
   protected proxReceb = computed(() => (this.noMesAtual() ? proximoRecebimento(hoje(), this.s.recorrencias(), this.s.pagamentos()) : null));
   protected ritmo = computed(() => ritmoMes(this.s.mes(), hoje()));
 

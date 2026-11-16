@@ -1,7 +1,7 @@
 import { abrir, expect, semRolagemLateral, test } from './apoio';
 
 const ROTAS = [
-  '/', '/gastos', '/contas', '/entradas', '/receber', '/cartoes', '/saldos', '/beneficios', '/parcelamentos', '/assinaturas', '/dividas',
+  '/', '/gastos', '/contas', '/entradas', '/receber', '/cartoes', '/fatura', '/saldos', '/beneficios', '/parcelamentos', '/assinaturas', '/dividas',
   '/cofrinhos', '/orcamentos', '/desafios', '/desejos', '/viagens', '/registros', '/planejamento', '/calculadoras', '/fechamento',
   '/relatorios', '/resumo', '/retrospectiva', '/inflacao', '/imposto', '/calendario', '/notificacoes', '/config', '/novidades', '/importar', '/chat',
 ];

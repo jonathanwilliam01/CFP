@@ -113,6 +113,13 @@ import { Whatsapp } from '../shared/whatsapp';
               <button class="btn ghost" type="button" (click)="salvarInicio()" [disabled]="ocupado()">Salvar</button>
             </div>
           </label>
+          <label class="field"><span>Como vocês organizam as contas</span>
+            <select name="modelo" [ngModel]="s.carteira()?.modelo ?? 'mes'" (ngModelChange)="salvarModelo($event)" [disabled]="ocupado()">
+              <option value="mes">Pelo mês</option>
+              <option value="recebimento">Por recebimento (cada salário paga as contas dele)</option>
+            </select>
+            <small class="muted">Por recebimento: Contas e Início abrem separados por salário, com a sobra de cada um. Em cada conta e cartão dá para escolher "Paga com".</small>
+          </label>
           <label class="field"><span>Meta de sobra do mês (% das entradas)</span>
             <div class="linha">
               <input name="meta" inputmode="decimal" placeholder="Ex.: 15 (vazio desliga)" [(ngModel)]="metaSobra" />
@@ -685,6 +692,13 @@ export default class Config {
       this.editandoPesos.set(null);
       this.pesos.set({});
     }, ok);
+  }
+
+  salvarModelo(modelo: 'mes' | 'recebimento') {
+    return this.exec(async () => {
+      await q(supabase.from('carteiras').update({ modelo }).eq('id', this.s.carteiraId()!));
+      await this.s.iniciar();
+    }, modelo === 'recebimento' ? 'Organizado por recebimento' : 'Organizado pelo mês');
   }
 
   alternarDivisao() {

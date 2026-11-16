@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, u
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { addMeses, fechamentoFatura, hoje, mesAtual, mesFatura } from '../core/datas';
-import { BrlPipe, DiaPipe, MesPipe, parseValor, pct, soma } from '../core/formato';
-import { curvaFatura, duplicados, faturaDoMes, fixasNaFatura } from '../core/financas';
-import { Cartao, Gasto, Recorrencia } from '../core/models';
+import { BrlPipe, MesPipe, pct, soma } from '../core/formato';
+import { curvaFatura, faturaDoMes, fixasNaFatura, opcoesRecebimento } from '../core/financas';
+import { Cartao, Recorrencia } from '../core/models';
 import { Store } from '../core/store';
 import { q, supabase } from '../core/supabase';
 import { Curvas } from '../shared/graficos';
@@ -33,10 +33,11 @@ interface FormCartao {
   ativo: boolean;
   paga_mes_anterior: boolean;
   final: string;
+  recebimento_id: string | null;
 }
 
 @Component({
-  imports: [Moeda, FormsModule, RouterLink, BrlPipe, DiaPipe, MesPipe, Icon, Sheet, Curvas],
+  imports: [Moeda, FormsModule, RouterLink, BrlPipe, MesPipe, Icon, Sheet, Curvas],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -77,7 +78,7 @@ interface FormCartao {
           </div>
 
           <div class="corpo">
-            <a class="rl ver" routerLink="/gastos" [queryParams]="{ cartao: c.cartao.id, fatura: c.linkAberta }">
+            <a class="rl ver" routerLink="/fatura" [queryParams]="{ cartao: c.cartao.id, mes: c.aberta }">
               <div><div class="small muted">Fatura aberta · <span class="cap">{{ c.aberta | mes: true }}</span> <app-icon name="chevron_right" [size]="14" /></div>
                 <b class="grande num">{{ c.valorAberta | brl }}</b></div>
               @if (c.projecao; as p) {
@@ -93,7 +94,7 @@ interface FormCartao {
             }
 
             @if (c.faturaRef !== c.aberta) {
-              <a class="linha ver small" routerLink="/gastos" [queryParams]="{ cartao: c.cartao.id, fatura: c.faturaRef === s.mes() ? 0 : 1 }">
+              <a class="linha ver small" routerLink="/fatura" [queryParams]="{ cartao: c.cartao.id, mes: c.faturaRef }">
                 <span class="muted">Fatura de {{ c.faturaRef | mes }} <app-icon name="chevron_right" [size]="14" /></span>
                 <span class="num"><b>{{ c.faturaMes | brl }}</b>@if (c.pagaMes) { <span class="badge ok">Paga</span> }</span>
               </a>
@@ -107,13 +108,13 @@ interface FormCartao {
               }
               <div class="faturas">
                 @for (f of c.proximas; track f.mes) {
-                  <div class="fat" [class.zero]="!f.total">
+                  <a class="fat" [class.zero]="!f.total" routerLink="/fatura" [queryParams]="{ cartao: c.cartao.id, mes: f.mes }">
                     <small>{{ f.mes | mes: true }}</small>
                     <b class="num">{{ f.total | brl }}</b>
-                  </div>
+                  </a>
                 }
               </div>
-              <button class="btn ghost sm" type="button" (click)="conferir(c.cartao)"><app-icon name="fact_check" [size]="16" />Conferir com o banco</button>
+              <a class="btn ghost sm" routerLink="/fatura" [queryParams]="{ cartao: c.cartao.id, mes: c.ultimaFechada }"><app-icon name="fact_check" [size]="16" />Conferir com o banco</a>
             </details>
           </div>
         </article>
@@ -127,52 +128,6 @@ interface FormCartao {
       }
       </div>
     </div>
-
-    <app-sheet [open]="!!conf()" (openChange)="conf.set(null)" [titulo]="'Conferir ' + (conf()?.nome ?? '')">
-      @if (conf(); as c) {
-        <div class="form">
-          <div class="chips wrap">
-            @for (m of mesesConf(); track m) {
-              <button type="button" class="chip" [class.on]="mesConf() === m" (click)="trocarMes(m)">Fatura de {{ m | mes: true }}</button>
-            }
-          </div>
-          <label class="field"><span>Total da fatura no app do banco</span>
-            <input moeda inputmode="numeric" placeholder="0,00" [ngModel]="totalBanco()" (ngModelChange)="totalBanco.set($event)" /></label>
-          <div class="linha"><span class="muted">No CFP</span><b class="num">{{ totalApp() | brl }}</b></div>
-          @if (diferenca(); as d) {
-            @if (d > 0) {
-              <div class="aviso alerta"><app-icon class="i" name="playlist_add" /><div>
-                <div class="t">Faltam {{ d | brl }} no CFP</div>
-                <div class="s">Compra não lançada, IOF, juros ou anuidade. <a routerLink="/importar">Importe a fatura</a> para achar o que falta: o que já está lançado vem desmarcado.</div>
-              </div></div>
-            } @else {
-              <div class="aviso alerta"><app-icon class="i" name="playlist_remove" /><div>
-                <div class="t">O CFP tem {{ -d | brl }} a mais</div>
-                <div class="s">Compra lançada duas vezes, na fatura errada ou estorno que faltou lançar.</div>
-              </div></div>
-            }
-          } @else if (parseValor(totalBanco())) {
-            <div class="aviso sucesso"><app-icon class="i" name="check_circle" /><div><div class="t">Bate com o banco</div></div></div>
-          }
-          @if (suspeitos().size) { <p class="small muted">Em destaque: compras com o valor da diferença ou repetidas.</p> }
-          <div class="itens">
-            @if (anteriorConf()) {
-              <div class="it"><span>Saldo da fatura anterior</span><span class="num">{{ anteriorConf() | brl }}</span></div>
-            }
-            @for (f of fixasConf(); track f.descricao) {
-              <div class="it"><span>{{ f.descricao }} <span class="badge info">Conta fixa</span></span><span class="num">{{ f.valor | brl }}</span></div>
-            }
-            @for (g of gastosConf(); track g.id) {
-              <label class="it" [class.sus]="suspeitos().has(g.id)" [class.ok]="vistos().has(g.id)">
-                <span><input type="checkbox" [checked]="vistos().has(g.id)" (change)="ver(g.id)" /> {{ g.descricao }}<br /><span class="small muted">{{ g.data | dia }}</span></span>
-                <span class="num">{{ g.valor | brl }}</span>
-              </label>
-            }
-          </div>
-          <p class="small muted">Marque o que já conferiu no app do banco; a marcação não é salva.</p>
-        </div>
-      }
-    </app-sheet>
 
     <app-sheet [(open)]="aberto" [titulo]="f.id ? 'Editar cartão' : 'Novo cartão'">
       <form class="form" (ngSubmit)="salvar()">
@@ -197,6 +152,14 @@ interface FormCartao {
         <label class="field"><span>Final do cartão (opcional)</span>
           <input name="final" inputmode="numeric" maxlength="4" placeholder="1234" autocomplete="off" [(ngModel)]="f.final" />
           <small class="muted">4 últimos dígitos: a notificação do banco ("final 1234") cai neste cartão</small></label>
+        @if (recebimentos().length > 1) {
+          <label class="field"><span>Fatura paga com</span>
+            <select name="rec" [(ngModel)]="f.recebimento_id">
+              <option [ngValue]="null">Automático (pelo dia do vencimento)</option>
+              @for (r of recebimentos(); track r.id) { <option [ngValue]="r.id">{{ r.nome }}</option> }
+            </select>
+          </label>
+        }
         <label class="check"><input type="checkbox" name="padrao" [(ngModel)]="f.padrao" /> Cartão padrão</label>
         <label class="check"><input type="checkbox" name="ant" [(ngModel)]="f.paga_mes_anterior" /> Pagar com o salário do mês anterior</label>
         <p class="small muted">A fatura que vence no dia {{ f.vencimento_dia }} entra nas contas do mês anterior ao vencimento.</p>
@@ -232,7 +195,7 @@ interface FormCartao {
     details.mais[open] > summary { margin-bottom: 4px; }
     .faturas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 4px 0 8px; }
     @media (min-width: 720px) { .faturas { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
-    .fat { background: var(--card-2); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; }
+    .fat { color: inherit; text-decoration: none; background: var(--card-2); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; }
     .fat small { font-size: 0.7rem; color: var(--ink-2); text-transform: capitalize; font-weight: 600; }
     .fat b { font-size: 0.85rem; }
     .fat.zero { opacity: 0.55; }
@@ -255,37 +218,7 @@ export default class Cartoes {
   protected salvando = signal(false);
   f: FormCartao = this.vazio();
 
-  /** Conferir a fatura com o total do app do banco */
-  protected conf = signal<Cartao | null>(null);
-  protected mesConf = signal('');
-  protected totalBanco = signal('');
-  protected gastosConf = signal<Gasto[]>([]);
-  protected anteriorConf = signal(0);
-  protected vistos = signal(new Set<string>());
-  protected parseValor = parseValor;
-  protected mesesConf = computed(() => {
-    const c = this.conf();
-    if (!c) return [];
-    const aberta = mesFatura(hoje(), c);
-    return [addMeses(aberta, -2), addMeses(aberta, -1), aberta];
-  });
-  protected fixasConf = computed(() => {
-    const c = this.conf();
-    return c ? fixasNaFatura(this.mesConf(), c, this.s.recorrenciasPrev()) : [];
-  });
-  protected totalApp = computed(() => soma(this.gastosConf(), (g) => g.valor) + soma(this.fixasConf(), (f) => f.valor) + this.anteriorConf());
-  protected diferenca = computed(() => {
-    const b = parseValor(this.totalBanco());
-    const d = Math.round((b - this.totalApp()) * 100) / 100;
-    return b && Math.abs(d) >= 0.01 ? d : 0;
-  });
-  /** Com o valor da diferença ou repetidas */
-  protected suspeitos = computed(() => {
-    const d = Math.abs(this.diferenca());
-    if (!d) return new Set<string>();
-    const l = this.gastosConf();
-    return new Set([...l.filter((g) => Math.abs(Math.abs(g.valor) - d) < 0.01).map((g) => g.id), ...duplicados(l).flat().map((g) => g.id)]);
-  });
+  protected recebimentos = computed(() => opcoesRecebimento(this.s.recorrencias(), this.s.mes()));
 
   protected rotulosCiclo = (dias: string[]) => dias.map((d) => d.slice(8) + '/' + d.slice(5, 7));
 
@@ -302,10 +235,9 @@ export default class Cartoes {
       const aberta = mesFatura(hoje(), cartao);
       const proximas = meses.map((mes) => ({
         mes,
-        total: soma(dele.filter((g) => g.fatura_mes === mes), (g) => g.valor) + soma(fixasNaFatura(mes, cartao, this.s.recorrenciasPrev()), (f) => f.valor)
+        total: soma(dele.filter((g) => g.fatura_mes === mes), (g) => g.valor) + soma(fixasNaFatura(mes, cartao, this.s.recorrenciasPrev(), this.s.pagamentos()), (f) => f.valor)
           + (pagas.find((p) => p.ref_id === cartao.id && p.mes === addMeses(mes, -1))?.resto ?? 0),
       }));
-      const ref = this.s.mes();
       return {
         cartao,
         fecha: fechamentoFatura(mesFatura(hoje(), cartao), cartao).split('-').reverse().slice(0, 2).join('/'),
@@ -317,7 +249,7 @@ export default class Cartoes {
         projecao: cartao.ativo ? projetar(cartao, dele, this.s.recorrenciasPrev()) : null,
         aberta,
         valorAberta: proximas.find((f) => f.mes === aberta)?.total ?? 0,
-        linkAberta: aberta === ref ? 0 : aberta === addMeses(ref, 1) ? 1 : null,
+        ultimaFechada: addMeses(aberta, -1),
         proximas,
         proximasTotal: soma(proximas, (f) => f.total),
       };
@@ -370,39 +302,8 @@ export default class Cartoes {
     }
   }
 
-  conferir(c: Cartao) {
-    this.conf.set(c);
-    this.totalBanco.set('');
-    this.trocarMes(addMeses(mesFatura(hoje(), c), -1));
-  }
-
-  async trocarMes(mes: string) {
-    const c = this.conf()!;
-    this.mesConf.set(mes);
-    this.vistos.set(new Set());
-    try {
-      const [g, p] = await Promise.all([
-        q<Gasto[]>(supabase.from('gastos').select('*').eq('cartao_id', c.id).eq('fatura_mes', mes).order('data')),
-        q<{ resto?: number }[]>(supabase.from('pagamentos').select('*').eq('tipo', 'fatura').eq('ref_id', c.id).eq('mes', addMeses(mes, -1))),
-      ]);
-      if (this.mesConf() !== mes) return;
-      this.gastosConf.set(g);
-      this.anteriorConf.set(p[0]?.resto ?? 0);
-    } catch (e) {
-      this.toast.erro(e);
-    }
-  }
-
-  ver(id: string) {
-    this.vistos.update((v) => {
-      const n = new Set(v);
-      if (!n.delete(id)) n.add(id);
-      return n;
-    });
-  }
-
   private vazio(): FormCartao {
-    return { nome: '', fechamento_dia: 1, vencimento_dia: 10, fecha_dias: null, limite: null, cor: '#7c3aed', padrao: !this.s.cartoes().length, ativo: true, paga_mes_anterior: false, final: '' };
+    return { nome: '', fechamento_dia: 1, vencimento_dia: 10, fecha_dias: null, limite: null, cor: '#7c3aed', padrao: !this.s.cartoes().length, ativo: true, paga_mes_anterior: false, final: '', recebimento_id: null };
   }
 
   novo() {
@@ -411,7 +312,7 @@ export default class Cartoes {
   }
 
   editar(c: Cartao) {
-    this.f = { id: c.id, nome: c.nome, fechamento_dia: c.fechamento_dia, vencimento_dia: c.vencimento_dia, fecha_dias: c.fecha_dias, limite: c.limite, cor: c.cor, padrao: c.padrao, ativo: c.ativo, paga_mes_anterior: c.paga_mes_anterior, final: c.final ?? '' };
+    this.f = { id: c.id, nome: c.nome, fechamento_dia: c.fechamento_dia, vencimento_dia: c.vencimento_dia, fecha_dias: c.fecha_dias, limite: c.limite, cor: c.cor, padrao: c.padrao, ativo: c.ativo, paga_mes_anterior: c.paga_mes_anterior, final: c.final ?? '', recebimento_id: c.recebimento_id ?? null };
     this.aberto.set(true);
   }
 
@@ -436,7 +337,10 @@ export default class Cartoes {
     this.salvando.set(true);
     try {
       // padrão só pela RPC: o índice único não deixa dois cartões padrão nem por um instante
-      const { padrao, ...dados } = f;
+      const { padrao, recebimento_id, ...dados } = f;
+      // só manda com valor (ou para limpar): antes da 050 a coluna não existe
+      const antes = this.s.cartoes().find((c) => c.id === f.id)?.recebimento_id;
+      Object.assign(dados, recebimento_id || antes ? { recebimento_id } : {});
       const id = await this.s.salvar('cartoes', { ...dados, nome: f.nome.trim(), limite: f.limite || null, final: final || null, ...(padrao ? {} : { padrao: false }) });
       if (padrao) await this.s.definirPadrao(id);
       this.toast.ok('Cartão salvo');

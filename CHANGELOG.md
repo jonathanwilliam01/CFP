@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.26.11.16 — 2026-11-16
+- Nova tela Fatura do cartão (Mais → Fatura do cartão, ou tocando na fatura em Cartões e Contas): compras, parcelas, contas fixas, estornos e saldo anterior separados, por categoria, com período de compras e vencimento; setas para andar entre as faturas
+- Conferir com o banco: abra o CSV ou OFX da fatura e o CFP casa linha a linha. Mostra o que falta (lançar um ou todos), valor diferente (usar o do banco), o que só está no CFP (excluir ou passar para a próxima fatura), conta fixa com preço novo (reajustar) e marca os que batem como conferidos
+- Sobrou diferença (IOF, juros, arredondamento)? "Lançar ajuste" acerta a fatura com o valor exato; também dá para só digitar o total do app do banco
+- Favoritos: toque na estrela de uma tela no Mais (ou passe o mouse no menu lateral) e ela vai para o topo do Mais e do menu do computador; fica salvo na sua conta e vale em todos os aparelhos
+- Início: "Onde mais gastou" sempre à vista, com o gráfico das categorias do mês e, em cada uma, a % do total e quanto subiu ou caiu contra o mês anterior
+- Organizar por recebimento (Configurações → Carteira): Contas abre separada por salário, com quanto entra, as contas, o que falta pagar e a sobra de cada um; o resumo do mês todo continua no topo. No Início, Por recebimento sobe para perto do topo e destaca o próximo
+- "Paga com" na conta fixa e no cartão: escolha qual salário paga (ou deixe no automático, pelo dia do vencimento); acompanha os reajustes do salário
+- Aviso quando um salário que ainda vai cair não cobre as contas dele
+- Suas preferências de tela agora vão junto com a sua conta: gastos já revisados, avisos lidos e dispensados, sugestões ignoradas, vistas (lista, quadro, tabela), agrupamentos, seções abertas e valores das calculadoras valem em todos os aparelhos (migration 049)
+- Fatura conferida: na tela Fatura, "Marcar fatura como conferida" guarda a conferência para o casal; em Contas a fatura ganha o selo e, se já fechou e não foi conferida, o detalhe avisa antes de pagar
+- Notificação "fatura fechou" abre direto a conferência da fatura
+- Conta fixa no cartão com valor diferente na fatura: "Só nesta" usa o valor do banco só nessa fatura (também nas variáveis); "Reajustar" muda dali em diante
+- IOF, juros, anuidade, tarifas e o "Ajuste da fatura" entram na categoria Tarifas e ajustes, criada sozinha na primeira vez
+- Cartão que fecha no fim do mês (Nubank): compras do dia do fechamento em diante e as parcelas que o banco data nesse dia aparecem no mês seguinte, junto com o resto da fatura, em Gastos, Início, Resumo, Fechamento e Relatórios. Vale para o que já está lançado
+
 ## v1.26.11.15 — 2026-11-14
 - Lançar por voz em destaque: botão grande no painel de lançamento, botão de microfone na tela e "Falar o gasto" ao segurar o +
 - Fale do seu jeito e em qualquer ordem: "gastei cento e vinte no cartão do Nubank com mercado ontem", "no Inter 50 reais de uber", "tv 2 mil em 10 vezes"

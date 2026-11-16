@@ -89,6 +89,20 @@ import { Menus, PRINCIPAIS } from './menu';
         <app-icon name="add" [size]="20" /><span class="r">Lançamento</span>
       </button>
       <nav>
+        @if (menus.favoritos().length) {
+          <div class="grupo"><span class="r">Favoritos</span></div>
+          @for (m of menus.favoritos(); track m.rota) {
+            <div class="item">
+              <a [routerLink]="m.rota" routerLinkActive="on" #rla="routerLinkActive" [attr.aria-label]="m.rotulo" (mouseenter)="dica($event, m.rotulo)" (mouseleave)="tip.set(null)">
+                <app-icon [name]="m.icone" [fill]="rla.isActive" /><span class="r">{{ m.rotulo }}</span>
+                @if (badge(m.rota); as n) {
+                  <span class="n">{{ n }}</span>
+                }
+              </a>
+              <button type="button" class="fav on" (click)="menus.alternarFavorito(m.rota)" [attr.aria-label]="'Tirar ' + m.rotulo + ' dos favoritos'" title="Tirar dos favoritos"><app-icon name="star" [fill]="true" [size]="16" /></button>
+            </div>
+          }
+        }
         <div class="grupo"><span class="r">Principal</span></div>
         @for (m of principais; track m.rota) {
           <a [routerLink]="m.rota" routerLinkActive="on" #rla="routerLinkActive" [routerLinkActiveOptions]="{ exact: m.rota === '/' }" [attr.aria-label]="m.rotulo" (mouseenter)="dica($event, m.rotulo)" (mouseleave)="tip.set(null)">
@@ -101,12 +115,15 @@ import { Menus, PRINCIPAIS } from './menu';
         @for (g of menus.visiveis(); track g.nome) {
           <div class="grupo"><span class="r">{{ g.nome }}</span></div>
           @for (m of g.itens; track m.rota) {
-            <a [routerLink]="m.rota" routerLinkActive="on" #rla="routerLinkActive" [attr.aria-label]="m.rotulo" (mouseenter)="dica($event, m.rotulo)" (mouseleave)="tip.set(null)">
-              <app-icon [name]="m.icone" [fill]="rla.isActive" /><span class="r">{{ m.rotulo }}</span>
-              @if (badge(m.rota); as n) {
-                <span class="n">{{ n }}</span>
-              }
-            </a>
+            <div class="item">
+              <a [routerLink]="m.rota" routerLinkActive="on" #rla="routerLinkActive" [attr.aria-label]="m.rotulo" (mouseenter)="dica($event, m.rotulo)" (mouseleave)="tip.set(null)">
+                <app-icon [name]="m.icone" [fill]="rla.isActive" /><span class="r">{{ m.rotulo }}</span>
+                @if (badge(m.rota); as n) {
+                  <span class="n">{{ n }}</span>
+                }
+              </a>
+              <button type="button" class="fav" (click)="menus.alternarFavorito(m.rota)" [attr.aria-label]="'Favoritar ' + m.rotulo" title="Favoritar: vai para o topo do menu"><app-icon name="star" [size]="16" /></button>
+            </div>
             @if (m.rota === '/config') {
               <button type="button" class="recolher" (click)="tour.iniciar()" aria-label="Passo a passo" (mouseenter)="dica($event, 'Passo a passo')" (mouseleave)="tip.set(null)">
                 <app-icon name="tour" /><span class="r">Passo a passo</span>
@@ -377,6 +394,15 @@ import { Menus, PRINCIPAIS } from './menu';
       :host.recolhido .r { display: none; }
       :host.recolhido .side nav a, :host.recolhido .recolher { justify-content: center; padding: 10px 0; }
       :host.recolhido .lanca { padding: 0; width: 52px; height: 52px; margin: 0 auto; border-radius: 16px; flex-shrink: 0; }
+      .item { position: relative; }
+      .fav {
+        position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: grid; place-items: center;
+        width: 28px; height: 28px; border: 0; border-radius: 8px; background: var(--card); color: var(--ink-3); cursor: pointer; opacity: 0;
+      }
+      .item:hover .fav, .fav:focus-visible { opacity: 1; }
+      .fav:hover { color: var(--warn); }
+      .fav.on { color: var(--warn); }
+      :host.recolhido .fav { display: none; }
       :host.recolhido .side .n { position: absolute; top: 2px; right: 6px; min-width: 16px; height: 16px; font-size: 0.62rem; }
     }
   `,

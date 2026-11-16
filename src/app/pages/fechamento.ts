@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { addMeses, fimMes, hoje, mesAtual, nomeMes } from '../core/datas';
-import { contasDoMes, noMes, orcamentosNoMes, porCategoria, resumoMes, statusOrcamentos } from '../core/financas';
+import { contasDoMes, mesDoGasto, noMes, orcamentosNoMes, porCategoria, resumoMes, statusOrcamentos } from '../core/financas';
 import { BrlPipe, DiaPipe, MesPipe, moeda, pct, soma } from '../core/formato';
 import { Entrada, Gasto, Pagamento } from '../core/models';
 import { Store } from '../core/store';
@@ -220,9 +220,9 @@ export default class Fechamento {
     const mes = this.mes();
     const rec = this.s.recorrenciasPrev();
     const contas = contasDoMes(mes, rec, this.s.cartoes(), d.gastos, d.pagamentos, this.s.catMap());
-    const r = resumoMes(mes, d.gastos, soma(d.entradas.filter((e) => noMes(e.data, mes)), (e) => e.valor), rec, contas, d.pagamentos);
-    const doMes = d.gastos.filter((g) => noMes(g.data, mes));
-    const ant = soma(d.gastos.filter((g) => noMes(g.data, this.anterior())), (g) => g.valor);
+    const r = resumoMes(mes, d.gastos, soma(d.entradas.filter((e) => noMes(e.data, mes)), (e) => e.valor), rec, contas, d.pagamentos, 0, this.s.cartoes());
+    const doMes = d.gastos.filter((g) => mesDoGasto(g, this.s.cartoes()) === mes);
+    const ant = soma(d.gastos.filter((g) => mesDoGasto(g, this.s.cartoes()) === this.anterior()), (g) => g.valor);
     return {
       r,
       sobra: pct(r.saldo, r.entradas),

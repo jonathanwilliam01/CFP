@@ -436,7 +436,7 @@ export default class Planejamento {
       // orçamentos com reserva: o que falta gastar do limite entra como saída
       const orc = statusOrcamentos(orcamentosNoMes(this.s.orcamentos(), this.s.orcamentoValores(), mes, this.s.orcamentoFechados()), d.gastos, mes, this.s.catMap(), this.s.cartoes(), mesAtual());
       const reservado = soma(orc, (o) => o.reservado);
-      const r = resumoMes(mes, d.gastos, avulsas, rec, contas, d.pagamentos, reservado);
+      const r = resumoMes(mes, d.gastos, avulsas, rec, contas, d.pagamentos, reservado, this.s.cartoes());
       const planos = this.planosDoMes(mes);
       const pe = soma(planos.filter((p) => p.tipo === 'entrada'), (p) => p.valor);
       const ps = soma(planos.filter((p) => p.tipo === 'saida'), (p) => p.valor);

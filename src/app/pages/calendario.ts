@@ -230,7 +230,8 @@ export default class Calendario {
 
   protected dias = computed<Dia[]>(() => {
     const mes = this.s.mes();
-    const gastos = this.s.gastosMes();
+    // calendário é pela data real, não pelo mês do ciclo do cartão
+    const gastos = this.s.gastos().filter((g) => noMes(g.data, mes));
     // entrada que cai no mês seguinte: aparece no dia em que cai (a do mês anterior cai neste)
     const fixas = [addMeses(mes, -1), mes].flatMap((m) =>
       this.s.recorrencias().filter((r) => r.tipo === 'entrada' && ativaNoMes(r, m)).map((r) => ({ r, m, data: dataEntrada(r, m) })),

@@ -10,17 +10,32 @@ export const ativaNoMes = (r: { ativo: boolean; inicio: string; fim: string | nu
 
 export const noMes = (data: string, mes: string) => data >= mes && data <= fimMes(mes);
 
+/**
+ * Mês em que o gasto aparece. No cartão que fecha nos últimos 7 dias do mês, compra do dia do fechamento
+ * até o fim do mês (e parcela que o Nubank data no fechamento) conta no mês seguinte, junto com o resto do ciclo.
+ */
+export function mesDoGasto(g: Pick<Gasto, 'data' | 'forma' | 'cartao_id' | 'fatura_mes'>, cartoes: Cartao[]) {
+  const m = inicioMes(g.data);
+  const c = g.forma === 'cartao' && g.fatura_mes ? cartoes.find((x) => x.id === g.cartao_id) : undefined;
+  if (!c) return m;
+  const ini = inicioFatura(g.fatura_mes!, c);
+  return g.data >= ini && inicioMes(ini) === m && diffDias(ini, fimMes(ini)) < 7 ? addMeses(m, 1) : m;
+}
+
 /** Data em que a entrada fixa do mês cai: dia fixo ou N-ésimo dia útil, no mês ou no seguinte */
 export function dataEntrada(r: Pick<Recorrencia, 'dia' | 'dia_util' | 'paga_mes_anterior'>, mes: string) {
   const m = r.paga_mes_anterior ? addMeses(mes, 1) : mes;
   return r.dia_util ? diaUtil(m, r.dia) : diaNoMes(m, r.dia);
 }
 
-/** Contas fixas no cartão: uma cobrança por fatura; inicio/fim são meses de fatura */
-export function fixasNaFatura(mes: string, cartao: Cartao, recorrencias: Recorrencia[]) {
+/** Contas fixas no cartão: uma cobrança por fatura; inicio/fim são meses de fatura. Valor do mês (pagamento sem baixa) vale sobre o cadastro/média. */
+export function fixasNaFatura(mes: string, cartao: Cartao, recorrencias: Recorrencia[], pagamentos: Pick<Pagamento, 'tipo' | 'ref_id' | 'mes' | 'valor'>[] = []) {
   return recorrencias
     .filter((r) => r.tipo === 'conta' && r.cartao_id === cartao.id && ativaNoMes(r, mes))
-    .map((r) => ({ id: `${r.id}-${mes}`, descricao: r.descricao, valor: r.valor, data: diaNoMes(mes, cartao.vencimento_dia), fixa: true }));
+    .map((r) => {
+      const p = pagamentos.find((x) => x.tipo === 'recorrencia' && x.ref_id === r.id && x.mes === mes);
+      return { id: `${r.id}-${mes}`, rec: r, descricao: r.descricao, valor: p?.valor ?? r.valor, data: diaNoMes(mes, cartao.vencimento_dia), fixa: true, informado: !!p };
+    });
 }
 
 /** Mês da fatura que entra nas contas do mês */
@@ -58,6 +73,7 @@ export function contasDoMes(
         pago: p,
         media: r.variavel && !reg,
         informado: p ? null : reg,
+        recebimento_id: r.recebimento_id ?? null,
         beneficio_id: r.beneficio_id,
       };
     });
@@ -68,13 +84,14 @@ export function contasDoMes(
       const anterior = pago('fatura', c.id, addMeses(fm, -1))?.resto ?? 0;
       const total =
         soma(gastos.filter((g) => g.cartao_id === c.id && g.fatura_mes === fm), (g) => g.valor) +
-        soma(fixasNaFatura(fm, c, recorrencias), (f) => f.valor) +
+        soma(fixasNaFatura(fm, c, recorrencias, pagamentos), (f) => f.valor) +
         anterior;
       const p = pago('fatura', c.id, fm);
       return {
         tipo: 'fatura' as const,
         ref_id: c.id,
         descricao: `Fatura ${c.nome}`,
+        recebimento_id: c.recebimento_id ?? null,
         icone: 'credit_card',
         cor: c.cor,
         vencimento: diaNoMes(fm, c.vencimento_dia),
@@ -114,6 +131,8 @@ export interface Recebimento {
   dia: number;
   util: boolean;
   nome: string;
+  /** entradas fixas do grupo (para o "Paga com") */
+  ids: string[];
   recebe: number;
   contas: ContaMes[];
   total: number;
@@ -132,6 +151,21 @@ export interface ReservaDia {
   nome: string;
   /** dia do vencimento da fatura, mesmo quando vence no mês seguinte */
   vence?: number;
+}
+
+/** Entradas fixas que podem pagar contas ("Paga com"), com rótulo "Salário · 5º dia útil" */
+export function opcoesRecebimento(recorrencias: Recorrencia[], mes: string) {
+  return recorrencias
+    .filter((r) => r.tipo === 'entrada' && r.ativo && (!r.fim || inicioMes(r.fim) >= mes))
+    .sort((a, b) => a.dia - b.dia)
+    .map((r) => ({ id: r.id, nome: `${r.descricao} · ${r.dia_util ? `${r.dia}º dia útil` : `dia ${r.dia}`}` }));
+}
+
+/** A entrada e as versões que vieram de reajustes dela: o "Paga com" aponta sempre para a mais nova */
+function versoes(id: string, recorrencias: Pick<Recorrencia, 'id' | 'reajuste_de'>[]) {
+  const l = [id];
+  for (let i = 0; i < l.length; i++) for (const r of recorrencias) if (r.reajuste_de === l[i] && !l.includes(r.id)) l.push(r.id);
+  return l;
 }
 
 /**
@@ -160,6 +194,7 @@ export function porRecebimento(
       dia: es[0].dia,
       util: !!es[0].dia_util,
       nome: es.map((e) => e.descricao).join(' + '),
+      ids: es.flatMap((e) => versoes(e.id, recorrencias)),
       recebe: soma(es, (e) => pagamentos.find((p) => p.ref_id === e.id && p.mes === mes)?.valor ?? e.valor),
       contas: [] as ContaMes[],
       res: new Map<string, { nome: string; valor: number }>(),
@@ -170,7 +205,11 @@ export function porRecebimento(
     for (const x of porDia) if (x.dia <= dia) g = x;
     return g;
   };
-  for (const c of contas) if (!c.beneficio_id) grupo(+c.vencimento.slice(8)).contas.push(c);
+  // "Paga com" escolhido vence; sem ele (ou entrada fora do mês), pelo dia do vencimento
+  for (const c of contas) {
+    if (c.beneficio_id) continue;
+    (grupos.find((g) => c.recebimento_id && g.ids.includes(c.recebimento_id)) ?? grupo(+c.vencimento.slice(8))).contas.push(c);
+  }
   for (const r of reservas) {
     const g = grupo(r.vence ?? r.dia);
     const a = g.res.get(r.orcamento_id) ?? { nome: r.nome, valor: 0 };
@@ -233,8 +272,9 @@ export function resumoMes(
   contas: ContaMes[],
   pagamentos: Pagamento[],
   reservado = 0,
+  cartoes: Cartao[] = [],
 ): ResumoMes {
-  const doMes = gastos.filter((g) => noMes(g.data, mes));
+  const doMes = gastos.filter((g) => mesDoGasto(g, cartoes) === mes);
   // contas pagas com benefício contam como benefício, fora das saídas
   const contasBenef = contas.filter((c) => c.beneficio_id);
   contas = contas.filter((c) => !c.beneficio_id);

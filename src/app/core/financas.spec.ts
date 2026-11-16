@@ -106,6 +106,16 @@ describe('porRecebimento', () => {
     expect(l.map((g) => [g.dia, g.recebe, g.total, g.aPagar, g.sobra])).toEqual([[7, 3100, 200, 0, 2900], [20, 2000, 150, 150, 1850]]);
   });
 
+  it('"Paga com" vence o dia do vencimento, inclusive com a entrada reajustada e no cartão', () => {
+    const vale2 = conta({ id: 'e1b', tipo: 'entrada', descricao: 'Vale', valor: 2100, dia: 20, reajuste_de: 'e1', inicio: '2026-11-01' });
+    const recs = [{ ...vale, fim: '2026-10-01' }, vale2, salario, conta({ id: 'r2', dia: 10, valor: 200, recebimento_id: 'e1b' }), conta({ id: 'r3', dia: 25, valor: 50 })];
+    const c = cartao({ vencimento_dia: 8, recebimento_id: 'e1b' });
+    const g = gasto({ forma: 'cartao', cartao_id: 'c1', fatura_mes: mes, valor: 300 });
+    const contas = contasDoMes(mes, recs, [c], [g], [], new Map());
+    const l = porRecebimento(mes, contas, recs, []);
+    expect(l.map((x) => [x.dia, x.contas.map((k) => k.ref_id).sort()])).toEqual([[7, []], [20, ['c1', 'r2', 'r3']]]);
+  });
+
   it('reservas de orçamento entram no recebimento do vencimento (débito: pelos dias)', () => {
     const recs = [vale, salario];
     const reservas = [

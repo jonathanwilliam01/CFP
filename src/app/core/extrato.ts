@@ -142,6 +142,7 @@ function limpar(t: string) {
 }
 
 const PALAVRAS: [RegExp, string][] = [
+  [/\biof\b|juros|anuidade|tarifa|encargo|multa|ajuste da fatura/i, 'tarifas e ajustes'],
   [/uber|\b99\b|cabify|metr[oô]|[oô]nibus/i, 'transporte'],
   [/posto|ipiranga|shell|petrobras|\bbr mania|combust/i, 'gasolina'],
   [/auto ?center|autozone|motoservice|estaciona|sem parar|veloe|mec[aâ]nica/i, 'carro'],

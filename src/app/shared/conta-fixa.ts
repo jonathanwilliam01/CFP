@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, computed, Component, OnInit, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { addMeses, diaNoMes, hoje, mesAtual, mesFatura } from '../core/datas';
-import { CompraRecorrente, MAX_MEDIA, MIN_MEDIA, mediaContas } from '../core/financas';
+import { CompraRecorrente, MAX_MEDIA, MIN_MEDIA, mediaContas, opcoesRecebimento } from '../core/financas';
 import { BrlPipe, MesPipe, parseValor } from '../core/formato';
 import { Recorrencia } from '../core/models';
 import { Store } from '../core/store';
@@ -24,6 +24,8 @@ interface FormFixa {
   paga_mes_anterior: boolean;
   beneficio_id: string | null;
   pagamento: string;
+  /** "Paga com" (050): null = automático pelo dia */
+  recebimento_id: string | null;
   hist: { id?: string; mes: string; valor: number }[];
   removidos: string[];
 }
@@ -55,6 +57,14 @@ interface FormFixa {
       </div>
       @if (f().id) {
         <p class="small muted">Mudar o valor aqui troca todos os meses. Para mudar só a partir de um mês, use o reajuste abaixo.</p>
+      }
+      @if (!f().cartao_id && !f().beneficio_id && recebimentos().length > 1) {
+        <label class="field"><span>Paga com</span>
+          <select name="rec" [ngModel]="f().recebimento_id" (ngModelChange)="set('recebimento_id', $event)">
+            <option [ngValue]="null">Automático (pelo dia do vencimento)</option>
+            @for (r of recebimentos(); track r.id) { <option [ngValue]="r.id">{{ r.nome }}</option> }
+          </select>
+        </label>
       }
       @if (f().cartao_id) {
         <p class="small muted">Entra em todas as faturas a partir da primeira, vence junto com a fatura e é paga com ela.</p>
@@ -121,6 +131,7 @@ interface FormFixa {
 })
 export class ContaFixa implements OnInit {
   protected s = inject(Store);
+  protected recebimentos = computed(() => opcoesRecebimento(this.s.recorrencias(), this.s.mes()));
   private toast = inject(Toast);
 
   readonly rec = input<Recorrencia | null>(null);
@@ -142,6 +153,7 @@ export class ContaFixa implements OnInit {
         id: r.id, descricao: r.descricao, valor: String(r.valor).replace('.', ','), dia: r.dia, categoria_id: r.categoria_id,
         inicio: r.inicio.slice(0, 7), fim: r.fim?.slice(0, 7) ?? '', ativo: r.ativo, cartao_id: r.cartao_id ?? null,
         variavel: r.variavel, paga_mes_anterior: r.paga_mes_anterior, beneficio_id: r.beneficio_id ?? null, pagamento: r.pagamento ?? '', removidos: [],
+        recebimento_id: r.recebimento_id ?? null,
         hist: this.s.valoresFixas().filter((v) => v.ref_id === r.id).map(({ id, mes, valor }) => ({ id, mes, valor })),
       });
     const x = this.sugestao();
@@ -156,7 +168,7 @@ export class ContaFixa implements OnInit {
   private vazio(): FormFixa {
     return {
       descricao: '', valor: '', dia: 10, categoria_id: null, inicio: mesAtual().slice(0, 7), fim: '', ativo: true, cartao_id: null,
-      variavel: false, paga_mes_anterior: false, beneficio_id: null, pagamento: '', hist: [], removidos: [],
+      variavel: false, paga_mes_anterior: false, beneficio_id: null, pagamento: '', hist: [], removidos: [], recebimento_id: null,
     };
   }
 
@@ -189,6 +201,8 @@ export class ContaFixa implements OnInit {
         cartao_id: f.cartao_id, variavel: f.variavel, paga_mes_anterior: !f.cartao_id && !f.beneficio_id && f.paga_mes_anterior,
         beneficio_id: f.cartao_id ? null : f.beneficio_id,
         pagamento: (!f.cartao_id && !f.beneficio_id && f.pagamento.trim()) || null,
+        // só manda com valor (ou para limpar): antes da 050 a coluna não existe
+        ...(f.recebimento_id || this.rec()?.recebimento_id ? { recebimento_id: f.cartao_id || f.beneficio_id ? null : f.recebimento_id } : {}),
       });
       if (f.variavel) {
         const novos = f.hist.filter((h) => !h.id).map((h) => ({ mes: h.mes, valor: h.valor, pago_em: diaNoMes(h.mes, dia) }));
