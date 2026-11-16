@@ -8,6 +8,20 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.17',
+    data: '2026-11-16',
+    itens: [
+      'Transferir entre contas (Saldos bancários → Transferir): move o dinheiro do Itaú para o Nubank, por exemplo, sem virar gasto nem entrada. Toque numa transferência para desfazer',
+      'Cofrinho ligado ao banco: ao depositar ou retirar, escolha a conta de onde sai ou para onde volta e o saldo do banco acompanha',
+      'Cofrinho que rende: em Editar cofrinho, escolha % do CDI ou taxa fixa ao ano. Todo mês fechado o CFP lança o rendimento estimado; "Ajustar ao saldo do banco" acerta com o valor real',
+      'Ler do PDF: comprovante ou boleto em PDF também preenche o lançamento (com texto lê na hora; escaneado passa pela leitura de imagem)',
+      'Ler da foto sem internet: depois da primeira leitura (ou baixado em segundo plano), o leitor fica guardado no aparelho',
+      'Chat: "Mensagens anteriores" carrega a conversa toda, não só as últimas 200',
+      'Verificação em duas etapas (Minha conta → Segurança e privacidade): o login passa a pedir também o código do app autenticador',
+      'Termos de uso e Política de privacidade, com aceite na criação da conta; "Baixar meus dados" e "Excluir minha conta" em Segurança e privacidade',
+    ],
+  },
+  {
     versao: 'v1.26.11.16',
     data: '2026-11-16',
     itens: [

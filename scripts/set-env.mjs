@@ -11,10 +11,12 @@ const url = process.env.SUPABASE_URL ?? '';
 const key = process.env.SUPABASE_ANON_KEY ?? '';
 // opcional: sem ela o Web Push fica desligado
 const vapid = process.env.VAPID_PUBLIC_KEY ?? '';
+// opcional: provedores de login ligados no Supabase (google,apple)
+const oauth = (process.env.OAUTH_PROVEDORES ?? '').split(',').map((x) => x.trim()).filter((x) => /^(google|apple)$/.test(x));
 if (!url || !key) console.warn('⚠ SUPABASE_URL / SUPABASE_ANON_KEY não definidos');
 
 mkdirSync('src/environments', { recursive: true });
 writeFileSync(
   'src/environments/environment.ts',
-  `export const environment = ${JSON.stringify({ supabaseUrl: url, supabaseKey: key, vapidPublicKey: vapid }, null, 2)};\n`,
+  `export const environment = ${JSON.stringify({ supabaseUrl: url, supabaseKey: key, vapidPublicKey: vapid, oauth }, null, 2)};\n`,
 );

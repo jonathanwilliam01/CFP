@@ -50,7 +50,12 @@
               {
                 "glob": "**/*",
                 "input": "public"
-              }
+              },
+              { "glob": "worker.min.js", "input": "node_modules/tesseract.js/dist", "output": "ocr" },
+              { "glob": "tesseract-core-lstm.wasm.js", "input": "node_modules/tesseract.js-core", "output": "ocr/core" },
+              { "glob": "tesseract-core-simd-lstm.wasm.js", "input": "node_modules/tesseract.js-core", "output": "ocr/core" },
+              { "glob": "por.traineddata.gz", "input": "node_modules/@tesseract.js-data/por/4.0.0_best_int", "output": "ocr/lang" },
+              { "glob": "pdf.worker.min.mjs", "input": "node_modules/pdfjs-dist/build", "output": "ocr" }
             ],
             "styles": [
               "src/styles.scss"

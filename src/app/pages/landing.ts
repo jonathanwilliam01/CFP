@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, inject, signal } from '@angular/core';
+import { CONTATO } from '../core/legal';
 import { RouterLink } from '@angular/router';
 import { Icon } from '../shared/icon';
 
-const CONTATO = 'jonathanwillianps01@gmail.com';
 
 /** Apresentação para quem ainda não entrou; sempre no tema escuro azul */
 @Component({
@@ -122,6 +122,8 @@ const CONTATO = 'jonathanwillianps01@gmail.com';
 
     <footer>
       <span>© {{ ano }} CFP · Controle Financeiro Pessoal</span>
+      <a routerLink="/termos">Termos de uso</a>
+      <a routerLink="/privacidade">Privacidade</a>
       <a [href]="'mailto:' + contato">{{ contato }}</a>
     </footer>
   `,

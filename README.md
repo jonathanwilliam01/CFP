@@ -63,6 +63,13 @@ Rota `/admin`, só para quem está na tabela `admins` (o primeiro admin entra pe
 4. Outro admin: `insert into admins (user_id) select id from auth.users where email = '...';`
 5. Testes do banco: `bash scripts/testar-banco.sh` (Docker).
 
+## Conta, privacidade e login
+
+- **Excluir conta (LGPD):** Edge Function `conta` (`verify_jwt = true`), publicada pelo `npm run fn:deploy`. Chama `excluir_minha_conta` (migration 051), apaga comprovantes das carteiras que somem, a foto e o usuário.
+- **Duas etapas (TOTP):** ligar em Supabase → Authentication → Multi-Factor (TOTP ativado por padrão). Com fator verificado, o RLS (`is_membro`/`e_dono` → `mfa_ok()`) só libera sessão `aal2`.
+- **Google/Apple:** ativar o provedor em Authentication → Providers (com Client ID/Secret), incluir a URL do app em Redirect URLs e pôr `OAUTH_PROVEDORES=google,apple` no `.env` e na Vercel. Sem a variável os botões não aparecem.
+- **Termos:** texto em `pages/legal.ts`; mudou o texto, troque `TERMOS_VERSAO` em `core/legal.ts` e todos aceitam de novo.
+
 ## Testes
 
 `npm test` (Vitest): regras de `datas.ts`, `financas.ts`, `extrato.ts` e `texto.ts`.

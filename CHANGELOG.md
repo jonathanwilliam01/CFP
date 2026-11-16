@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.26.11.17 — 2026-11-16
+- Transferir entre contas (Saldos bancários → Transferir): move o dinheiro do Itaú para o Nubank, por exemplo, sem virar gasto nem entrada. Toque numa transferência para desfazer
+- Cofrinho ligado ao banco: ao depositar ou retirar, escolha a conta de onde sai ou para onde volta e o saldo do banco acompanha
+- Cofrinho que rende: em Editar cofrinho, escolha % do CDI ou taxa fixa ao ano. Todo mês fechado o CFP lança o rendimento estimado; "Ajustar ao saldo do banco" acerta com o valor real
+- Ler do PDF: comprovante ou boleto em PDF também preenche o lançamento (com texto lê na hora; escaneado passa pela leitura de imagem)
+- Ler da foto sem internet: depois da primeira leitura (ou baixado em segundo plano), o leitor fica guardado no aparelho
+- Chat: "Mensagens anteriores" carrega a conversa toda, não só as últimas 200
+- Verificação em duas etapas (Minha conta → Segurança e privacidade): o login passa a pedir também o código do app autenticador
+- Termos de uso e Política de privacidade, com aceite na criação da conta; "Baixar meus dados" e "Excluir minha conta" em Segurança e privacidade
+
 ## v1.26.11.16 — 2026-11-16
 - Nova tela Fatura do cartão (Mais → Fatura do cartão, ou tocando na fatura em Cartões e Contas): compras, parcelas, contas fixas, estornos e saldo anterior separados, por categoria, com período de compras e vencimento; setas para andar entre as faturas
 - Conferir com o banco: abra o CSV ou OFX da fatura e o CFP casa linha a linha. Mostra o que falta (lançar um ou todos), valor diferente (usar o do banco), o que só está no CFP (excluir ou passar para a próxima fatura), conta fixa com preço novo (reajustar) e marca os que batem como conferidos

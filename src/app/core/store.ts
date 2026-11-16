@@ -7,6 +7,8 @@ import { removerComprovante } from './comprovante';
 import { addMeses, fimMes, hoje, inicioMes, mesAtual, nomeMes } from './datas';
 import { GastoHist, Transferencia, acertoMes, aumentosRecorrentes, metaSobra, cobrancasBeneficio, comprasRecorrentes, contasDoMes, mediasVariaveis, mesDoGasto, noMes, orcamentosNoMes, porRecebimento, previsaoFimMes, reservasPorDia, resumoMes, statusOrcamentos } from './financas';
 import { soma } from './formato';
+import { atualizarTaxas, taxasBcb } from './bcb';
+import { rendimentosPendentes, taxaMensal } from './rendimento';
 import {
   Acerto, Beneficio, Carteira, Cartao, Categoria, ContaBancaria, Cofrinho, CofrinhoMov, Dados, Desafio, Divida, Entrada, FaturaConferida, Gasto, Membro, Orcamento, OrcamentoFechado,
   OrcamentoValor, Pagamento, Receber, Recorrencia, Registro, Regra, Tabela, UsoBeneficio, Viagem, Desejo, Meta, MetaCheckin, Fechamento,
@@ -606,6 +608,20 @@ export class Store {
     const id = await q<string | null>(supabase.rpc('guardar_sobra', { p_carteira: c.id, p_mes: mes, p_valor: valor, p_descricao: descricao }));
     await Promise.all([this.iniciar(), this.recarregar('cofrinho_movs')]);
     return id ? { id, valor, cofrinho: this.cofrinhos().find((x) => x.id === c.sobra_cofrinho)?.nome ?? 'cofrinho' } : null;
+  }
+
+  /** Lança o rendimento dos meses fechados nos cofrinhos que rendem; devolve o total lançado */
+  async lancarRendimentos() {
+    const lista = this.cofrinhos().filter((c) => c.rende && c.rende_desde);
+    if (!lista.length) return 0;
+    if (lista.some((c) => c.rende === 'cdi')) await atualizarTaxas();
+    const cdi = taxasBcb()?.cdi ?? null;
+    const novos = lista.flatMap((c) => rendimentosPendentes(c, this.cofrinhoMovs(), taxaMensal(c, cdi), mesAtual()));
+    if (!novos.length) return 0;
+    // o outro membro pode lançar ao mesmo tempo: o mês repetido é ignorado
+    await q(supabase.from('cofrinho_movs').upsert(novos.map((n) => ({ ...n, carteira_id: this.carteiraId() })), { onConflict: 'cofrinho_id,rendimento_mes', ignoreDuplicates: true }));
+    await this.recarregar('cofrinho_movs');
+    return soma(novos, (n) => n.valor);
   }
 
   async desfazerPagamento(id: string) {

@@ -282,7 +282,7 @@ export class LancarSheet {
         const compartilhado = this.l.arquivo();
         this.arquivo.set(compartilhado);
         this.l.arquivo.set(null);
-        if (compartilhado?.type.startsWith('image/') && !this.l.texto()) this.lerFoto(compartilhado);
+        if (compartilhado && /^image\/|^application\/pdf$/.test(compartilhado.type) && !this.l.texto()) this.lerFoto(compartilhado);
         this.tirar.set(false);
         const t = this.l.texto();
         if (t) {
@@ -472,18 +472,21 @@ export class LancarSheet {
   /** progresso da leitura da foto (null = parado) */
   protected lendo = signal<number | null>(null);
 
-  /** Lê valor, data e loja da foto e aplica como o texto rápido; o que já foi digitado só muda no que a foto trouxe */
-  async lerFoto(img: Blob) {
+  /** Lê valor, data e loja da foto ou PDF e aplica como o texto rápido; o que já foi digitado só muda no que veio do arquivo */
+  async lerFoto(arq: Blob) {
     this.lendo.set(0);
+    const onde = arq.type === 'application/pdf' ? 'do PDF' : 'da foto';
     try {
-      const { lerImagem } = await import('../core/ocr');
-      const t = lerCupom(await lerImagem(img, (p) => this.lendo.set(Math.round(p * 100))));
-      if (!t) return this.toast.erro('Não achei o valor na foto. Preencha à mão.');
+      const { lerImagem, lerPdf } = await import('../core/ocr');
+      const prog = (p: number) => this.lendo.set(Math.round(p * 100));
+      const t = lerCupom(await (arq.type === 'application/pdf' ? lerPdf(arq, prog) : lerImagem(arq, prog)));
+      if (!t) return this.toast.erro(`Não achei o valor ${onde}. Preencha à mão.`);
       this.rapido.set(t);
       this.aplicarTexto();
-      this.toast.ok('Lido da foto: confira antes de salvar');
+      this.toast.ok(`Lido ${onde}: confira antes de salvar`);
     } catch (e) {
-      this.toast.erro('Não deu para ler a foto: ' + (e instanceof Error ? e.message : e));
+      const msg = e instanceof Error ? e.message : String(e);
+      this.toast.erro(navigator.onLine ? `Não deu para ler ${onde}: ${msg}` : `Sem internet e a leitura ainda não foi baixada neste aparelho. Tente quando estiver online.`);
     } finally {
       this.lendo.set(null);
     }

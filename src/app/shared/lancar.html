@@ -165,11 +165,9 @@
         <div class="comp">
           @if (arquivo(); as a) {
             <span class="anexo"><app-icon [name]="a.type === 'application/pdf' ? 'picture_as_pdf' : 'image'" [size]="18" />{{ a.type === 'application/pdf' ? 'PDF' : 'Foto' }} pronto para salvar</span>
-            @if (a.type.startsWith('image/')) {
-              <button type="button" class="btn ghost sm" [disabled]="lendo() !== null" (click)="lerFoto(a)">
-                <app-icon name="document_scanner" [size]="18" />{{ lendo() !== null ? 'Lendo ' + lendo() + '%' : 'Ler da foto' }}
-              </button>
-            }
+            <button type="button" class="btn ghost sm" [disabled]="lendo() !== null" (click)="lerFoto(a)">
+              <app-icon name="document_scanner" [size]="18" />{{ lendo() !== null ? 'Lendo ' + lendo() + '%' : a.type === 'application/pdf' ? 'Ler do PDF' : 'Ler da foto' }}
+            </button>
             <button type="button" class="btn ghost sm" (click)="arquivo.set(null)">Tirar</button>
           } @else if (comprovante(); as c) {
             <button type="button" class="btn ghost sm" (click)="verComprovante(c)"><app-icon name="receipt_long" [size]="18" />Ver</button>

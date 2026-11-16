@@ -39,6 +39,11 @@ import { Visor } from '../shared/visor';
       }
 
       <div class="msgs">
+        @if (chat.temMais()) {
+          <button type="button" class="btn ghost sm antigas" [disabled]="carregando()" (click)="antigas()">
+            <app-icon name="history" [size]="16" />{{ carregando() ? 'Carregando…' : 'Mensagens anteriores' }}
+          </button>
+        }
         @for (d of dias(); track d.data) {
           <div class="day-label">{{ d.data | dia }}</div>
           @for (m of d.itens; track m.id) {
@@ -91,6 +96,7 @@ import { Visor } from '../shared/visor';
     .page { padding-bottom: calc(var(--nav-h) + var(--safe-b) + 30px); min-height: calc(100dvh - 60px); }
     .ativa { margin-top: 8px; }
     .msgs { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+    .antigas { align-self: center; gap: 4px; }
     .day-label { align-self: center; margin: 10px 0 4px; }
     .linha { display: flex; align-items: flex-end; gap: 6px; }
     .linha.eu { justify-content: flex-end; }
@@ -139,7 +145,7 @@ import { Visor } from '../shared/visor';
 export default class ChatPage {
   protected s = inject(Store);
   protected insights = inject(Insights);
-  private chat = inject(Chat);
+  protected chat = inject(Chat);
   private auth = inject(Auth);
   private toast = inject(Toast);
 
@@ -149,6 +155,9 @@ export default class ChatPage {
   /** mensagem própria tocada (mostra Editar/Apagar) */
   protected sel = signal<string | null>(null);
   protected editando = signal<string | null>(null);
+  protected carregando = signal(false);
+  /** última mensagem: só ela leva a tela para baixo (carregar antigas não rola) */
+  private ultima = computed(() => this.chat.mensagens().at(-1)?.id);
   protected lancar = inject(Lancar);
   /** gastos comentados que não estão no mês carregado */
   private extras = signal<Gasto[]>([]);
@@ -188,12 +197,24 @@ export default class ChatPage {
       });
     });
     effect(() => {
-      this.chat.mensagens();
+      this.ultima();
       untracked(() => {
         this.chat.marcarLidas();
         setTimeout(() => window.scrollTo({ top: document.body.scrollHeight }));
       });
     });
+  }
+
+  async antigas() {
+    this.carregando.set(true);
+    const antes = document.body.scrollHeight;
+    try {
+      if (await this.chat.antigas()) setTimeout(() => window.scrollBy({ top: document.body.scrollHeight - antes }));
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.carregando.set(false);
+    }
   }
 
   editar(m: Mensagem) {

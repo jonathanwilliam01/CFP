@@ -12,3 +12,7 @@ verify_jwt = true
 [functions.whatsapp]
 # webhook da Meta: sem JWT, conferido pela assinatura X-Hub-Signature-256 (WA_APP_SECRET)
 verify_jwt = false
+
+[functions.conta]
+# o próprio usuário pede a exclusão da conta: JWT validado
+verify_jwt = true

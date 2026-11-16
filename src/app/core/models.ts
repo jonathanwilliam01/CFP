@@ -206,6 +206,11 @@ export interface Cofrinho {
   frequencia?: Frequencia | null;
   /** reserva de emergência (028) */
   emergencia?: boolean;
+  /** rendimento (051): % do CDI ou taxa fixa % a.a.; null = não rende */
+  rende?: 'cdi' | 'fixo' | null;
+  rende_pct?: number | null;
+  /** primeiro mês com rendimento */
+  rende_desde?: string | null;
 }
 
 export type Frequencia = 'semana' | 'quinzena' | 'mes';
@@ -218,6 +223,21 @@ export interface CofrinhoMov {
   descricao: string | null;
   /** retirada criada pelo gasto (044) */
   gasto_id?: string | null;
+  /** conta bancária de onde saiu/para onde voltou (051): o banco acerta o saldo */
+  conta_id?: string | null;
+  /** rendimento lançado pelo app para esse mês (051) */
+  rendimento_mes?: string | null;
+}
+
+/** Transferência entre contas bancárias (051): só move saldo, não é gasto nem entrada; não se edita */
+export interface TransferenciaBanco {
+  id: string;
+  de_id: string | null;
+  para_id: string | null;
+  valor: number;
+  data: string;
+  descricao: string | null;
+  criado_por: string | null;
 }
 
 export interface Orcamento {

@@ -6,6 +6,8 @@ import { Mensagem } from './models';
 import { Store } from './store';
 import { q, supabase } from './supabase';
 
+const PAGINA = 200;
+
 /** Chat da carteira em tempo real; avisa mensagens novas fora da tela do chat */
 @Injectable({ providedIn: 'root' })
 export class Chat {
@@ -14,6 +16,8 @@ export class Chat {
   private toast = inject(Toast);
 
   readonly mensagens = signal<Mensagem[]>([]);
+  /** há mensagens mais antigas no banco */
+  readonly temMais = signal(false);
   /** tela do chat aberta */
   readonly aberto = signal(false);
   private lido = signal('');
@@ -61,6 +65,7 @@ export class Chat {
     if (this.canal) supabase.removeChannel(this.canal);
     this.canal = null;
     this.mensagens.set([]);
+    this.temMais.set(false);
     if (!id) return;
     this.lido.set(localStorage.getItem(`cfp.chat.${id}`) ?? '');
     this.canal = supabase
@@ -75,9 +80,10 @@ export class Chat {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'mensagens' }, (p) => this.tirar((p.old as Mensagem).id))
       .subscribe();
     const l = await q<Mensagem[]>(
-      supabase.from('mensagens').select('*').eq('carteira_id', id).order('criado_em', { ascending: false }).limit(200),
+      supabase.from('mensagens').select('*').eq('carteira_id', id).order('criado_em', { ascending: false }).limit(PAGINA),
     );
     if (id !== this.s.carteiraId()) return;
+    this.temMais.set(l.length === PAGINA);
     // lido em outro aparelho (mesmo formato do criado_em: os dois vêm do PostgREST)
     const eu = this.auth.user()?.id;
     const db = eu ? (await supabase.from('carteira_membros').select('chat_lido').eq('carteira_id', id).eq('user_id', eu).maybeSingle()).data?.chat_lido : null;
@@ -85,6 +91,19 @@ export class Chat {
     if (id !== this.s.carteiraId()) return;
     // mantém o que chegou pelo realtime durante a carga
     this.mensagens.update((atual) => [...l.reverse(), ...atual.filter((m) => !l.some((x) => x.id === m.id))]);
+  }
+
+  /** Página anterior; devolve quantas vieram */
+  async antigas() {
+    const id = this.s.carteiraId(), primeira = this.mensagens()[0]?.criado_em;
+    if (!id || !primeira) return 0;
+    const l = await q<Mensagem[]>(
+      supabase.from('mensagens').select('*').eq('carteira_id', id).lt('criado_em', primeira).order('criado_em', { ascending: false }).limit(PAGINA),
+    );
+    if (id !== this.s.carteiraId()) return 0;
+    this.temMais.set(l.length === PAGINA);
+    this.mensagens.update((atual) => [...l.reverse().filter((m) => !atual.some((x) => x.id === m.id)), ...atual]);
+    return l.length;
   }
 
   /** gastoId: comentário sobre um gasto (migration 020) */

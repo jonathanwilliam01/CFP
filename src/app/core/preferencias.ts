@@ -8,7 +8,7 @@ import { supabase } from './supabase';
  * Menu e Início já vão em user_metadata (Menus, Painel).
  */
 const SINCRONIZA =
-  /^cfp\.(revisados\.|lidas$|dispensados$|sugestoes$|fechamento|gastos\.|contas\.|desejos\.|calendario\.|relatorios\.|cartoes\.|entradas\.|inicio\.analises$|plan\.|config\.|recebimento$|lancar$|saldo$|calc$|horas\.semana$|ganho$|salario$|passos\.|tour$|tx\.|reserva\.|cdi$|pctcdi$|pctlci$|poupanca$)/;
+  /^cfp\.(revisados\.|lidas$|dispensados$|sugestoes$|fechamento|gastos\.|contas\.|desejos\.|calendario\.|relatorios\.|cartoes\.|saldos\.|cofrinho\.|entradas\.|inicio\.analises$|plan\.|config\.|recebimento$|lancar$|saldo$|calc$|horas\.semana$|ganho$|salario$|passos\.|tour$|tx\.|reserva\.|cdi$|pctcdi$|pctlci$|poupanca$)/;
 /** Auth.sair apaga do aparelho; no banco continuam */
 const SO_APARELHO_AO_APAGAR = /^cfp\.(salario|ganho|reserva\.)/;
 

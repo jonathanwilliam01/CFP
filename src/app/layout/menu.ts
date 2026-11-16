@@ -40,6 +40,7 @@ export const ATALHOS: { rota: string; icone: string; rotulo: string; grupo: Grup
   { rota: '/historico', icone: 'history', rotulo: 'Histórico', grupo: 'App' },
   { rota: '/notificacoes', icone: 'notifications', rotulo: 'Notificações', grupo: 'App' },
   { rota: '/config', icone: 'settings', rotulo: 'Configurações', grupo: 'App' },
+  { rota: '/seguranca', icone: 'shield_lock', rotulo: 'Segurança e privacidade', grupo: 'App' },
 ];
 
 /** Sempre visível: sem ela não dá para voltar a mostrar os outros */

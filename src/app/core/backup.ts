@@ -2,9 +2,9 @@ import { q, supabase } from './supabase';
 
 /** Tabelas da carteira, na ordem em que podem ser restauradas (quem é referenciado vem antes) */
 const TABELAS = [
-  'categorias', 'cartoes', 'beneficios', 'parcelamentos', 'recorrencias', 'cofrinhos', 'gastos', 'entradas', 'pagamentos', 'cofrinho_movs',
+  'categorias', 'cartoes', 'beneficios', 'parcelamentos', 'recorrencias', 'cofrinhos', 'contas_bancarias', 'gastos', 'entradas', 'pagamentos', 'cofrinho_movs',
   'orcamentos', 'orcamento_valores', 'orcamento_fechados', 'planos', 'registros', 'registro_itens', 'acertos', 'receber', 'dividas', 'desafios',
-  'contas_bancarias', 'metas',
+  'metas', 'transferencias',
 ];
 const PAGINA = 1000;
 
@@ -49,8 +49,13 @@ export async function restaurar(b: Backup, carteiraId: string) {
     // cartão padrão só pela RPC: o índice único não deixa dois padrões nem por um instante
     // retirada ligada a gasto o trigger recria ao gravar o gasto
     const linhas = (b.tabelas[t] ?? []).filter((l) => !(t === 'cofrinho_movs' && l['gasto_id'])).map((l) => ({ ...l, carteira_id: carteiraId, ...(t === 'cartoes' ? { padrao: false } : {}) }));
-    for (let i = 0; i < linhas.length; i += 500) await q(supabase.from(t).upsert(linhas.slice(i, i + 500), { onConflict: 'id' }));
+    // transferência já gravada fica (não se edita); nova mexe no saldo, que é regravado no fim
+    const op = { onConflict: 'id', ...(t === 'transferencias' ? { ignoreDuplicates: true } : {}) };
+    for (let i = 0; i < linhas.length; i += 500) await q(supabase.from(t).upsert(linhas.slice(i, i + 500), op));
   }
+  // transferências e depósitos com conta mexem no saldo pelos triggers: volta ao saldo do backup
+  const contas = (b.tabelas['contas_bancarias'] ?? []).map((l) => ({ ...l, carteira_id: carteiraId }));
+  if (contas.length) await q(supabase.from('contas_bancarias').upsert(contas, { onConflict: 'id' }));
   const padrao = b.tabelas['cartoes']?.find((c) => c['padrao']);
   if (padrao) await q(supabase.rpc('definir_cartao_padrao', { p_cartao: padrao['id'] }));
 }

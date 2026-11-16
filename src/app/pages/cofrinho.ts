@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { faltaPara, hoje } from '../core/datas';
+import { faltaPara, hoje, mesAtual } from '../core/datas';
+import { taxasBcb } from '../core/bcb';
+import { taxaAno, taxaMensal } from '../core/rendimento';
 import { aporteMensal, depositoNecessario, simularDepositos } from '../core/financas';
 import { BrlPipe, DiaPipe, parseValor, soma } from '../core/formato';
 import { CofrinhoMov, Frequencia, Gasto } from '../core/models';
@@ -55,10 +57,15 @@ import { Moeda } from '../shared/moeda';
           @if (aporte(); as a) {
             <button class="btn ghost sm" type="button" (click)="guardarAporte(a)">Guardar o aporte do mês ({{ a | brl }})</button>
           }
+          @if (cf.rende) {
+            <span class="badge info"><app-icon name="trending_up" [size]="14" />Rende {{ cf.rende === 'cdi' ? cf.rende_pct + '% do CDI' : cf.rende_pct + '% a.a.' }}@if (aoAno(); as a) { · ≈ {{ a }}% a.a. }</span>
+            @if (rendeu()) { <p class="small muted num">Já rendeu {{ rendeu() | brl }} (bruto, estimado)</p> }
+          }
           <div class="acoes">
             <button class="btn" type="button" (click)="mover(1)">Depositar</button>
             <button class="btn ghost" type="button" (click)="mover(-1)">Retirar</button>
           </div>
+          <button class="btn ghost sm" type="button" (click)="ajustar()"><app-icon name="tune" [size]="16" />Ajustar ao saldo do banco</button>
         </div>
 
         @if (cf.meta <= 0 || faltaMeta() > 0) {
@@ -111,10 +118,10 @@ import { Moeda } from '../shared/moeda';
             <div class="list">
               @for (m of movs(); track m.id) {
                 <button class="row" type="button" (click)="tocarMov(m)">
-                  <span class="ico"><app-icon [name]="m.valor >= 0 ? '⬆️' : '⬇️'" /></span>
+                  <span class="ico"><app-icon [name]="m.rendimento_mes ? 'trending_up' : m.valor >= 0 ? '⬆️' : '⬇️'" /></span>
                   <div class="grow">
                     <div class="t">{{ m.descricao || (m.valor >= 0 ? 'Depósito' : 'Retirada') }}</div>
-                    <div class="s">{{ m.data | dia }}@if (m.gasto_id) { · gasto }</div>
+                    <div class="s">{{ m.data | dia }}@if (m.gasto_id) { · gasto }@if (m.conta_id) { · {{ m.valor >= 0 ? 'de' : 'para' }} {{ nomeConta(m.conta_id) }} }</div>
                   </div>
                   <div class="v" [class.pos]="m.valor >= 0" [class.neg]="m.valor < 0">{{ m.valor | brl }}</div>
                 </button>
@@ -134,7 +141,24 @@ import { Moeda } from '../shared/moeda';
         <label class="field"><span>Valor (R$)</span><input name="valor" moeda inputmode="numeric" [(ngModel)]="m.valor" placeholder="0,00" autofocus /></label>
         <label class="field"><span>Data</span><input name="data" type="date" [(ngModel)]="m.data" /></label>
         <label class="field"><span>Descrição (opcional)</span><input name="descricao" [(ngModel)]="m.descricao" /></label>
+        @if (contas().length) {
+          <label class="field"><span>{{ sinal() > 0 ? 'Sai da conta' : 'Volta para a conta' }}</span>
+            <select name="conta" [(ngModel)]="m.conta">
+              <option value="">Nenhuma (não mexe no saldo do banco)</option>
+              @for (b of contas(); track b.id) { <option [value]="b.id">{{ b.nome }}</option> }
+            </select>
+          </label>
+        }
         <button class="btn block" [disabled]="salvando()">Salvar</button>
+      </form>
+    </app-sheet>
+
+    <app-sheet [(open)]="ajusteAberto" titulo="Ajustar ao saldo do banco">
+      <form class="form" (ngSubmit)="salvarAjuste()">
+        <p class="small muted">Informe quanto o banco mostra hoje nesse investimento (já com rendimento e impostos). O CFP lança a diferença.</p>
+        <label class="field"><span>Saldo no banco</span><input name="real" moeda inputmode="numeric" [(ngModel)]="saldoReal" placeholder="0,00" /></label>
+        <p class="small muted num">No CFP: {{ guardado() | brl }}</p>
+        <button class="btn block" [disabled]="salvando()">Ajustar</button>
       </form>
     </app-sheet>
 
@@ -148,6 +172,20 @@ import { Moeda } from '../shared/moeda';
         <label class="field"><span>Cor</span><input name="cor" type="color" [(ngModel)]="f.cor" /></label>
         <div class="field"><span>Ícone</span><app-icone-picker [(valor)]="f.icone" [cor]="f.cor" /></div>
         <label class="check"><input name="emerg" type="checkbox" [(ngModel)]="f.emergencia" />É a reserva de emergência</label>
+        <div class="grid2">
+          <label class="field"><span>Rendimento</span>
+            <select name="rende" [(ngModel)]="f.rende">
+              <option value="">Não rende</option>
+              <option value="cdi">% do CDI</option>
+              <option value="fixo">Taxa fixa ao ano</option>
+            </select>
+          </label>
+          @if (f.rende) {
+            <label class="field"><span>{{ f.rende === 'cdi' ? '% do CDI' : '% ao ano' }}</span>
+              <input name="pct" inputmode="decimal" [(ngModel)]="f.pct" [placeholder]="f.rende === 'cdi' ? '100' : '12'" /></label>
+          }
+        </div>
+        @if (f.rende) { <p class="small muted">Todo mês fechado o CFP lança o rendimento bruto estimado. Use "Ajustar ao saldo do banco" para acertar com o valor real.</p> }
         <button class="btn block" [disabled]="salvando()">Salvar</button>
         <button class="btn danger block" type="button" (click)="excluir()">Excluir cofrinho</button>
       </form>
@@ -185,8 +223,42 @@ export default class Cofrinho {
   protected editAberto = signal(false);
   protected salvando = signal(false);
   protected sinal = signal(1);
-  m = { valor: '', data: hoje(), descricao: '' };
-  f = { nome: '', meta: '', prazo: '', icone: '', cor: '', emergencia: false };
+  m = { valor: '', data: hoje(), descricao: '', conta: '' };
+  f = { nome: '', meta: '', prazo: '', icone: '', cor: '', emergencia: false, rende: '' as '' | 'cdi' | 'fixo', pct: '' };
+  protected ajusteAberto = signal(false);
+  saldoReal = '';
+  protected contas = computed(() => this.s.contasBancarias().filter((b) => b.ativo));
+  protected rendeu = computed(() => soma(this.movs().filter((m) => m.rendimento_mes), (m) => m.valor));
+  protected aoAno = computed(() => {
+    const c = this.c();
+    const t = c?.rende === 'cdi' ? taxaMensal(c, taxasBcb()?.cdi ?? null) : 0;
+    return t ? taxaAno(t).toFixed(1).replace('.', ',') : null;
+  });
+
+  nomeConta(id: string) {
+    return this.s.contasBancarias().find((b) => b.id === id)?.nome ?? 'conta excluída';
+  }
+
+  ajustar() {
+    this.saldoReal = '';
+    this.ajusteAberto.set(true);
+  }
+
+  async salvarAjuste() {
+    const dif = Math.round((parseValor(this.saldoReal) - this.guardado()) * 100) / 100;
+    if (!this.saldoReal.trim()) return this.toast.erro('Informe o saldo');
+    if (!dif) return this.ajusteAberto.set(false);
+    this.salvando.set(true);
+    try {
+      await this.s.salvar('cofrinho_movs', { cofrinho_id: this.id(), valor: dif, data: hoje(), descricao: 'Ajuste pelo saldo do banco' });
+      this.toast.ok('Saldo ajustado');
+      this.ajusteAberto.set(false);
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.salvando.set(false);
+    }
+  }
 
   protected c = computed(() => this.s.cofrinhos().find((x) => x.id === this.id()) ?? null);
   protected movs = computed(() =>
@@ -250,13 +322,13 @@ export default class Cofrinho {
 
   guardarAporte(valor: number) {
     this.sinal.set(1);
-    this.m = { valor: valor.toFixed(2).replace('.', ','), data: hoje(), descricao: 'Aporte do mês' };
+    this.m = { valor: valor.toFixed(2).replace('.', ','), data: hoje(), descricao: 'Aporte do mês', conta: '' };
     this.movAberto.set(true);
   }
 
   mover(sinal: number) {
     this.sinal.set(sinal);
-    this.m = { valor: '', data: hoje(), descricao: '' };
+    this.m = { valor: '', data: hoje(), descricao: '', conta: '' };
     this.movAberto.set(true);
   }
 
@@ -270,6 +342,7 @@ export default class Cofrinho {
         valor: v * this.sinal(),
         data: this.m.data,
         descricao: this.m.descricao.trim() || null,
+        ...(this.m.conta ? { conta_id: this.m.conta } : {}),
       });
       this.toast.ok(this.sinal() > 0 ? 'Depositado' : 'Retirado');
       this.movAberto.set(false);
@@ -293,12 +366,19 @@ export default class Cofrinho {
 
   editar() {
     const c = this.c()!;
-    this.f = { nome: c.nome, meta: String(c.meta).replace('.', ','), prazo: c.prazo ?? '', icone: c.icone, cor: c.cor, emergencia: !!c.emergencia };
+    this.f = { nome: c.nome, meta: String(c.meta).replace('.', ','), prazo: c.prazo ?? '', icone: c.icone, cor: c.cor, emergencia: !!c.emergencia, rende: c.rende ?? '', pct: c.rende_pct ? String(c.rende_pct).replace('.', ',') : '' };
     this.editAberto.set(true);
   }
 
   async salvarCofrinho() {
     if (!this.f.nome.trim()) return this.toast.erro('Informe o nome');
+    const pct = Number(this.f.pct.replace(',', '.'));
+    if (this.f.rende && !(pct > 0)) return this.toast.erro('Informe a taxa do rendimento');
+    const antes = this.c();
+    // ligar o rendimento vale a partir deste mês; mudar a taxa não mexe no que já foi lançado
+    const rende = this.f.rende
+      ? { rende: this.f.rende, rende_pct: pct, rende_desde: antes?.rende && antes.rende_desde ? antes.rende_desde : mesAtual() }
+      : antes?.rende ? { rende: null, rende_pct: null, rende_desde: null } : {};
     this.salvando.set(true);
     try {
       await this.s.salvar('cofrinhos', {
@@ -309,6 +389,7 @@ export default class Cofrinho {
         icone: this.f.icone || 'savings',
         cor: this.f.cor,
         emergencia: this.f.emergencia,
+        ...rende,
       });
       this.toast.ok('Salvo');
       this.editAberto.set(false);

@@ -57,6 +57,7 @@ const TAM = 220;
             }
           </div>
           <button class="btn ghost block" type="button" (click)="irConfig()"><app-icon name="settings" [size]="18" />Configurações</button>
+          <button class="btn ghost block" type="button" (click)="ir('/seguranca')"><app-icon name="shield_lock" [size]="18" />Segurança e privacidade</button>
           <button class="btn danger block" type="button" (click)="sair()"><app-icon name="logout" [size]="18" />Sair</button>
         </div>
       } @else {
@@ -168,8 +169,12 @@ export class Conta {
   }
 
   async irConfig() {
+    return this.ir('/config');
+  }
+
+  async ir(rota: string) {
     await this.fecharAntes();
-    this.router.navigateByUrl('/config');
+    this.router.navigateByUrl(rota);
   }
 
   async escolher(ev: Event) {

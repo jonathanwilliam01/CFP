@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, Routes } from '@angular/router';
-import { deslogadoGuard, logadoGuard, suspensaGuard } from './core/auth';
+import { codigoGuard, deslogadoGuard, logadoGuard, suspensaGuard } from './core/auth';
 import { adminGuard } from './core/admin';
 import { conviteGuardado } from './core/convite';
 import { funcaoGuard } from './core/funcoes';
@@ -19,6 +19,9 @@ const carteiraGuard: CanActivateFn = async (_, state) => {
 export const routes: Routes = [
   { path: 'apresentacao', canActivate: [deslogadoGuard], loadComponent: () => import('./pages/landing'), title: 'Controle Financeiro Pessoal' },
   { path: 'login', canActivate: [deslogadoGuard], loadComponent: () => import('./pages/login'), title: 'Entrar · Controle Financeiro Pessoal' },
+  { path: 'verificar', canActivate: [codigoGuard], loadComponent: () => import('./pages/verificar'), title: 'Verificação · Controle Financeiro Pessoal' },
+  { path: 'termos', loadComponent: () => import('./pages/legal'), data: { doc: 'termos' }, title: 'Termos de uso · Controle Financeiro Pessoal' },
+  { path: 'privacidade', loadComponent: () => import('./pages/legal'), data: { doc: 'privacidade' }, title: 'Política de privacidade · Controle Financeiro Pessoal' },
   { path: 'nova-senha', canActivate: [logadoGuard], loadComponent: () => import('./pages/nova-senha'), title: 'Nova senha · Controle Financeiro Pessoal' },
   { path: 'bem-vindo', canActivate: [logadoGuard], loadComponent: () => import('./pages/bem-vindo'), title: 'Bem-vindo · Controle Financeiro Pessoal' },
   { path: 'suspensa', canActivate: [logadoGuard], loadComponent: () => import('./pages/suspensa'), title: 'Conta suspensa · Controle Financeiro Pessoal' },
@@ -79,6 +82,7 @@ export const routes: Routes = [
       { path: 'metas', loadComponent: () => import('./pages/metas'), title: 'Metas do casal · Controle Financeiro Pessoal' },
       { path: 'historico', loadComponent: () => import('./pages/historico'), title: 'Histórico · Controle Financeiro Pessoal' },
       { path: 'linha-do-tempo', loadComponent: () => import('./pages/linha-do-tempo'), title: 'Linha do tempo · Controle Financeiro Pessoal' },
+      { path: 'seguranca', loadComponent: () => import('./pages/seguranca'), title: 'Segurança e privacidade · Controle Financeiro Pessoal' },
       { path: 'imposto', loadComponent: () => import('./pages/imposto'), title: 'Imposto de Renda · Controle Financeiro Pessoal' },
       { path: 'manutencao/:chave', loadComponent: () => import('./pages/manutencao'), title: 'Em manutenção · Controle Financeiro Pessoal' },
     ],

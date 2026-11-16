@@ -3,7 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { diffDias, hoje, mesAtual } from '../core/datas';
 import { ativaNoMes } from '../core/financas';
 import { BrlPipe, DiaPipe, parseValor, soma } from '../core/formato';
-import { ContaBancaria } from '../core/models';
+import { ContaBancaria, TransferenciaBanco } from '../core/models';
+import { q, supabase } from '../core/supabase';
 import { Store } from '../core/store';
 import { Curvas, Serie } from '../shared/graficos';
 import { Icon } from '../shared/icon';
@@ -29,6 +30,9 @@ interface FormConta {
     <div class="page">
       <div class="page-head">
         <h1>Saldos bancários</h1>
+        @if (ativas().length > 1) {
+          <button class="btn ghost sm" type="button" (click)="transferir()"><app-icon name="sync_alt" [size]="16" />Transferir</button>
+        }
         <button class="btn sm" type="button" (click)="novo()"><app-icon name="add" [size]="16" />Conta</button>
       </div>
       <p class="muted small">Informe o saldo que aparece no app de cada banco. O CFP soma e mostra quanto deve sobrar no fim do mês.</p>
@@ -87,7 +91,50 @@ interface FormConta {
           <p class="muted small vazio">Cadastre suas contas (Nubank, Itaú, carteira...) com o saldo de hoje.</p>
         }
       </section>
+
+      @if (transfs().length) {
+        <details class="card mais" [open]="verTransfs()" (toggle)="verTransfs.set($any($event.target).open)">
+          <summary><h2>Transferências</h2><span>{{ transfs().length }} recentes</span></summary>
+          <div class="list">
+            @for (t of transfs(); track t.id) {
+              <button type="button" class="row" (click)="desfazer(t)">
+                <span class="ico"><app-icon name="sync_alt" /></span>
+                <div class="grow">
+                  <div class="t">{{ nomeConta(t.de_id) }} → {{ nomeConta(t.para_id) }}</div>
+                  <div class="s">{{ t.data | dia }}{{ t.descricao ? ' · ' + t.descricao : '' }}</div>
+                </div>
+                <b class="v num">{{ t.valor | brl }}</b>
+              </button>
+            }
+          </div>
+          <p class="small muted">Toque numa transferência para desfazer: o valor volta para a conta de origem.</p>
+        </details>
+      }
     </div>
+
+    <app-sheet [(open)]="tAberto" titulo="Transferir entre contas">
+      <form class="form" (ngSubmit)="salvarTransf()">
+        <p class="small muted">Só move o saldo de uma conta para outra. Não conta como gasto nem como entrada.</p>
+        <div class="grid2">
+          <label class="field"><span>De</span>
+            <select name="de" [(ngModel)]="t.de">
+              @for (c of ativas(); track c.id) { <option [value]="c.id">{{ c.nome }}</option> }
+            </select>
+          </label>
+          <label class="field"><span>Para</span>
+            <select name="para" [(ngModel)]="t.para">
+              @for (c of ativas(); track c.id) { <option [value]="c.id" [disabled]="c.id === t.de">{{ c.nome }}</option> }
+            </select>
+          </label>
+        </div>
+        <div class="grid2">
+          <label class="field"><span>Valor</span><input name="v" moeda inputmode="numeric" [(ngModel)]="t.valor" placeholder="0,00" /></label>
+          <label class="field"><span>Data</span><input name="d" type="date" [(ngModel)]="t.data" /></label>
+        </div>
+        <label class="field"><span>Descrição (opcional)</span><input name="ds" [(ngModel)]="t.descricao" placeholder="Ex.: pagar a fatura pelo Itaú" /></label>
+        <button class="btn block" [disabled]="salvando()">Transferir</button>
+      </form>
+    </app-sheet>
 
     <app-sheet [(open)]="aberto" [titulo]="f.id ? 'Atualizar conta' : 'Nova conta bancária'">
       <form class="form" (ngSubmit)="salvar()">
@@ -135,7 +182,17 @@ export default class Saldos {
     return { rotulos: l.map((p) => nomeMes(p.mes, true)), series };
   });
 
+  protected transfs = signal<TransferenciaBanco[]>([]);
+  protected verTransfs = signal(localStorage.getItem('cfp.saldos.transferencias') === '1');
+  protected tAberto = signal(false);
+  t = { de: '', para: '', valor: '', data: hoje(), descricao: '' };
+
   constructor() {
+    effect(() => localStorage.setItem('cfp.saldos.transferencias', this.verTransfs() ? '1' : '0'));
+    effect(() => {
+      this.s.contasBancarias();
+      if (this.s.carteiraId()) untracked(() => this.carregarTransfs());
+    });
     effect(() => {
       this.s.contasBancarias();
       this.s.cofrinhoMovs();
@@ -170,6 +227,57 @@ export default class Saldos {
     );
   });
   protected previsto = computed(() => this.total() + this.aReceber() - this.s.resumo().aPagar - this.s.resumo().reservado);
+
+  private async carregarTransfs() {
+    try {
+      this.transfs.set(await q<TransferenciaBanco[]>(
+        supabase.from('transferencias').select('*').eq('carteira_id', this.s.carteiraId()!).order('data', { ascending: false }).order('criado_em', { ascending: false }).limit(20),
+      ));
+    } catch {
+      // 051 ainda não aplicada: sem lista
+    }
+  }
+
+  nomeConta(id: string | null) {
+    return this.s.contasBancarias().find((c) => c.id === id)?.nome ?? 'Conta excluída';
+  }
+
+  transferir() {
+    const [a, b] = this.ativas();
+    this.t = { de: a.id, para: b.id, valor: '', data: hoje(), descricao: '' };
+    this.tAberto.set(true);
+  }
+
+  async salvarTransf() {
+    const valor = parseValor(this.t.valor);
+    if (valor <= 0) return this.toast.erro('Informe o valor');
+    if (this.t.de === this.t.para) return this.toast.erro('Escolha contas diferentes');
+    this.salvando.set(true);
+    try {
+      await q(supabase.from('transferencias').insert({
+        carteira_id: this.s.carteiraId(), de_id: this.t.de, para_id: this.t.para, valor, data: this.t.data, descricao: this.t.descricao.trim() || null,
+      }));
+      this.tAberto.set(false);
+      this.toast.ok('Transferido');
+      await this.s.recarregar('contas_bancarias');
+      this.patrimonios.fotografar();
+    } catch (e) {
+      this.toast.erro(e);
+    } finally {
+      this.salvando.set(false);
+    }
+  }
+
+  async desfazer(t: TransferenciaBanco) {
+    if (!confirm(`Desfazer a transferência de ${this.nomeConta(t.de_id)} para ${this.nomeConta(t.para_id)}?`)) return;
+    try {
+      await q(supabase.from('transferencias').delete().eq('id', t.id));
+      this.toast.ok('Transferência desfeita');
+      await this.s.recarregar('contas_bancarias');
+    } catch (e) {
+      this.toast.erro(e);
+    }
+  }
 
   velho(c: ContaBancaria) {
     return diffDias(c.atualizado_em, hoje()) > 7;

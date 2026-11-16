@@ -25,6 +25,7 @@ import { Calculadora } from '../shared/calculadora';
 import { Icon } from '../shared/icon';
 import { Toast } from '../shared/toast';
 import { Tour, TourView } from '../shared/tour';
+import { TermosModal } from '../shared/termos';
 import { Saida, SairModal } from '../shared/sair';
 import { Lancar, LancarSheet, Modo, podeFalar } from '../shared/lancar';
 import { MesPicker } from '../shared/mes-picker';
@@ -35,7 +36,7 @@ import { Menus, PRINCIPAIS } from './menu';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora, BloqueioTela, TourView, SairModal, Destaque],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Avatar, Icon, MesPicker, LancarSheet, Conta, Buscador, Avisos, Calculadora, BloqueioTela, TourView, SairModal, TermosModal, Destaque],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.recolhido]': 'recolhido()', '(document:keydown)': 'atalho($event)', '(document:dragover)': 'arrastando($event)', '(document:dragleave)': 'saiu($event)', '(document:drop)': 'soltou($event)', '(window:scroll)': 'rolou()' },
   template: `
@@ -221,6 +222,7 @@ import { Menus, PRINCIPAIS } from './menu';
     <app-conta [(open)]="conta" />
     <app-tour />
     <app-sair />
+    <app-termos />
     <app-destaque />
     @if (soltando()) {
       <div class="soltar"><app-icon name="upload_file" [size]="48" /><b>Solte o arquivo</b><span>CSV ou OFX vai para Importar · foto ou PDF vira lançamento com comprovante</span></div>
@@ -482,6 +484,8 @@ export class Shell {
     effect(() => {
       if (this.s.carteiraId() && !this.s.carregando() && this.s.contasBancarias().length + this.s.cofrinhos().length) untracked(() => pat.diaria());
     });
+    // OCR guardado no aparelho para ler comprovante sem internet
+    setTimeout(() => import('../core/ocr').then((m) => m.prepararOcr()), 20_000);
     effect(() => {
       if (!this.s.pronto() || this.s.mes() !== mesAtual()) return;
       const d = hoje();
@@ -502,6 +506,18 @@ export class Shell {
         this.s.guardarSobraAuto().then((d) => {
           if (d) this.toast.feito(`Guardamos ${moeda(d.valor)} da sobra de ${nomeMes(addMeses(mesAtual(), -1))} em ${d.cofrinho}`, () => this.s.excluir('cofrinho_movs', d.id));
         }).catch((e) => console.error('Sobra automática', e)),
+      );
+    });
+    // rendimento dos cofrinhos: uma vez por sessão e carteira
+    const rendeVisto = new Set<string>();
+    effect(() => {
+      const id = this.s.carteiraId();
+      if (!this.s.pronto() || !id || rendeVisto.has(id) || !this.s.cofrinhos().some((c) => c.rende)) return;
+      rendeVisto.add(id);
+      untracked(() =>
+        this.s.lancarRendimentos().then((v) => {
+          if (v) this.toast.ok(`Rendimento dos cofrinhos lançado: ${moeda(v)}`);
+        }).catch((e) => console.error('Rendimento', e)),
       );
     });
     inject(DestroyRef).onDestroy(() => (sub.unsubscribe(), nav.unsubscribe()));

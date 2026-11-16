@@ -73,5 +73,11 @@
     "carteiras.modelo",
     "recorrencias.recebimento_id",
     "cartoes.recebimento_id"
+  ],
+  "051": [
+    "transferencias.valor",
+    "cofrinho_movs.conta_id",
+    "cofrinho_movs.rendimento_mes",
+    "cofrinhos.rende_desde"
   ]
 }
