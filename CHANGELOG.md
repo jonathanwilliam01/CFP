@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.26.11.18 — 2026-11-23
+- Corrigido o erro "new row violates row-level security policy" ao trocar a foto de perfil
+
 ## v1.26.11.17 — 2026-11-16
 - Transferir entre contas (Saldos bancários → Transferir): move o dinheiro do Itaú para o Nubank, por exemplo, sem virar gasto nem entrada. Toque numa transferência para desfazer
 - Cofrinho ligado ao banco: ao depositar ou retirar, escolha a conta de onde sai ou para onde volta e o saldo do banco acompanha

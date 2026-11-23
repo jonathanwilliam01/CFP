@@ -8,6 +8,11 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.18',
+    data: '2026-11-23',
+    itens: ['Corrigido o erro "new row violates row-level security policy" ao trocar a foto de perfil'],
+  },
+  {
     versao: 'v1.26.11.17',
     data: '2026-11-16',
     itens: [
