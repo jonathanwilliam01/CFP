@@ -3,24 +3,31 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Auth } from '../core/auth';
 import { Toast } from '../shared/toast';
+import { VerSenha } from '../shared/ver-senha';
 
 /** Destino do link de "Esqueci minha senha": a sessão já veio do link */
 @Component({
-  imports: [FormsModule],
+  imports: [FormsModule, VerSenha],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="wrap">
       <div class="brand">
-        <span class="logo">CFP</span>
+        <img class="logo" src="logo.png" alt="CFP" />
         <h1>Nova senha</h1>
         <p class="muted">{{ auth.user()?.email }}</p>
       </div>
       <form class="card form" (ngSubmit)="salvar()">
         <label class="field"><span>Nova senha</span>
-          <input name="senha" type="password" [(ngModel)]="senha" minlength="6" required autocomplete="new-password" />
+          <span class="senha-wrap">
+            <input name="senha" [type]="verSenha() ? 'text' : 'password'" [(ngModel)]="senha" minlength="6" required autocomplete="new-password" />
+            <app-ver-senha [(ver)]="verSenha" />
+          </span>
         </label>
         <label class="field"><span>Repita a senha</span>
-          <input name="repete" type="password" [(ngModel)]="repete" minlength="6" required autocomplete="new-password" />
+          <span class="senha-wrap">
+            <input name="repete" [type]="verSenha() ? 'text' : 'password'" [(ngModel)]="repete" minlength="6" required autocomplete="new-password" />
+            <app-ver-senha [(ver)]="verSenha" />
+          </span>
         </label>
         <button class="btn block" type="submit" [disabled]="enviando()">Salvar senha</button>
       </form>
@@ -29,7 +36,7 @@ import { Toast } from '../shared/toast';
   styles: `
     .wrap { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; gap: 24px; padding: 24px 16px; max-width: 420px; margin: 0 auto; }
     .brand { display: flex; flex-direction: column; gap: 8px; }
-    .logo { align-self: flex-start; font-weight: 800; letter-spacing: 0.04em; background: var(--primary); color: var(--primary-ink); border-radius: 12px; padding: 8px 12px; font-size: 1.2rem; }
+    .logo { align-self: flex-start; width: 64px; height: 64px; }
   `,
 })
 export default class NovaSenha {
@@ -37,6 +44,7 @@ export default class NovaSenha {
   private router = inject(Router);
   private toast = inject(Toast);
   protected enviando = signal(false);
+  protected verSenha = signal(false);
   senha = '';
   repete = '';
 

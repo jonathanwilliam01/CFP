@@ -5,10 +5,11 @@ import { Auth } from '../core/auth';
 import { conviteGuardado } from '../core/convite';
 import { PROVEDORES } from '../core/legal';
 import { Icon } from '../shared/icon';
+import { VerSenha } from '../shared/ver-senha';
 import { Toast } from '../shared/toast';
 
 @Component({
-  imports: [FormsModule, RouterLink, Icon],
+  imports: [FormsModule, RouterLink, Icon, VerSenha],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // mesmo tema da apresentação: escuro azul
   host: { class: 'tema-escuro' },
@@ -16,7 +17,7 @@ import { Toast } from '../shared/toast';
     <div class="wrap">
       <a routerLink="/apresentacao" class="voltar"><app-icon name="arrow_back" [size]="18" />Conhecer o CFP</a>
       <div class="brand">
-        <span class="logo">CFP</span>
+        <img class="logo" src="logo.png" alt="CFP" />
         <h1>Controle Financeiro Pessoal</h1>
         <p class="muted">Lance gastos em segundos e veja para onde o dinheiro vai.</p>
       </div>
@@ -34,8 +35,11 @@ import { Toast } from '../shared/toast';
         }
         <label class="field"><span>E-mail</span><input name="email" type="email" [(ngModel)]="email" autocomplete="email" required /></label>
         <label class="field"><span>Senha</span>
-          <input name="senha" type="password" [(ngModel)]="senha" minlength="6" required
-            [attr.autocomplete]="modo() === 'entrar' ? 'current-password' : 'new-password'" />
+          <span class="senha-wrap">
+            <input name="senha" [type]="verSenha() ? 'text' : 'password'" [(ngModel)]="senha" minlength="6" required
+              [attr.autocomplete]="modo() === 'entrar' ? 'current-password' : 'new-password'" />
+            <app-ver-senha [(ver)]="verSenha" />
+          </span>
         </label>
         @if (modo() === 'cadastrar') {
           <label class="check aceite"><input type="checkbox" name="aceite" [(ngModel)]="aceite" />
@@ -67,7 +71,7 @@ import { Toast } from '../shared/toast';
     :host { display: block; min-height: 100dvh; background: var(--bg); color: var(--ink); }
     .wrap { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; gap: 24px; padding: 24px 16px; max-width: 420px; margin: 0 auto; }
     .brand { display: flex; flex-direction: column; gap: 8px; }
-    .logo { align-self: flex-start; font-weight: 800; letter-spacing: 0.04em; background: var(--primary); color: var(--primary-ink); border-radius: 12px; padding: 8px 12px; font-size: 1.2rem; }
+    .logo { align-self: flex-start; width: 64px; height: 64px; }
     .voltar { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 0.88rem; align-self: flex-start; }
     .aviso { display: flex; gap: 10px; align-items: flex-start; background: var(--primary-soft); border-radius: 14px; padding: 12px; margin: 0; font-size: 0.9rem; font-weight: 600; }
     .link { background: none; border: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; }
@@ -88,6 +92,7 @@ export default class Login implements OnInit {
   protected convite = conviteGuardado();
   protected modo = signal<'entrar' | 'cadastrar'>('entrar');
   protected enviando = signal(false);
+  protected verSenha = signal(false);
   protected provedores = PROVEDORES;
   nome = '';
   aceite = false;

@@ -13,7 +13,7 @@ import { Toast } from '../shared/toast';
   template: `
     <div class="wrap">
       <div class="brand">
-        <span class="logo">CFP</span>
+        <img class="logo" src="logo.png" alt="CFP" />
         <h1>Verificação em duas etapas</h1>
         <p class="muted">Abra o app autenticador (Google Authenticator, Authy, 1Password…) e digite o código do CFP.</p>
       </div>
@@ -31,7 +31,7 @@ import { Toast } from '../shared/toast';
     :host { display: block; min-height: 100dvh; background: var(--bg); color: var(--ink); }
     .wrap { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; gap: 24px; padding: 24px 16px; max-width: 420px; margin: 0 auto; }
     .brand { display: flex; flex-direction: column; gap: 8px; }
-    .logo { align-self: flex-start; font-weight: 800; letter-spacing: 0.04em; background: var(--primary); color: var(--primary-ink); border-radius: 12px; padding: 8px 12px; font-size: 1.2rem; }
+    .logo { align-self: flex-start; width: 64px; height: 64px; }
     input[name='codigo'] { font-size: 1.4rem; letter-spacing: 0.3em; text-align: center; }
     .link { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: none; border: 0; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; }
   `,

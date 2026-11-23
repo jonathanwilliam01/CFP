@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.26.11.19 — 2026-11-23
+- Novo ícone do CFP no app instalado, na aba do navegador e nas telas de entrada
+- Entrar, Criar conta e Nova senha: olho para mostrar ou esconder a senha digitada
+- Mais: "Sair do app" ocupa a linha inteira, mais fácil de tocar
+
 ## v1.26.11.18 — 2026-11-23
 - Corrigido o erro "new row violates row-level security policy" ao trocar a foto de perfil
 

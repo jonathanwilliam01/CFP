@@ -101,7 +101,7 @@ import { Saida } from '../shared/sair';
     .at { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 8px; color: var(--ink); text-align: center; }
     button.at { font: inherit; cursor: pointer; width: 100%; }
     .at.sair, .at.sair .e { color: var(--danger); }
-    .at.sair { border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
+    .at.sair { grid-column: 1 / -1; flex-direction: row; justify-content: center; gap: 10px; border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
     .at:active { transform: scale(0.97); }
     .e { color: var(--primary); }
     .r { font-size: 0.8rem; font-weight: 700; max-width: 100%; overflow-wrap: anywhere; }

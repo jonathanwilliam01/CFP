@@ -345,6 +345,13 @@ body, input, select, button { font-variant-numeric: tabular-nums; }
   }
 }
 
+.senha-wrap {
+  position: relative;
+  display: block;
+
+  input { padding-right: 46px; }
+}
+
 input,
 select,
 textarea {

@@ -8,6 +8,15 @@ export interface Nota {
 
 export const NOTAS: Nota[] = [
   {
+    versao: 'v1.26.11.19',
+    data: '2026-11-23',
+    itens: [
+      'Novo ícone do CFP no app instalado, na aba do navegador e nas telas de entrada',
+      'Entrar, Criar conta e Nova senha: olho para mostrar ou esconder a senha digitada',
+      'Mais: "Sair do app" ocupa a linha inteira, mais fácil de tocar',
+    ],
+  },
+  {
     versao: 'v1.26.11.18',
     data: '2026-11-23',
     itens: ['Corrigido o erro "new row violates row-level security policy" ao trocar a foto de perfil'],

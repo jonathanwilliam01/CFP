@@ -82,10 +82,6 @@ import { Menus, PRINCIPAIS } from './menu';
     }
 
     <aside class="side">
-      <a routerLink="/" class="side-marca" aria-label="Início">
-        <span class="logo">CFP</span>
-        <span class="r">Controle Financeiro Pessoal</span>
-      </a>
       <button class="btn block lanca" type="button" (click)="lancar.novo()" aria-label="Lançamento" (mouseenter)="dica($event, 'Lançamento (N)')" (mouseleave)="tip.set(null)">
         <app-icon name="add" [size]="20" /><span class="r">Lançamento</span>
       </button>
@@ -250,10 +246,6 @@ import { Menus, PRINCIPAIS } from './menu';
       backdrop-filter: blur(12px);
     }
     .marca { display: flex; align-items: center; gap: 6px; }
-    .logo {
-      font-weight: 800; font-size: 1.05rem; letter-spacing: 0.04em; color: var(--primary-ink);
-      background: var(--primary); border-radius: 10px; padding: 6px 9px;
-    }
     .user {
       display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 2px;
       font: inherit; font-weight: 700; color: var(--ink); cursor: pointer; border-radius: 999px;
@@ -360,10 +352,6 @@ import { Menus, PRINCIPAIS } from './menu';
         position: fixed; top: 0; bottom: 0; left: 0; z-index: 25; width: var(--side-w);
         display: flex; flex-direction: column; gap: 12px; padding: 16px 12px 0;
         background: var(--card); border-right: 1px solid var(--line); transition: width 0.2s;
-      }
-      .side-marca {
-        display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 4px 0 4px;
-        color: var(--ink-2); font-size: 0.78rem; font-weight: 700; text-align: center; white-space: nowrap;
       }
       .side nav { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; scrollbar-width: thin; }
       .side nav a, .recolher {

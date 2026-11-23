@@ -12,7 +12,7 @@ import { Icon } from '../shared/icon';
   template: `
     <header class="topo" [class.rolou]="rolou()">
       <div class="barra">
-        <button type="button" class="marca" (click)="ir('topo')"><span class="logo">CFP</span><span class="nome">Controle Financeiro Pessoal</span></button>
+        <button type="button" class="marca" (click)="ir('topo')"><img class="logo" src="logo.png" alt="CFP" /><span class="nome">Controle Financeiro Pessoal</span></button>
         <nav class="links" [class.aberto]="menu()">
           @for (s of secoes; track s.id) {
             <button type="button" (click)="ir(s.id)">{{ s.nome }}</button>
@@ -137,7 +137,7 @@ import { Icon } from '../shared/icon';
     .topo.rolou { background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(14px); border-color: var(--line); }
     .barra { max-width: 1120px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 16px; }
     .marca { display: flex; align-items: center; gap: 10px; font: inherit; font-weight: 800; color: var(--ink); background: none; border: 0; cursor: pointer; padding: 0; }
-    .logo { background: var(--primary); color: var(--primary-ink); border-radius: 10px; padding: 6px 9px; letter-spacing: 0.04em; }
+    .logo { width: 36px; height: 36px; }
     .nome { display: none; }
     .links { display: none; }
     .links button { font: inherit; font-weight: 600; font-size: 0.92rem; color: var(--ink-2); background: none; border: 0; cursor: pointer; padding: 8px 10px; border-radius: 10px; }
